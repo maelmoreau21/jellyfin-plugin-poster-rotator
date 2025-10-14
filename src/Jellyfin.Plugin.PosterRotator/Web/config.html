@@ -150,30 +150,44 @@
                 Dashboard.showLoadingMsg();
                 ApiClient.get('Plugins/PosterRotator/Libraries')
                   .then(function (res) {
-                    // if server returned an array, prefer it as authoritative
-                    // We do not fetch libraries from the plugin endpoint in this simplified UI.
-                    // Use saved configuration only.
                     container.innerHTML = '';
+                    // Map saved config -> enabled
                     var existingMap = {};
                     (cfg.LibraryRules || []).forEach(function (r) { if (r && r.Name) existingMap[r.Name] = !!r.Enabled; });
-                    if ((cfg.LibraryRules || []).length === 0) {
-                      container.innerHTML = '<p style="color: #999;">Aucune bibliothèque trouvée</p>';
-                    } else {
+
+                    if (Array.isArray(res) && res.length > 0) {
+                      // Server returns authoritative list of libraries; merge enabled flags from saved config
+                      res.forEach(function (lib) {
+                        var name = lib && (lib.Name || lib.name) ? (lib.Name || lib.name) : 'Unknown';
+                        var enabled = existingMap.hasOwnProperty(name) ? existingMap[name] : true; // default enabled
+                        container.appendChild(addLibraryCheckboxToContainer(name, enabled));
+                      });
+                    } else if ((cfg.LibraryRules || []).length > 0) {
+                      // Fallback to saved config if server didn't return a list
                       (cfg.LibraryRules || []).forEach(function (rule) {
                         container.appendChild(addLibraryCheckboxToContainer(rule.Name || 'Unknown', !!rule.Enabled));
                       });
+                    } else {
+                      container.innerHTML = '<p style="color: #999;">Aucune bibliothèque trouvée</p>';
                     }
                   })
                   .catch(function (err) {
                     console.warn('PosterRotator: failed to load libraries via plugin endpoint', err);
-                    // keep any saved entries visible and offer manual add
-                    if (container.children.length === 0) container.innerHTML = '<p style="color: #999;">Impossible de charger les bibliothèques</p>';
-                    showManualAdd();
+                    // Fallback to saved config if available
+                    if ((cfg.LibraryRules || []).length > 0) {
+                      container.innerHTML = '';
+                      (cfg.LibraryRules || []).forEach(function (rule) {
+                        container.appendChild(addLibraryCheckboxToContainer(rule.Name || 'Unknown', !!rule.Enabled));
+                      });
+                    } else {
+                      container.innerHTML = '<p style="color: #999;">Impossible de charger les bibliothèques</p>';
+                    }
                   })
                   .finally(function () { Dashboard.hideLoadingMsg(); });
               }
 
-              // No external fetch; configuration is already rendered above from saved cfg.
+              // Fetch authoritative list and render it (merging any saved enabled flags)
+              fetchLibraries();
             })
             .catch(function (err) {
               console.error('PosterRotator load error:', err);
