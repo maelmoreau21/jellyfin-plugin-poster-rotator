@@ -22,3 +22,16 @@ c:\Users\Mael\Videos\jellyfin-plugin-poster-rotator-main\jellyfin-plugin-poster-
 c:\Users\Mael\Videos\jellyfin-plugin-poster-rotator-main\jellyfin-plugin-poster-rotator-main\src\Jellyfin.Plugin.PosterRotator\bin\Release\net8.0\Jellyfin.Plugin.PosterRotator.dll
 c:\Users\Mael\Videos\jellyfin-plugin-poster-rotator-main\jellyfin-plugin-poster-rotator-main\src\Jellyfin.Plugin.PosterRotator\bin\Release\net8.0\Jellyfin.Plugin.PosterRotator.pdb
 c:\Users\Mael\Videos\jellyfin-plugin-poster-rotator-main\jellyfin-plugin-poster-rotator-main\src\Jellyfin.Plugin.PosterRotator\obj\Release\net8.0\ref\Jellyfin.Plugin.PosterRotator.dll
+c:\Users\Mael\Documents\GitHub\jellyfin-plugin-poster-rotator\src\Jellyfin.Plugin.PosterRotator\bin\Release\net8.0\Jellyfin.Plugin.PosterRotator.deps.json
+c:\Users\Mael\Documents\GitHub\jellyfin-plugin-poster-rotator\src\Jellyfin.Plugin.PosterRotator\bin\Release\net8.0\Jellyfin.Plugin.PosterRotator.dll
+c:\Users\Mael\Documents\GitHub\jellyfin-plugin-poster-rotator\src\Jellyfin.Plugin.PosterRotator\bin\Release\net8.0\Jellyfin.Plugin.PosterRotator.pdb
+c:\Users\Mael\Documents\GitHub\jellyfin-plugin-poster-rotator\src\Jellyfin.Plugin.PosterRotator\obj\Release\net8.0\Jellyfin.Plugin.PosterRotator.csproj.AssemblyReference.cache
+c:\Users\Mael\Documents\GitHub\jellyfin-plugin-poster-rotator\src\Jellyfin.Plugin.PosterRotator\obj\Release\net8.0\Jellyfin.Plugin.PosterRotator.GeneratedMSBuildEditorConfig.editorconfig
+c:\Users\Mael\Documents\GitHub\jellyfin-plugin-poster-rotator\src\Jellyfin.Plugin.PosterRotator\obj\Release\net8.0\Jellyfin.Plugin.PosterRotator.AssemblyInfoInputs.cache
+c:\Users\Mael\Documents\GitHub\jellyfin-plugin-poster-rotator\src\Jellyfin.Plugin.PosterRotator\obj\Release\net8.0\Jellyfin.Plugin.PosterRotator.AssemblyInfo.cs
+c:\Users\Mael\Documents\GitHub\jellyfin-plugin-poster-rotator\src\Jellyfin.Plugin.PosterRotator\obj\Release\net8.0\Jellyfin.Plugin.PosterRotator.csproj.CoreCompileInputs.cache
+c:\Users\Mael\Documents\GitHub\jellyfin-plugin-poster-rotator\src\Jellyfin.Plugin.PosterRotator\obj\Release\net8.0\Jellyfin.Plugin.PosterRotator.sourcelink.json
+c:\Users\Mael\Documents\GitHub\jellyfin-plugin-poster-rotator\src\Jellyfin.Plugin.PosterRotator\obj\Release\net8.0\Jellyfin.Plugin.PosterRotator.dll
+c:\Users\Mael\Documents\GitHub\jellyfin-plugin-poster-rotator\src\Jellyfin.Plugin.PosterRotator\obj\Release\net8.0\refint\Jellyfin.Plugin.PosterRotator.dll
+c:\Users\Mael\Documents\GitHub\jellyfin-plugin-poster-rotator\src\Jellyfin.Plugin.PosterRotator\obj\Release\net8.0\Jellyfin.Plugin.PosterRotator.pdb
+c:\Users\Mael\Documents\GitHub\jellyfin-plugin-poster-rotator\src\Jellyfin.Plugin.PosterRotator\obj\Release\net8.0\ref\Jellyfin.Plugin.PosterRotator.dll
