@@ -1,0 +1,1 @@
+# jellyfin-plugin-poster-rotator-1
