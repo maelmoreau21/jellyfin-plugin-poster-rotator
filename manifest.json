@@ -11,7 +11,7 @@
       {
         "version": "1.1.0.0",
         "targetAbi": "10.10.0.0",
-        "sourceUrl": " ",
+        "sourceUrl": "https://github.com/maelmoreau21/jellyfin-plugin-poster-rotator/releases/download/V1.1.0.0/Jellyfin.Plugin.PosterRotator-1.1.0.0.zip",
         "checksum": "41dd7509b761fcf15c28183f8e1c30f3",
         "timestamp": "2025-10-14T14:30:00Z",
         "changelog": ""
