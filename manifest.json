@@ -1,0 +1,21 @@
+[
+  {
+    "category": "Metadata",
+    "guid": "7f6eea8b-0e9c-4cbd-9d2a-31f9a37ce2b7",
+    "name": "Poster Rotator",
+    "description": "Fill a local poster pool per movie from providers, then periodically rotate the Primary Poster image from the pool. This keeps Jellyfin looking fresh with rotating poster images on an interval of your choosing. Installation guide available at youtube.com/@jonahjamesen.",
+    "overview": "Pool-then-rotate posters with optional locking.",
+    "owner": "Mael",
+    "imageUrl": "",
+    "versions": [
+      {
+        "version": "1.1.0.0",
+        "targetAbi": "10.10.0.0",
+        "sourceUrl": " ",
+        "checksum": "41dd7509b761fcf15c28183f8e1c30f3",
+        "timestamp": "2025-08-17T14:30:00Z",
+        "changelog": ""
+      }
+    ]
+  }
+]

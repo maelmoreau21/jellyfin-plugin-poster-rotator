@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <title>Poster Rotator</title>
+  <style>
+    .fieldDescription { font-size: 0.85em; color: #999; margin-top: 4px; }
+    .checkboxContainer-withDescription { margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <div id="PosterRotatorConfigPage"
+       data-role="page"
+       class="page type-interior pluginConfigurationPage"
+       data-require="emby-input,emby-button,emby-checkbox">
+
+    <div data-role="content">
+      <div class="content-primary">
+        <form id="PosterRotatorConfigForm">
+
+          <!-- SECTION: Configuration des médias (cachée) -->
+          <!-- Les options "Traiter les films / séries" ont été retirées de l'UI pour simplifier la configuration. -->
+
+          <!-- SECTION: Bibliothèques -->
+          <h2>Bibliothèques à affecter</h2>
+          <!-- Library list is populated from saved configuration; server-side discovery is not exposed in this UI. -->
+          <div id="LibraryRulesContainer" style="margin-bottom: 20px; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+            <p id="NoLibrariesMsg" style="color: #999;">Chargement des bibliothèques...</p>
+          </div>
+          
+
+          <!-- SECTION: Paramètres de rotation -->
+          <h2>Paramètres de rotation</h2>
+          
+          <div class="inputContainer">
+            <label class="inputLabel inputLabelUnfocused" for="PoolSize">Taille du pool (affiches par film)</label>
+            <input id="PoolSize" type="number" min="1" max="20" is="emby-input" value="5" />
+            <div class="fieldDescription">Nombre d'affiches à conserver par film</div>
+          </div>
+
+          <div class="inputContainer">
+            <label class="inputLabel inputLabelUnfocused" for="MinHoursBetweenSwitches">Heures minimum entre les changements</label>
+            <input id="MinHoursBetweenSwitches" type="number" min="1" is="emby-input" value="24" />
+            <div class="fieldDescription">Durée minimale avant de changer l'affiche (en heures)</div>
+          </div>
+
+          <div class="checkboxContainer checkboxContainer-withDescription">
+            <label class="emby-checkbox-label">
+              <input id="SequentialRotation" type="checkbox" is="emby-checkbox" />
+              <span>Rotation séquentielle</span>
+            </label>
+            <div class="fieldDescription">Si décoché: rotation aléatoire</div>
+          </div>
+
+          <div class="checkboxContainer checkboxContainer-withDescription">
+            <label class="emby-checkbox-label">
+              <input id="LockImagesAfterFill" type="checkbox" is="emby-checkbox" />
+              <span>Verrouiller après remplissage du pool</span>
+            </label>
+            <div class="fieldDescription">Empêche les mises à jour de métadonnées de modifier le pool</div>
+          </div>
+
+          <!-- SECTION: Paramètres avancés -->
+          <h2>Paramètres avancés</h2>
+
+          <div class="inputContainer">
+            <label class="inputLabel inputLabelUnfocused" for="ExtraPosterPatterns">Motifs supplémentaires (séparés par virgule)</label>
+            <input id="ExtraPosterPatterns" type="text" is="emby-input" placeholder="folder.jpg, alt-*.png" />
+          </div>
+
+          <!-- BOUTON SAVE -->
+          <div style="margin-top: 30px;">
+            <button is="emby-button" type="submit" class="raised button-submit block emby-button">
+              <span>Enregistrer</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script type="text/javascript">
+      (function () {
+        var pluginId = '7f6eea8b-0e9c-4cbd-9d2a-31f9a37ce2b7';
+
+        function byId(id) { return document.getElementById(id); }
+
+        function createLibraryCheckbox(rule) {
+          var div = document.createElement('div');
+          div.className = 'checkboxContainer checkboxContainer-withDescription';
+          div.style.marginBottom = '8px';
+          
+          var label = document.createElement('label');
+          label.className = 'emby-checkbox-label';
+          
+          var checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.setAttribute('is', 'emby-checkbox');
+          checkbox.checked = rule.Enabled;
+          checkbox.dataset.libraryName = rule.Name;
+          
+          var span = document.createElement('span');
+          span.textContent = rule.Name;
+          
+          label.appendChild(checkbox);
+          label.appendChild(span);
+          div.appendChild(label);
+          
+          return div;
+        }
+
+        function addLibraryCheckboxToContainer(name, checked) {
+          var rule = { Name: name, Enabled: !!checked };
+          return createLibraryCheckbox(rule);
+        }
+
+        function load() {
+          Dashboard.showLoadingMsg();
+          ApiClient.getPluginConfiguration(pluginId)
+            .then(function (cfg) {
+              // Basic loads
+              cfg = cfg || {};
+              if (byId('PoolSize')) byId('PoolSize').value = (cfg.PoolSize ?? 5);
+              if (byId('MinHoursBetweenSwitches')) byId('MinHoursBetweenSwitches').value = (cfg.MinHoursBetweenSwitches ?? 24);
+              if (byId('SequentialRotation')) byId('SequentialRotation').checked = !!cfg.SequentialRotation;
+              if (byId('LockImagesAfterFill')) byId('LockImagesAfterFill').checked = !!cfg.LockImagesAfterFill;
+              // ExtraPosterPatterns may be stored as an array; guard accordingly
+              try {
+                var extraArr = Array.isArray(cfg.ExtraPosterPatterns) ? cfg.ExtraPosterPatterns : (cfg.ExtraPosterPatterns ? cfg.ExtraPosterPatterns : []);
+                if (byId('ExtraPosterPatterns')) byId('ExtraPosterPatterns').value = (extraArr || []).join(', ');
+              } catch (e) {
+                if (byId('ExtraPosterPatterns')) byId('ExtraPosterPatterns').value = '';
+              }
+
+              // Load libraries from saved configuration first so the user sees their selections immediately.
+              var container = byId('LibraryRulesContainer');
+              container.innerHTML = '';
+              var existing = (cfg.LibraryRules || []);
+              if (existing.length > 0) {
+                existing.forEach(function (rule) {
+                  container.appendChild(addLibraryCheckboxToContainer(rule.Name, !!rule.Enabled));
+                });
+              } else {
+                container.innerHTML = '<p style="color: #999;">Aucune bibliothèque trouvée</p>';
+              }
+
+              // Now try to refresh authoritative list from the server and merge enabled flags.
+              // Manual-add removed per user request
+
+              function fetchLibraries() {
+                Dashboard.showLoadingMsg();
+                ApiClient.get('Plugins/PosterRotator/Libraries')
+                  .then(function (res) {
+                    // if server returned an array, prefer it as authoritative
+                    // We do not fetch libraries from the plugin endpoint in this simplified UI.
+                    // Use saved configuration only.
+                    container.innerHTML = '';
+                    var existingMap = {};
+                    (cfg.LibraryRules || []).forEach(function (r) { if (r && r.Name) existingMap[r.Name] = !!r.Enabled; });
+                    if ((cfg.LibraryRules || []).length === 0) {
+                      container.innerHTML = '<p style="color: #999;">Aucune bibliothèque trouvée</p>';
+                    } else {
+                      (cfg.LibraryRules || []).forEach(function (rule) {
+                        container.appendChild(addLibraryCheckboxToContainer(rule.Name || 'Unknown', !!rule.Enabled));
+                      });
+                    }
+                  })
+                  .catch(function (err) {
+                    console.warn('PosterRotator: failed to load libraries via plugin endpoint', err);
+                    // keep any saved entries visible and offer manual add
+                    if (container.children.length === 0) container.innerHTML = '<p style="color: #999;">Impossible de charger les bibliothèques</p>';
+                    showManualAdd();
+                  })
+                  .finally(function () { Dashboard.hideLoadingMsg(); });
+              }
+
+              // No external fetch; configuration is already rendered above from saved cfg.
+            })
+            .catch(function (err) {
+              console.error('PosterRotator load error:', err);
+              alert('Erreur lors du chargement de la configuration. Voir la console.');
+            })
+            .finally(function () { Dashboard.hideLoadingMsg(); });
+        }
+
+        function save(e) {
+          e && e.preventDefault();
+          Dashboard.showLoadingMsg();
+
+          ApiClient.getPluginConfiguration(pluginId)
+            .then(function (cfg) {
+              // Numeric values
+              var n = parseInt((byId('PoolSize')?.value || '5'), 10);
+              cfg.PoolSize = (isNaN(n) || n < 1) ? 5 : n;
+
+              var h = parseInt((byId('MinHoursBetweenSwitches')?.value || '24'), 10);
+              cfg.MinHoursBetweenSwitches = (isNaN(h) || h < 1) ? 24 : h;
+
+              // Booleans
+              cfg.SequentialRotation = !!(byId('SequentialRotation') && byId('SequentialRotation').checked);
+              cfg.LockImagesAfterFill = !!(byId('LockImagesAfterFill') && byId('LockImagesAfterFill').checked);
+              cfg.EnableMovies = !!(byId('EnableMovies') && byId('EnableMovies').checked);
+              cfg.EnableShows = !!(byId('EnableShows') && byId('EnableShows').checked);
+
+              // Patterns
+              var extra = (byId('ExtraPosterPatterns')?.value || '');
+              cfg.ExtraPosterPatterns = extra.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+
+              // Libraries
+              var libraryCheckboxes = document.querySelectorAll('#LibraryRulesContainer input[type="checkbox"]');
+              cfg.LibraryRules = [];
+              libraryCheckboxes.forEach(function (cb) {
+                cfg.LibraryRules.push({
+                  Name: cb.dataset.libraryName || cb.nextSibling?.textContent || 'Unknown',
+                  Enabled: !!cb.checked
+                });
+              });
+
+              return ApiClient.updatePluginConfiguration(pluginId, cfg);
+            })
+            .then(function (result) { Dashboard.processPluginConfigurationUpdateResult(result); })
+            .catch(function (err) {
+              console.error('PosterRotator save error:', err);
+              alert('Erreur lors de la sauvegarde. Voir la console.');
+            })
+            .finally(function () { Dashboard.hideLoadingMsg(); });
+
+          return false;
+        }
+
+        var root = byId('PosterRotatorConfigPage');
+        var form = byId('PosterRotatorConfigForm');
+
+        if (root) {
+          root.addEventListener('pageshow', load);
+          root.addEventListener('viewshow', load);
+        }
+        if (form) {
+          form.addEventListener('submit', save);
+        }
+      })();
+    </script>
+  </div>
+</body>
+</html>
