@@ -26,7 +26,7 @@ Rotate poster images in Jellyfin by building a small local pool of images next t
 
 ## Install
 
-1. In your Plugin Catalog, Add the Repo:
+1. In your Plugin Catalog, Add the Repo: https://raw.githubusercontent.com/maelmoreau21/jellyfin-plugin-poster-rotator/refs/heads/main/manifest.json
 2. In My Plugins, install the Poster Rotator plugin
 3. Click the plugin tile to edit the settings
 4. Restart Jellyfin
