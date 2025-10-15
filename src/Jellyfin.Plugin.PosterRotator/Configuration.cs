@@ -24,4 +24,10 @@ public class Configuration : BasePluginConfiguration
     public bool DryRun { get; set; } = false;
     public List<string> ExtraPosterPatterns { get; set; } = new();
     public int MinHoursBetweenSwitches { get; set; } = 23;
+    // If true, the plugin will attempt to trigger a library scan after rotating posters.
+    // This is a heavy operation; default is true (will attempt to refresh libraries after rotation).
+    public bool TriggerLibraryScanAfterRotation { get; set; } = true;
+    // Manual list of library root paths to process. If non-empty, these paths will be used
+    // to select which items the rotator will operate on. One path per entry.
+    public List<string> ManualLibraryRoots { get; set; } = new();
 }

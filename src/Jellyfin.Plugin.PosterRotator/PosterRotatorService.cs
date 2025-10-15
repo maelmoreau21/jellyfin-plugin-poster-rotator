@@ -40,6 +40,7 @@ namespace Jellyfin.Plugin.PosterRotator
             _providers = providers;
             _services = services;
             _log = log;
+            // No automatic population at startup: manual roots or saved LibraryRules will be used.
         }
 
         public async Task RunAsync(Configuration cfg, IProgress<double>? progress, CancellationToken ct)
@@ -101,6 +102,47 @@ namespace Jellyfin.Plugin.PosterRotator
                 _log.LogInformation("PosterRotator: selected roots to process: {Roots}", string.Join(",", selectedRoots));
             }
 
+            // If manual roots are provided in the configuration, prefer them (they may be paths or names)
+            try
+            {
+                if (cfg.ManualLibraryRoots != null && cfg.ManualLibraryRoots.Count > 0)
+                {
+                    var manual = cfg.ManualLibraryRoots.Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                    var resolved = new List<string>();
+
+                    // Use libraryMap to resolve names -> paths when entry looks like a name
+                    foreach (var entry in manual)
+                    {
+                        // Heuristic: if entry contains a ':' (Windows drive) or a path separator, treat as path
+                        if (entry.IndexOf(':') >= 0 || entry.IndexOf('\\') >= 0 || entry.IndexOf('/') >= 0)
+                        {
+                            resolved.Add(entry);
+                            continue;
+                        }
+
+                        // Otherwise treat as a library name; try to resolve via libraryMap
+                        if (libraryMap.TryGetValue(entry, out var paths) && paths != null && paths.Count > 0)
+                        {
+                            resolved.AddRange(paths);
+                        }
+                        else
+                        {
+                            // If no mapping found, also add the raw name as a fallback (it won't match paths but
+                            // will allow admins to use name-based logic elsewhere if desired)
+                            _log.LogDebug("PosterRotator: manual library name '{Name}' could not be resolved to paths; keeping raw entry", entry);
+                            resolved.Add(entry);
+                        }
+                    }
+
+                    selectedRoots = resolved.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                    _log.LogInformation("PosterRotator: using ManualLibraryRoots resolved to: {Roots}", string.Join(",", selectedRoots));
+                }
+            }
+            catch (Exception ex)
+            {
+                _log.LogDebug(ex, "PosterRotator: error resolving ManualLibraryRoots");
+            }
+
             foreach (var item in items)
             {
                 ct.ThrowIfCancellationRequested();
@@ -135,7 +177,7 @@ namespace Jellyfin.Plugin.PosterRotator
             // Nudge each affected root once
             foreach (var root in rootsToNudge)
             {
-                NudgeLibraryRoot(root);
+                NudgeLibraryRoot(root, cfg.TriggerLibraryScanAfterRotation);
             }
         }
 
@@ -266,6 +308,64 @@ namespace Jellyfin.Plugin.PosterRotator
 
                 SafeOverwrite(chosen, destinationPath);
                 rotated = true;
+
+                // Forcer Jellyfin à détecter le changement d'affiche
+                try
+                {
+                    // Modifier la date de modification du fichier d'affiche
+                    try
+                    {
+                        if (!string.IsNullOrEmpty(destinationPath) && File.Exists(destinationPath))
+                        {
+                            File.SetLastWriteTimeUtc(destinationPath, DateTime.UtcNow);
+                        }
+                    }
+                    catch { }
+
+                    // Tenter d'appeler item.UpdateToRepositoryAsync(ItemUpdateType.ImageUpdate, CancellationToken.None) via reflection
+                    try
+                    {
+                        var itemType = item.GetType();
+                        var method = itemType.GetMethod("UpdateToRepositoryAsync", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                        if (method != null)
+                        {
+                            var parms = method.GetParameters();
+                            if (parms.Length == 2)
+                            {
+                                var enumType = parms[0].ParameterType;
+                                object? enumVal = null;
+                                if (enumType.IsEnum)
+                                {
+                                    try { enumVal = Enum.Parse(enumType, "ImageUpdate", true); } catch { enumVal = null; }
+                                    if (enumVal == null)
+                                    {
+                                        var fld = enumType.GetField("ImageUpdate");
+                                        if (fld != null) enumVal = fld.GetValue(null);
+                                    }
+                                }
+
+                                if (enumVal != null)
+                                {
+                                    method.Invoke(item, new object[] { enumVal, CancellationToken.None });
+                                    _log.LogInformation("PosterRotator: '{Name}' affiche mise à jour et Jellyfin notifié", item.Name);
+                                }
+                            }
+                            else if (parms.Length == 1 && parms[0].ParameterType == typeof(CancellationToken))
+                            {
+                                method.Invoke(item, new object[] { CancellationToken.None });
+                                _log.LogInformation("PosterRotator: '{Name}' affiche mise à jour et Jellyfin notifié (single param)", item.Name);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _log.LogDebug(ex, "PosterRotator: impossible de notifier Jellyfin pour '{Name}'", item.Name);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _log.LogDebug(ex, "PosterRotator: erreur lors de la notification de Jellyfin pour {Name}", item.Name);
+                }
 
                 _log.LogInformation("PosterRotator: rotated \"{Item}\" to {Poster} ({Dest})",
                     item.Name, Path.GetFileName(chosen), Path.GetFileName(destinationPath));
@@ -1214,27 +1314,124 @@ namespace Jellyfin.Plugin.PosterRotator
             }
         }
 
-        private void NudgeLibraryRoot(string rootPath)
+        
+
+        private void NudgeLibraryRoot(string rootPath, bool triggerScan)
         {
-            // Best-effort: touch a persistent file in the root so file watchers notice one change per run.
             try
             {
-                _log.LogDebug("PosterRotator: nudging library root {Root}", rootPath);
+                _log.LogDebug("PosterRotator: notification à Jellyfin pour {Root}", rootPath);
 
+                // Créer/modifier un fichier .touch pour signaler un changement
                 var touch = Path.Combine(rootPath, ".posterrotator.touch");
+
                 if (!File.Exists(touch))
                 {
-                    File.WriteAllText(touch, "posterrotator");
+                    File.WriteAllText(touch, "touch");
                 }
                 else
                 {
+                    // Modifier la date d'accès pour signaler une modification
                     File.SetLastWriteTimeUtc(touch, DateTime.UtcNow);
                 }
+
+                // Aussi modifier le répertoire lui-même
+                try
+                {
+                    Directory.SetLastWriteTimeUtc(rootPath, DateTime.UtcNow);
+                }
+                catch { }
+
+                _log.LogInformation("PosterRotator: Jellyfin notifié du changement");
             }
-            catch
+            catch (Exception ex)
             {
-                // ignore; this is just a cache-bust hint
+                _log.LogWarning(ex, "PosterRotator: impossible de notifier Jellyfin");
             }
+
+                // Final best-effort: try to find a scheduled task manager and trigger a Library Scan task for this root.
+                try
+                {
+                    if (_services != null && triggerScan)
+                    {
+                        var spType = _services.GetType();
+                        var getSvc = spType.GetMethod("GetService");
+                        if (getSvc != null)
+                        {
+                            // Search for types that look like ScheduledTaskManager / TaskManager / IScheduledTaskManager
+                            var candidateTypes = spType.Assembly.GetTypes()
+                                .Where(t => t.Name.IndexOf("TaskManager", StringComparison.OrdinalIgnoreCase) >= 0
+                                         || t.Name.IndexOf("ScheduledTask", StringComparison.OrdinalIgnoreCase) >= 0)
+                                .ToList();
+
+                            foreach (var t in candidateTypes)
+                            {
+                                try
+                                {
+                                    var svc = getSvc.Invoke(_services, new object[] { t });
+                                    if (svc == null) continue;
+
+                                    // Look for methods to Enqueue/Run tasks
+                                    var methods = t.GetMethods(BindingFlags.Public | BindingFlags.Instance);
+                                    // Try to find a method that accepts a task id or name
+                                    var runMethod = methods.FirstOrDefault(m => m.Name.IndexOf("Run", StringComparison.OrdinalIgnoreCase) >= 0 && m.GetParameters().Length == 1 && m.GetParameters()[0].ParameterType == typeof(string));
+                                    if (runMethod != null)
+                                    {
+                                        // Many servers expose named scheduled tasks; try a few known names
+                                        var candidates = new[] { "LibraryScan", "ScanLibrary", "Scan", "Library Scanner", "Scan and Analyze" };
+                                        foreach (var name in candidates)
+                                        {
+                                            try
+                                            {
+                                                runMethod.Invoke(svc, new object[] { name });
+                                                _log.LogInformation("PosterRotator: triggered scheduled task '{Name}' via {Svc}.{Method}", name, t.Name, runMethod.Name);
+                                                return;
+                                            }
+                                            catch { }
+                                        }
+                                    }
+
+                                    // Try other overloads: e.g., EnqueueTask(TaskDefinition) or Enqueue(Task)
+                                    var enqueue = methods.FirstOrDefault(m => m.Name.IndexOf("Enqueue", StringComparison.OrdinalIgnoreCase) >= 0 || m.Name.IndexOf("Add", StringComparison.OrdinalIgnoreCase) >= 0);
+                                    if (enqueue != null)
+                                    {
+                                        try
+                                        {
+                                            // Attempt to find a task definition type in the same assembly that might represent a LibraryScan task
+                                            var taskDefType = spType.Assembly.GetTypes().FirstOrDefault(tt => tt.Name.IndexOf("Library", StringComparison.OrdinalIgnoreCase) >= 0 && tt.Name.IndexOf("Scan", StringComparison.OrdinalIgnoreCase) >= 0);
+                                            if (taskDefType != null)
+                                            {
+                                                // Try to create one with a path property if available
+                                                var td = Activator.CreateInstance(taskDefType);
+                                                if (td != null)
+                                                {
+                                                    var pathProp = taskDefType.GetProperty("Path") ?? taskDefType.GetProperty("LibraryPath") ?? taskDefType.GetProperty("RootPath");
+                                                    if (pathProp != null)
+                                                    {
+                                                        try { pathProp.SetValue(td, rootPath); } catch { }
+                                                    }
+                                                    try
+                                                    {
+                                                        enqueue.Invoke(svc, new object[] { td });
+                                                        _log.LogInformation("PosterRotator: enqueued a library scan task via {Svc}.{Method}", t.Name, enqueue.Name);
+                                                        return;
+                                                    }
+                                                    catch { }
+                                                }
+                                            }
+                                        }
+                                        catch { }
+                                    }
+                                }
+                                catch { }
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _log.LogDebug(ex, "PosterRotator: scheduled-task trigger attempts failed for {Root}", rootPath);
+                }
         }
     }
 }

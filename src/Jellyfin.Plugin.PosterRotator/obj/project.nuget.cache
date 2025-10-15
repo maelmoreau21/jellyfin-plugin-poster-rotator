@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "r4zd9d45YIQ=",
+  "dgSpecHash": "z40UgGxNbuM=",
   "success": true,
-  "projectFilePath": "c:\\Users\\Mael\\Documents\\GitHub\\jellyfin-plugin-poster-rotator\\src\\Jellyfin.Plugin.PosterRotator\\Jellyfin.Plugin.PosterRotator.csproj",
+  "projectFilePath": "C:\\Users\\Mael\\Documents\\GitHub\\jellyfin-plugin-poster-rotator\\src\\Jellyfin.Plugin.PosterRotator\\Jellyfin.Plugin.PosterRotator.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\Mael\\.nuget\\packages\\diacritics\\3.3.29\\diacritics.3.3.29.nupkg.sha512",
     "C:\\Users\\Mael\\.nuget\\packages\\icu4n\\60.1.0-alpha.356\\icu4n.60.1.0-alpha.356.nupkg.sha512",
