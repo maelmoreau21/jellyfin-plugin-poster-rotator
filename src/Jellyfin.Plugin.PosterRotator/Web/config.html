@@ -6,6 +6,7 @@
   <style>
     .fieldDescription { font-size: 0.85em; color: #999; margin-top: 4px; }
     .checkboxContainer-withDescription { margin-top: 16px; }
+    .inputContainer { margin-top: 12px; }
   </style>
 </head>
 <body>
@@ -18,29 +19,15 @@
       <div class="content-primary">
         <form id="PosterRotatorConfigForm">
 
-          <!-- SECTION: Configuration des médias (cachée) -->
-          <!-- Les options "Traiter les films / séries" ont été retirées de l'UI pour simplifier la configuration. -->
-
           <!-- SECTION: Bibliothèques -->
           <h2>Bibliothèques à affecter</h2>
-          <!-- Library list is populated from saved configuration; server-side discovery is not exposed in this UI. -->
-          <div style="margin-bottom:8px;">
-            <div class="fieldDescription">Entrez ici le nom des bibliothèques (ou chemins racine) que le plugin doit affecter. Une entrée par ligne.</div>
-            <textarea id="ManualLibraryRoots" rows="6" style="width:100%; box-sizing:border-box; margin-top:8px;" placeholder="Films\nSéries\nD:\\Media\\Movies"></textarea>
-          </div>
-          
-          <div class="checkboxContainer checkboxContainer-withDescription" style="margin-bottom:14px;">
-            <label class="emby-checkbox-label">
-              <input id="TriggerLibraryScanAfterRotation" type="checkbox" is="emby-checkbox" />
-              <span>Déclencher un scan de la bibliothèque après rotation</span>
-            </label>
-            <div class="fieldDescription">Optionnel et coûteux : force un scan pour que Jellyfin réindexe les images (activé par défaut)</div>
-          </div>
-          
+
+          <!-- Container pour les règles de librairie (rempli par le JS) -->
+          <div id="LibraryRulesContainer" style="margin-top:12px; margin-bottom:14px;"></div>
 
           <!-- SECTION: Paramètres de rotation -->
           <h2>Paramètres de rotation</h2>
-          
+
           <div class="inputContainer">
             <label class="inputLabel inputLabelUnfocused" for="PoolSize">Taille du pool (affiches par film)</label>
             <input id="PoolSize" type="number" min="1" max="20" is="emby-input" value="5" />
@@ -69,7 +56,13 @@
             <div class="fieldDescription">Empêche les mises à jour de métadonnées de modifier le pool</div>
           </div>
 
-          
+          <div class="checkboxContainer checkboxContainer-withDescription" style="margin-bottom:14px;">
+            <label class="emby-checkbox-label">
+              <input id="TriggerLibraryScanAfterRotation" type="checkbox" is="emby-checkbox" />
+              <span>Déclencher un scan de la bibliothèque après rotation</span>
+            </label>
+            <div class="fieldDescription">Optionnel et coûteux : force un scan pour que Jellyfin réindexe les images (activé par défaut)</div>
+          </div>
 
           <!-- SECTION: Paramètres avancés -->
           <h2>Paramètres avancés</h2>
@@ -128,13 +121,17 @@
           Dashboard.showLoadingMsg();
           ApiClient.getPluginConfiguration(pluginId)
             .then(function (cfg) {
-              // Basic loads
               cfg = cfg || {};
               if (byId('PoolSize')) byId('PoolSize').value = (cfg.PoolSize ?? 5);
               if (byId('MinHoursBetweenSwitches')) byId('MinHoursBetweenSwitches').value = (cfg.MinHoursBetweenSwitches ?? 24);
               if (byId('SequentialRotation')) byId('SequentialRotation').checked = !!cfg.SequentialRotation;
               if (byId('LockImagesAfterFill')) byId('LockImagesAfterFill').checked = !!cfg.LockImagesAfterFill;
               if (byId('TriggerLibraryScanAfterRotation')) byId('TriggerLibraryScanAfterRotation').checked = (cfg.TriggerLibraryScanAfterRotation === undefined ? true : !!cfg.TriggerLibraryScanAfterRotation);
+
+              // EnableMovies / EnableShows (on les a ajoutés dans l'UI)
+              if (byId('EnableMovies')) byId('EnableMovies').checked = !!cfg.EnableMovies;
+              if (byId('EnableShows')) byId('EnableShows').checked = !!cfg.EnableShows;
+
               // ExtraPosterPatterns may be stored as an array; guard accordingly
               try {
                 var extraArr = Array.isArray(cfg.ExtraPosterPatterns) ? cfg.ExtraPosterPatterns : (cfg.ExtraPosterPatterns ? cfg.ExtraPosterPatterns : []);
@@ -146,20 +143,78 @@
               // Load libraries from saved configuration: show LibraryRules and manual roots
               console.log('PosterRotator: saved LibraryRules from server:', cfg.LibraryRules);
               var container = byId('LibraryRulesContainer');
-              container.innerHTML = '';
-              var existing = (cfg.LibraryRules || []);
-              if (existing.length > 0) {
-                existing.forEach(function (rule) {
-                  container.appendChild(addLibraryCheckboxToContainer(rule.Name, !!rule.Enabled));
-                });
+              if (container) {
+                container.innerHTML = '';
+                var existing = (cfg.LibraryRules || []);
+                if (existing.length > 0) {
+                  existing.forEach(function (rule) {
+                    container.appendChild(addLibraryCheckboxToContainer(rule.Name, !!rule.Enabled));
+                  });
+                }
               }
+              // --- auto-fill LibraryRules from server if none saved (improved with debug) ---
+              (function fillLibrariesIfEmpty() {
+                var container = byId('LibraryRulesContainer');
+                if (!container) {
+                  console.warn('PosterRotator: #LibraryRulesContainer introuvable dans le DOM.');
+                  return;
+                }
+
+                var existing = (cfg.LibraryRules || []);
+                if (existing.length > 0) {
+                  console.log('PosterRotator: LibraryRules déjà présentes dans cfg, on ne remplace pas.');
+                  return; // on garde ce qui est sauvegardé
+                }
+
+                console.log('PosterRotator: tentative de récupération des VirtualFolders du serveur...');
+
+                function getVirtualFolders() {
+                  if (typeof ApiClient !== 'undefined' && ApiClient.get) {
+                    // 🔧 Correction : on lit le JSON de la réponse
+                    return ApiClient.get('/Library/VirtualFolders').then(r => r.json());
+                  }
+                  // fallback direct
+                  return fetch('/Library/VirtualFolders', { credentials: 'same-origin' })
+                    .then(function (r) {
+                      if (!r.ok) throw new Error('HTTP ' + r.status);
+                      return r.json();
+                    });
+                }
+
+                getVirtualFolders()
+                  .then(function (res) {
+                    console.log('PosterRotator: réponse VirtualFolders reçue :', res);
+                    var folders = Array.isArray(res) ? res : (res.Items || []);
+                    if (!folders || folders.length === 0) {
+                      container.innerHTML = '<div class="fieldDescription">Aucune bibliothèque détectée. (réponse vide)</div>';
+                      return;
+                    }
+
+                    container.innerHTML = '';
+                    folders.forEach(function (f) {
+                      var name = f.Name || f.DisplayName || (f.Path ? f.Path.split(/[\\/]/).pop() : 'Unknown');
+                      container.appendChild(addLibraryCheckboxToContainer(name, true));
+                    });
+
+                    console.log('PosterRotator: bibliothèques ajoutées au DOM:', folders.map(function(f){return f.Name || f.DisplayName;}));
+                  })
+                  .catch(function (err) {
+                    console.error('PosterRotator: erreur chargement bibliothèques:', err);
+                    // Afficher plus de détails si possible
+                    if (err && err.status) {
+                      container.innerHTML = '<div class="fieldDescription" style="color:#c00">Impossible de charger les bibliothèques (HTTP ' + err.status + ')</div>';
+                    } else {
+                      container.innerHTML = '<div class="fieldDescription" style="color:#c00">Impossible de charger les bibliothèques (voir console pour détails)</div>';
+                    }
+                  });
+              })();
 
               // Fill manual roots textarea
               try {
                 var rootsText = '';
                 if (Array.isArray(cfg.ManualLibraryRoots)) rootsText = cfg.ManualLibraryRoots.join('\n');
                 if (byId('ManualLibraryRoots')) byId('ManualLibraryRoots').value = rootsText;
-              } catch (e) { }
+              } catch (e) { console.error(e); }
             })
             .catch(function (err) {
               console.error('PosterRotator load error:', err);
@@ -174,9 +229,25 @@
 
           ApiClient.getPluginConfiguration(pluginId)
             .then(function (cfg) {
-              // Numeric values
-              var n = parseInt((byId('PoolSize')?.value || '5'), 10);
-              cfg.PoolSize = (isNaN(n) || n < 1) ? 5 : n;
+              cfg = cfg || {};
+
+              // Lecture et validation du PoolSize
+              var rawValue = byId('PoolSize')?.value;
+              console.log('[PosterRotator] PoolSize input value:', rawValue);
+
+              var n = parseInt(rawValue, 10);
+
+              if (isNaN(n) || n < 1) {
+                alert("Valeur de PoolSize invalide. Entrez un nombre supérieur ou égal à 1.");
+                Dashboard.hideLoadingMsg();
+                return; // stop la sauvegarde
+              }
+
+              cfg.PoolSize = n;
+
+              // Vérification avant envoi
+              console.log('[PosterRotator] PoolSize enregistré dans cfg:', cfg.PoolSize);
+
 
               var h = parseInt((byId('MinHoursBetweenSwitches')?.value || '24'), 10);
               cfg.MinHoursBetweenSwitches = (isNaN(h) || h < 1) ? 24 : h;
@@ -196,8 +267,9 @@
               var libraryCheckboxes = document.querySelectorAll('#LibraryRulesContainer input[type="checkbox"]');
               cfg.LibraryRules = [];
               libraryCheckboxes.forEach(function (cb) {
+                var name = cb.dataset.libraryName || (cb.parentElement ? (cb.parentElement.querySelector('span')?.textContent) : null) || 'Unknown';
                 cfg.LibraryRules.push({
-                  Name: cb.dataset.libraryName || cb.nextSibling?.textContent || 'Unknown',
+                  Name: name,
                   Enabled: !!cb.checked
                 });
               });
@@ -208,6 +280,7 @@
                 cfg.ManualLibraryRoots = rootsVal;
               } catch (e) { cfg.ManualLibraryRoots = []; }
 
+              console.log('[PosterRotator] Configuration envoyée au serveur:', JSON.stringify(cfg, null, 2));
               return ApiClient.updatePluginConfiguration(pluginId, cfg);
             })
             .then(function (result) { Dashboard.processPluginConfigurationUpdateResult(result); })

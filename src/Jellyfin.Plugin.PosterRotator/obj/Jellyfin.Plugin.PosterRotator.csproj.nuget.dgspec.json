@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\Mael\\Documents\\GitHub\\jellyfin-plugin-poster-rotator\\src\\Jellyfin.Plugin.PosterRotator\\Jellyfin.Plugin.PosterRotator.csproj": {}
+    "c:\\Users\\Mael\\Documents\\GitHub\\jellyfin-plugin-poster-rotator\\src\\Jellyfin.Plugin.PosterRotator\\Jellyfin.Plugin.PosterRotator.csproj": {}
   },
   "projects": {
-    "C:\\Users\\Mael\\Documents\\GitHub\\jellyfin-plugin-poster-rotator\\src\\Jellyfin.Plugin.PosterRotator\\Jellyfin.Plugin.PosterRotator.csproj": {
+    "c:\\Users\\Mael\\Documents\\GitHub\\jellyfin-plugin-poster-rotator\\src\\Jellyfin.Plugin.PosterRotator\\Jellyfin.Plugin.PosterRotator.csproj": {
       "version": "1.1.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\Mael\\Documents\\GitHub\\jellyfin-plugin-poster-rotator\\src\\Jellyfin.Plugin.PosterRotator\\Jellyfin.Plugin.PosterRotator.csproj",
+        "projectUniqueName": "c:\\Users\\Mael\\Documents\\GitHub\\jellyfin-plugin-poster-rotator\\src\\Jellyfin.Plugin.PosterRotator\\Jellyfin.Plugin.PosterRotator.csproj",
         "projectName": "Jellyfin.Plugin.PosterRotator",
-        "projectPath": "C:\\Users\\Mael\\Documents\\GitHub\\jellyfin-plugin-poster-rotator\\src\\Jellyfin.Plugin.PosterRotator\\Jellyfin.Plugin.PosterRotator.csproj",
+        "projectPath": "c:\\Users\\Mael\\Documents\\GitHub\\jellyfin-plugin-poster-rotator\\src\\Jellyfin.Plugin.PosterRotator\\Jellyfin.Plugin.PosterRotator.csproj",
         "packagesPath": "C:\\Users\\Mael\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\Mael\\Documents\\GitHub\\jellyfin-plugin-poster-rotator\\src\\Jellyfin.Plugin.PosterRotator\\obj\\",
+        "outputPath": "c:\\Users\\Mael\\Documents\\GitHub\\jellyfin-plugin-poster-rotator\\src\\Jellyfin.Plugin.PosterRotator\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\Mael\\AppData\\Roaming\\NuGet\\NuGet.Config"

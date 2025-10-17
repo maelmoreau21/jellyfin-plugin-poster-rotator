@@ -6,12 +6,13 @@ Rotate poster images in Jellyfin by building a small local pool of images next t
 
 ## Features
 
- - Builds a per-item `.poster_pool` folder next to the media file or item folder  
-- Downloads posters from providers like TMDb and Fanart when available  
-- Saves a snapshot of the current primary poster as `pool_currentprimary.*`  
-- Option to lock the pool after it reaches the target size  
-- Sequential or random rotation with a configurable cooldown  
-- Best-effort cache bust so clients notice the change  
+-Works with both Movies and TV Shows (toggleable in settings)
+-Per-library enable/disable control (choose which libraries participate)
+ - Builds a per-item .poster_pool folder for each movie or show
+-Downloads posters from providers like TMDb and Fanart when available
+-Saves a snapshot of the current primary poster as pool_currentprimary.*
+-Sequential or random rotation with a configurable cooldown
+-Supports extra poster patterns (e.g. cover.jpg, *-alt.png)
 
 ---
 
@@ -25,17 +26,19 @@ Rotate poster images in Jellyfin by building a small local pool of images next t
 
 ## Install
 
-1. In your Plugin Catalog, Add the Repo: https://raw.githubusercontent.com/jonah-jamesen/jellyfin-plugin-poster-rotator/refs/heads/main/manifest.json
+1. In your Plugin Catalog, Add the Repo: 
+```Repo
+https://raw.githubusercontent.com/maelmoreau21/jellyfin-plugin-poster-rotator/refs/heads/main/manifest.json
+```
 2. In My Plugins, install the Poster Rotator plugin
 3. Click the plugin tile to edit the settings
 4. Restart Jellyfin
-4. (Optional) In Scheduled Tasks, run the Rotate Posters (Pool Then Rotate) task to seed your Poster Pools.
 
 ## Manual Install
 
 1. Download the latest release `.zip` from the **Releases** page.  
 2. Stop Jellyfin.  
-3. Extract and copy `Jellyfin.Plugin.PosterRotator.dll` to the server plugins folder:  
+3. Extract and copy `Jellyfin.Plugin.PosterRotator.dll` to a folder in the server plugins folder:  
    - **Windows:** `C:\ProgramData\Jellyfin\Server\plugins`  
    - **Linux:** `/var/lib/jellyfin/plugins` or `/var/lib/jellyfin/plugins/local`  
    - **Docker:** bind mount a plugins folder and place the `.dll` there  
@@ -49,30 +52,37 @@ Rotate poster images in Jellyfin by building a small local pool of images next t
 When the scheduled task runs:  
 
  - The plugin looks for or creates `<media directory>/.poster_pool`.  
+ - The plugin looks for or creates `<media directory>/.poster_pool`.
 - It tops up the pool using your enabled metadata image providers until the pool size setting is reached.  
-- If no remote images are found, it copies the current primary poster into the pool once.  
+- If no images are found, it copies the current primary poster into the pool once.  
 - It rotates to the next image in the pool and updates the **Primary poster** file.  
-- The plugin touches the file time and nudges Jellyfin so clients refresh.  
+- The plugin nudges Jellyfin so clients refresh.
 
-**Files created per item:**
- - `.poster_pool/pool_currentprimary.<ext>` → snapshot of the current primary  
- - `.poster_pool/pool_<timestamp>.<ext>` → downloaded candidates  
- - `.poster_pool/rotation_state.json` → rotation state and cooldown tracking  
- - `.poster_pool/pool.lock` → created when **Lock After Fill** is enabled  
+Important: Jellyfin and clients sometimes cache images. After the plugin rotates posters you may need to:
+
+- Run a library scan (Dashboard → Scheduled Tasks → Library Scan) so Jellyfin notices file changes, or
+- Use the Images tab on the media item and hit Refresh, or
+- Restart Jellyfin if you don't see updated posters.
+
+Note: The settings page uses the saved configuration to list libraries. The UI does not attempt an automatic refresh of server-side library discovery; edit the saved library names in the plugin settings if a library is missing.
+
+**Files created per item:**  
+- `.poster_pool/pool_currentprimary.<ext>` → snapshot of the current primary  
+- `.poster_pool/pool_<timestamp>.<ext>` → downloaded candidates  
+- `.poster_pool/rotation_state.json` → rotation state and cooldown tracking  
+- `.poster_pool/pool.lock` → created when **Lock After Fill** is enabled  
 
 ---
 
 ## Settings
 
 - **Pool Size** → number of posters to keep in the pool  
-- **Lock Images After Fill** → stop metadata refreshes from downloading once pool reaches size  
 - **Sequential Rotation** → rotate in stable order; otherwise, random  
 - **Min Hours Between Switches** → cooldown (default: 24)  Note: update this and the Scheduled Task Rotate Movie Posters (Pool Then Rotate) to process more frequently in order to cycle more often.
 - **Extra Poster Patterns** → additional filename globs to include  
-- **Dry Run** → log actions without changing files
 
-💡 *Tip: The scheduled task can run more often than your cooldown. The plugin skips items still within the Min Hour window.*  
-Note: The plugin settings page lists libraries based on the saved configuration. The UI does not provide an automatic refresh of server-discovered libraries; if a library is missing, update its exact name in the plugin settings.
+💡 *Tip: The scheduled task can run more often than your cooldown. The plugin skips fetching new images for movies still within the Min Hour window.*  
+
 ---
 
 ## Running the Task
@@ -80,7 +90,8 @@ Note: The plugin settings page lists libraries based on the saved configuration.
 Go to: **Dashboard → Scheduled Tasks → Rotate Movie Posters (Pool Then Rotate)**  
 
 - Run on demand, or schedule daily/hourly.  
-- Cooldown prevents over-rotation.  
+- Cooldown prevents pinging metadata providors too much.
+- Note: Library Scan required to actually see the new posters. You can manually run one or sync up the library scan scheduled task with the rotate posters task.  
 
 ---
 
@@ -89,27 +100,30 @@ Go to: **Dashboard → Scheduled Tasks → Rotate Movie Posters (Pool Then Rotat
 **Pool stays at 1 and does not download more**  
 - Ensure TMDb and Fanart are installed and enabled  
 - Verify server can reach provider endpoints  
-- Check server log for provider attempts  
+- Check server log for details
 
 **Posters do not appear to change**  
-- For testing, set `Min Hours Between Switches` to 1 and run the task twice  
-- Force refresh the browser or check **Images** tab in the movie  
+-Run a full scan of the media library after rotating posters
+-Check images in the library card
 
 **Posters do not appear to change**
-- The plugin writes files to disk but Jellyfin (and clients) may cache images. To force Jellyfin to reindex and show changes:
-   1. Run **Library Scan** for the affected library in Admin → Scheduled Tasks.
-   2. Open the media item and use the **Images** tab → **Refresh** to reindex images for that item.
-   3. Clear your browser cache or test in a private window.
-   4. As a last resort, restart Jellyfin.
+- Jellyfin and clients often cache images; the plugin updates files on disk but the server or clients may keep the old image in cache.
+- Steps to force Jellyfin to notice changes:
+   1. In Jellyfin Admin → Scheduled Tasks → run the appropriate **Library Scan** (or run the full library scan) for the library that contains the changed item.
+   2. Open the media item in Jellyfin, go to the **Images** tab and click **Refresh** to force image reindex for that item.
+   3. Clear browser cache or open the instance in a private window to avoid client-side cache.
+   4. If nothing else works, restart the Jellyfin server to force re-indexing.
 
-**What the plugin does to help**
-- Touches poster files and parent folder timestamps.
-- Writes/updates a `.posterrotator.touch` file in the library root to hint file watchers.
-- Attempts best-effort refresh via reflection of server metadata/image refresh APIs (this may silently fail on some Jellyfin versions).
+**What the plugin already does to nudge Jellyfin**
+- The plugin updates the target poster file and touches its last-write timestamp.
+- It updates the parent folder timestamp and writes/updates a `.posterrotator.touch` file in the library root as a lightweight 'nudge' for file watchers.
+- It attempts best-effort calls via reflection to invoke refresh methods on the library/metadata services when available. These reflection calls are version-dependent and may silently no-op if the server's API differs.
+
+These measures work on many setups but are not guaranteed to force an immediate UI refresh on all Jellyfin versions or with all reverse proxies/caches.
 
 **No providers detected**
 - Restart server after installing provider plugins
-- Ensure the item has provider IDs and the provider plugins are enabled
+- Ensure the item is a Movie and has provider IDs  
 
 ---
 

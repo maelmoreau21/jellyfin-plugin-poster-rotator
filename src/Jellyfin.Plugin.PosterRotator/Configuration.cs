@@ -17,6 +17,9 @@ public class Configuration : BasePluginConfiguration
     // Preferred shape for the UI: list of named rules with Enabled flag
     public List<LibraryRule> LibraryRules { get; set; } = new();
 
+    // NEW: si true -> tenter la détection automatique des bibliothèques (comportement par défaut)
+    public bool AutoDetectLibraries { get; set; } = true;
+
     public int PoolSize { get; set; } = 5;
     public bool SequentialRotation { get; set; } = false;
     public bool SaveNextToMedia { get; set; } = true;

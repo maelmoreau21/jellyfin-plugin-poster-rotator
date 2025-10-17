@@ -87,6 +87,14 @@ namespace Jellyfin.Plugin.PosterRotator
             }
 
             if (configuredNames.Count > 0)
+            // DEFAULT: si aucune library n'a été configurée explicitement ET qu'il n'y a pas de ManualLibraryRoots,
+            // alors on va par défaut traiter toutes les racines de bibliothèque découvertes (auto-detect).
+            if (configuredNames.Count == 0 && (cfg.ManualLibraryRoots == null || cfg.ManualLibraryRoots.Count == 0))
+            {
+                // selectedRoots contient maintenant toutes les racines connues (mode auto)
+                selectedRoots = allLibraryRoots.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                _log.LogInformation("PosterRotator: no libraries configured -> defaulting to all library roots: {Roots}", string.Join(",", selectedRoots));
+            }
             {
                 var wanted = new HashSet<string>(configuredNames, StringComparer.OrdinalIgnoreCase);
                 foreach (var kv in libraryMap)

@@ -11,10 +11,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Remove="Web\config.html" />
-    <EmbeddedResource Include="Web\config.html">
-      <LogicalName>Jellyfin.Plugin.PosterRotator.Configuration.config.html</LogicalName>
-    </EmbeddedResource>
+    <EmbeddedResource Include="Web\config.html" />
   </ItemGroup>
 
   <ItemGroup>
