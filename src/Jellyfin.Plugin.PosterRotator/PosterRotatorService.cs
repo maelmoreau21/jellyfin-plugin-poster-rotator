@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -9,7 +10,6 @@ using System.Threading.Tasks;
 
 using Jellyfin.Data.Enums;                     // BaseItemKind
 using MediaBrowser.Controller.Entities;        // BaseItem
-using MediaBrowser.Controller.Entities.Movies; // Movie
 using MediaBrowser.Controller.Library;         // ILibraryManager, InternalItemsQuery
 using MediaBrowser.Controller.Providers;       // IProviderManager, IRemoteImageProvider
 using MediaBrowser.Model.Entities;             // ImageType
@@ -40,22 +40,39 @@ namespace Jellyfin.Plugin.PosterRotator
             _providers = providers;
             _services = services;
             _log = log;
-            // No automatic population at startup: manual roots or saved LibraryRules will be used.
         }
 
         public async Task RunAsync(Configuration cfg, IProgress<double>? progress, CancellationToken ct)
         {
+            var kinds = new List<BaseItemKind>
+            {
+                BaseItemKind.Movie,
+                BaseItemKind.Series,
+                BaseItemKind.BoxSet
+            };
+
+            if (cfg.EnableSeasonPosters)
+            {
+                kinds.Add(BaseItemKind.Season);
+            }
+
+            if (cfg.EnableEpisodePosters)
+            {
+                kinds.Add(BaseItemKind.Episode);
+            }
+
             var q = new InternalItemsQuery
             {
-                IncludeItemTypes = new[] { BaseItemKind.Movie, BaseItemKind.Series },
+                IncludeItemTypes = kinds.Distinct().ToArray(),
                 Recursive = true
             };
 
-            var items = _library.GetItemList(q).ToList();
+            var items = GetItemListCompat(q, ct);
 
-            if (cfg.Libraries is { Count: > 0 })
+            if (items.Count == 0)
             {
-                _log.LogInformation("PosterRotator: library filtering by name is not applied in this build; processing all movies.");
+                _log.LogWarning("PosterRotator: no items returned by library manager; aborting run.");
+                return;
             }
 
             // Build a quick map: directory -> number of items in that directory.
@@ -74,8 +91,6 @@ namespace Jellyfin.Plugin.PosterRotator
             var allLibraryRoots = libraryMap.SelectMany(kv => kv.Value).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             var rootsToNudge = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            // If user specified LibraryRules in cfg, build selected roots to process. Fall back to simple Libraries list for compatibility.
-            List<string> selectedRoots = new();
             var configuredNames = new List<string>();
             if (cfg.LibraryRules is { Count: > 0 })
             {
@@ -86,80 +101,26 @@ namespace Jellyfin.Plugin.PosterRotator
                 configuredNames.AddRange(cfg.Libraries);
             }
 
-            if (configuredNames.Count > 0)
-            // DEFAULT: si aucune library n'a été configurée explicitement ET qu'il n'y a pas de ManualLibraryRoots,
-            // alors on va par défaut traiter toutes les racines de bibliothèque découvertes (auto-detect).
-            if (configuredNames.Count == 0 && (cfg.ManualLibraryRoots == null || cfg.ManualLibraryRoots.Count == 0))
-            {
-                // selectedRoots contient maintenant toutes les racines connues (mode auto)
-                selectedRoots = allLibraryRoots.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-                _log.LogInformation("PosterRotator: no libraries configured -> defaulting to all library roots: {Roots}", string.Join(",", selectedRoots));
-            }
-            {
-                var wanted = new HashSet<string>(configuredNames, StringComparer.OrdinalIgnoreCase);
-                foreach (var kv in libraryMap)
-                {
-                    if (wanted.Contains(kv.Key))
-                    {
-                        selectedRoots.AddRange(kv.Value);
-                    }
-                }
-                // dedupe
-                selectedRoots = selectedRoots.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-                _log.LogInformation("PosterRotator: configured libraries: {Cfg}", string.Join(",", configuredNames));
-                _log.LogInformation("PosterRotator: selected roots to process: {Roots}", string.Join(",", selectedRoots));
-            }
-
-            // If manual roots are provided in the configuration, prefer them (they may be paths or names)
-            try
-            {
-                if (cfg.ManualLibraryRoots != null && cfg.ManualLibraryRoots.Count > 0)
-                {
-                    var manual = cfg.ManualLibraryRoots.Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-                    var resolved = new List<string>();
-
-                    // Use libraryMap to resolve names -> paths when entry looks like a name
-                    foreach (var entry in manual)
-                    {
-                        // Heuristic: if entry contains a ':' (Windows drive) or a path separator, treat as path
-                        if (entry.IndexOf(':') >= 0 || entry.IndexOf('\\') >= 0 || entry.IndexOf('/') >= 0)
-                        {
-                            resolved.Add(entry);
-                            continue;
-                        }
-
-                        // Otherwise treat as a library name; try to resolve via libraryMap
-                        if (libraryMap.TryGetValue(entry, out var paths) && paths != null && paths.Count > 0)
-                        {
-                            resolved.AddRange(paths);
-                        }
-                        else
-                        {
-                            // If no mapping found, also add the raw name as a fallback (it won't match paths but
-                            // will allow admins to use name-based logic elsewhere if desired)
-                            _log.LogDebug("PosterRotator: manual library name '{Name}' could not be resolved to paths; keeping raw entry", entry);
-                            resolved.Add(entry);
-                        }
-                    }
-
-                    selectedRoots = resolved.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-                    _log.LogInformation("PosterRotator: using ManualLibraryRoots resolved to: {Roots}", string.Join(",", selectedRoots));
-                }
-            }
-            catch (Exception ex)
-            {
-                _log.LogDebug(ex, "PosterRotator: error resolving ManualLibraryRoots");
-            }
+            var selection = ResolveSelectedRoots(cfg, configuredNames, libraryMap, allLibraryRoots);
+            var selectedRoots = selection.Paths;
+            var selectedLibraryNames = selection.LibraryNames;
+            var hasSelection = selectedRoots.Count > 0 || selectedLibraryNames.Count > 0;
 
             foreach (var item in items)
             {
                 ct.ThrowIfCancellationRequested();
-                // If Libraries configured, skip items not under the selected roots
-                if (selectedRoots.Count > 0)
+                if (hasSelection)
                 {
                     var path = item.Path ?? string.Empty;
-                    var inSelected = selectedRoots.Any(r => !string.IsNullOrEmpty(r) && path.StartsWith(r, StringComparison.OrdinalIgnoreCase));
-                    if (!inSelected) { _log.LogDebug("PosterRotator: skipping item '{Name}' because it is not under selected libraries", item.Name); progress?.Report(++done * 100.0 / Math.Max(1, total)); continue; }
+                    var matchesPath = selectedRoots.Any(r => LooksLikePath(r) && path.StartsWith(r, StringComparison.OrdinalIgnoreCase));
+                    var matchesLibraryName = IsUnderSelectedLibraryNames(path, selectedLibraryNames, libraryMap);
+
+                    if (!matchesPath && !matchesLibraryName)
+                    {
+                        _log.LogDebug("PosterRotator: skipping item '{Name}' because it is not under selected libraries", item.Name);
+                        progress?.Report(++done * 100.0 / Math.Max(1, total));
+                        continue;
+                    }
                 }
                 try
                 {
@@ -167,7 +128,7 @@ namespace Jellyfin.Plugin.PosterRotator
                     if (rotated)
                     {
                         var path = item.Path ?? string.Empty;
-                        var root = allLibraryRoots.FirstOrDefault(r => path.StartsWith(r, StringComparison.OrdinalIgnoreCase));
+                        var root = allLibraryRoots.FirstOrDefault(r => LooksLikePath(r) && path.StartsWith(r, StringComparison.OrdinalIgnoreCase));
                         if (!string.IsNullOrEmpty(root))
                         {
                             rootsToNudge.Add(root);
@@ -189,6 +150,246 @@ namespace Jellyfin.Plugin.PosterRotator
             }
         }
 
+        private List<BaseItem> GetItemListCompat(InternalItemsQuery query, CancellationToken ct)
+        {
+            try
+            {
+                // Try 10.10 signature: GetItemList(InternalItemsQuery)
+                var method = _library.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance)
+                    .FirstOrDefault(m => m.Name == "GetItemList" && m.GetParameters().Length == 1 &&
+                                         m.GetParameters()[0].ParameterType.Name.Contains("InternalItemsQuery", StringComparison.Ordinal));
+
+                if (method != null)
+                {
+                    var items = ConvertToBaseItemList(method.Invoke(_library, new object[] { query }));
+                    if (items.Count > 0)
+                    {
+                        return items;
+                    }
+                }
+
+                // Try 10.11 signature: GetItemList(InternalItemsQuery, CancellationToken)
+                method = _library.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance)
+                    .FirstOrDefault(m => m.Name == "GetItemList" && m.GetParameters().Length == 2 &&
+                                         m.GetParameters()[0].ParameterType.Name.Contains("InternalItemsQuery", StringComparison.Ordinal));
+
+                if (method != null)
+                {
+                    var items = ConvertToBaseItemList(method.Invoke(_library, new object[] { query, ct }));
+                    if (items.Count > 0)
+                    {
+                        return items;
+                    }
+                }
+
+                // Fallback: GetItemsResult(...) with Items property
+                method = _library.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance)
+                    .FirstOrDefault(m => m.Name == "GetItemsResult" &&
+                                         m.GetParameters().Length >= 1 &&
+                                         m.GetParameters()[0].ParameterType.Name.Contains("InternalItemsQuery", StringComparison.Ordinal));
+
+                if (method != null)
+                {
+                    var parameters = method.GetParameters();
+                    object?[] args = parameters.Length switch
+                    {
+                        1 => new object?[] { query },
+                        2 when parameters[1].ParameterType == typeof(CancellationToken) => new object?[] { query, ct },
+                        _ => Array.Empty<object?>()
+                    };
+
+                    if (args.Length > 0)
+                    {
+                        var result = method.Invoke(_library, args);
+                        if (result != null)
+                        {
+                            var itemsProp = result.GetType().GetProperty("Items", BindingFlags.Public | BindingFlags.Instance);
+                            if (itemsProp?.GetValue(result) is IEnumerable enumerable)
+                            {
+                                return ConvertToBaseItemList(enumerable);
+                            }
+                        }
+                    }
+                }
+
+                _log.LogWarning("PosterRotator: library API lookup failed; using empty item list.");
+            }
+            catch (Exception ex)
+            {
+                _log.LogError(ex, "PosterRotator: library enumeration failed");
+            }
+
+            return new List<BaseItem>();
+        }
+
+        private static List<BaseItem> ConvertToBaseItemList(object? value)
+        {
+            if (value is null)
+            {
+                return new List<BaseItem>();
+            }
+
+            if (value is List<BaseItem> list)
+            {
+                return list;
+            }
+
+            if (value is IEnumerable<BaseItem> typedEnumerable)
+            {
+                return typedEnumerable.ToList();
+            }
+
+            if (value is IEnumerable enumerable)
+            {
+                var result = new List<BaseItem>();
+                foreach (var item in enumerable)
+                {
+                    if (item is BaseItem baseItem)
+                    {
+                        result.Add(baseItem);
+                    }
+                }
+                return result;
+            }
+
+            return new List<BaseItem>();
+        }
+
+        private SelectedRoots ResolveSelectedRoots(
+            Configuration cfg,
+            List<string> configuredNames,
+            Dictionary<string, List<string>> libraryMap,
+            List<string> allLibraryRoots)
+        {
+            var result = new SelectedRoots();
+
+            try
+            {
+                if (cfg.ManualLibraryRoots is { Count: > 0 })
+                {
+                    var manual = cfg.ManualLibraryRoots
+                        .Where(s => !string.IsNullOrWhiteSpace(s))
+                        .Select(s => s.Trim())
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+
+                    if (manual.Count > 0)
+                    {
+                        foreach (var entry in manual)
+                        {
+                            if (LooksLikePath(entry))
+                            {
+                                result.Paths.Add(entry);
+                                continue;
+                            }
+
+                            if (libraryMap.TryGetValue(entry, out var paths) && paths is { Count: > 0 })
+                            {
+                                result.Paths.AddRange(paths);
+                                result.LibraryNames.Add(entry);
+                            }
+                            else
+                            {
+                                _log.LogWarning("PosterRotator: manual entry '{Entry}' does not match any known library", entry);
+                            }
+                        }
+
+                        DeduplicatePaths(result.Paths);
+                        _log.LogInformation("PosterRotator: using ManualLibraryRoots resolved to: {Roots}", string.Join(",", result.Paths));
+                        return result;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _log.LogDebug(ex, "PosterRotator: error resolving ManualLibraryRoots");
+            }
+
+            if (configuredNames.Count > 0)
+            {
+                foreach (var name in configuredNames)
+                {
+                    if (libraryMap.TryGetValue(name, out var paths) && paths is { Count: > 0 })
+                    {
+                        result.Paths.AddRange(paths);
+                        result.LibraryNames.Add(name);
+                    }
+                    else
+                    {
+                        _log.LogWarning("PosterRotator: configured library '{Name}' not found among current libraries", name);
+                    }
+                }
+
+                DeduplicatePaths(result.Paths);
+
+                if (result.Paths.Count > 0)
+                {
+                    _log.LogInformation("PosterRotator: configured libraries: {Cfg}", string.Join(",", configuredNames));
+                    _log.LogInformation("PosterRotator: selected roots to process: {Roots}", string.Join(",", result.Paths));
+                }
+
+                return result;
+            }
+
+            if (allLibraryRoots.Count > 0)
+            {
+                result.Paths.AddRange(allLibraryRoots.Distinct(StringComparer.OrdinalIgnoreCase));
+                _log.LogInformation("PosterRotator: no libraries configured -> defaulting to all library roots: {Roots}", string.Join(",", result.Paths));
+            }
+
+            return result;
+        }
+
+        private static void DeduplicatePaths(List<string> paths)
+        {
+            if (paths.Count <= 1)
+            {
+                return;
+            }
+
+            var unique = paths.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            paths.Clear();
+            paths.AddRange(unique);
+        }
+
+        private static bool IsUnderSelectedLibraryNames(
+            string path,
+            HashSet<string> allowedLibraryNames,
+            Dictionary<string, List<string>> libraryMap)
+        {
+            if (string.IsNullOrEmpty(path) || allowedLibraryNames.Count == 0)
+            {
+                return false;
+            }
+
+            foreach (var name in allowedLibraryNames)
+            {
+                if (!libraryMap.TryGetValue(name, out var roots) || roots.Count == 0)
+                {
+                    continue;
+                }
+
+                foreach (var root in roots)
+                {
+                    if (LooksLikePath(root) && path.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private sealed class SelectedRoots
+        {
+            public List<string> Paths { get; } = new();
+            public HashSet<string> LibraryNames { get; } = new(StringComparer.OrdinalIgnoreCase);
+        }
+
+        private static bool LooksLikePath(string entry) =>
+            entry.IndexOf(':') >= 0 || entry.IndexOf('\\') >= 0 || entry.IndexOf('/') >= 0;
+
         // returns true if we actually overwrote the current poster
         private async Task<bool> ProcessItemAsync(BaseItem item, Configuration cfg, CancellationToken ct, IDictionary<string,int> dirCounts)
         {
@@ -205,7 +406,7 @@ namespace Jellyfin.Plugin.PosterRotator
                 : Path.Combine(itemDir, ".poster_pool");
             Directory.CreateDirectory(poolDir);
 
-            // ---- read existing pool ------------------------------------------------
+            // Load existing images in the pool.
             var local = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var pat in GetPoolPatterns(cfg))
                 foreach (var f in Directory.GetFiles(poolDir, pat))
@@ -214,7 +415,7 @@ namespace Jellyfin.Plugin.PosterRotator
             var lockFile = Path.Combine(poolDir, "pool.lock");
             var poolIsLocked = File.Exists(lockFile);
 
-            // ---- cooldown state (gates TOP-UP only, not rotation) ------------------
+            // Use a simple cooldown to cap metadata provider calls.
             var statePath = Path.Combine(poolDir, "rotation_state.json");
             var state = LoadState(statePath);
             var key = item.Id.ToString();
@@ -224,13 +425,13 @@ namespace Jellyfin.Plugin.PosterRotator
             var elapsed = haveLast ? (now - DateTimeOffset.FromUnixTimeSeconds(lastEpoch)) : TimeSpan.MaxValue;
             var minHours = Math.Max(1, cfg.MinHoursBetweenSwitches);
 
-            // allow top-up if: never rotated OR past cooldown OR pool is empty
+            // Allow top-up if we never rotated, are past the cooldown, or the pool is empty.
             bool allowTopUp = !haveLast || elapsed.TotalHours >= minHours || local.Count == 0;
 
             _log.LogDebug("PosterRotator: \"{Item}\" pool has {Count}/{Target}. Locked:{Locked}. AllowTopUp:{Allow} (elapsed {H:0.0}h, min {Min}h)",
                 item.Name, local.Count, cfg.PoolSize, poolIsLocked, allowTopUp, haveLast ? elapsed.TotalHours : -1, minHours);
 
-            // ---- TOP-UP only if allowed by cooldown --------------------------------
+            // Top up the pool when size is low and cooldown allows provider calls.
             if (!poolIsLocked && local.Count < cfg.PoolSize && allowTopUp)
             {
                 var need = cfg.PoolSize - local.Count;
@@ -245,7 +446,7 @@ namespace Jellyfin.Plugin.PosterRotator
 
                 foreach (var f in added) local.Add(f);
 
-                // If user wants to lock after fill, create the lock file when target reached.
+                // Lock the pool once it reaches the requested size.
                 if (!poolIsLocked && cfg.LockImagesAfterFill && local.Count >= cfg.PoolSize)
                 {
                     try { File.WriteAllText(lockFile, "locked"); } catch { }
@@ -259,13 +460,13 @@ namespace Jellyfin.Plugin.PosterRotator
             }
             else if (poolIsLocked && !cfg.LockImagesAfterFill)
             {
-                // Unlock if config changed.
+                // Unlock when the configuration no longer requests locking.
                 try { File.Delete(lockFile); } catch { }
                 poolIsLocked = false;
                 _log.LogInformation("PosterRotator: unlocked pool for \"{Item}\" (config changed).", item.Name);
             }
 
-            // ---- bootstrap pool from current primary (or existing per-movie poster) if still empty ----
+            // Ensure we at least keep the current poster as a fallback option.
             if (local.Count == 0)
             {
                 var primaryPath = TryCopyCurrentPrimaryToPool(item, poolDir, mixedFolder);
@@ -278,9 +479,9 @@ namespace Jellyfin.Plugin.PosterRotator
                 return false;
             }
 
-            // ---- ROTATE -------------------------------------------------------------
+            // Choose the next poster candidate and prepare the destination.
             var files = local.ToList();
-                var chosen = PickNextFor(files, item, cfg, poolDir, state);
+            var chosen = PickNextFor(files, item, cfg, state);
 
             // Determine destination path:
             //  - If Jellyfin returns a primary path, prefer that (unique per item).
@@ -317,10 +518,10 @@ namespace Jellyfin.Plugin.PosterRotator
                 SafeOverwrite(chosen, destinationPath);
                 rotated = true;
 
-                // Forcer Jellyfin à détecter le changement d'affiche
+                // Prompt Jellyfin to pick up the new poster if possible.
                 try
                 {
-                    // Modifier la date de modification du fichier d'affiche
+                    // Touch the destination file timestamp to force watchers.
                     try
                     {
                         if (!string.IsNullOrEmpty(destinationPath) && File.Exists(destinationPath))
@@ -330,7 +531,7 @@ namespace Jellyfin.Plugin.PosterRotator
                     }
                     catch { }
 
-                    // Tenter d'appeler item.UpdateToRepositoryAsync(ItemUpdateType.ImageUpdate, CancellationToken.None) via reflection
+                    // Attempt to call UpdateToRepositoryAsync for newer Jellyfin builds.
                     try
                     {
                         var itemType = item.GetType();
@@ -355,31 +556,31 @@ namespace Jellyfin.Plugin.PosterRotator
                                 if (enumVal != null)
                                 {
                                     method.Invoke(item, new object[] { enumVal, CancellationToken.None });
-                                    _log.LogInformation("PosterRotator: '{Name}' affiche mise à jour et Jellyfin notifié", item.Name);
+                                    _log.LogInformation("PosterRotator: '{Name}' poster updated and repository notified", item.Name);
                                 }
                             }
                             else if (parms.Length == 1 && parms[0].ParameterType == typeof(CancellationToken))
                             {
                                 method.Invoke(item, new object[] { CancellationToken.None });
-                                _log.LogInformation("PosterRotator: '{Name}' affiche mise à jour et Jellyfin notifié (single param)", item.Name);
+                                _log.LogInformation("PosterRotator: '{Name}' poster updated and repository notified (single param)", item.Name);
                             }
                         }
                     }
                     catch (Exception ex)
                     {
-                        _log.LogDebug(ex, "PosterRotator: impossible de notifier Jellyfin pour '{Name}'", item.Name);
+                        _log.LogDebug(ex, "PosterRotator: unable to notify Jellyfin for '{Name}'", item.Name);
                     }
                 }
                 catch (Exception ex)
                 {
-                    _log.LogDebug(ex, "PosterRotator: erreur lors de la notification de Jellyfin pour {Name}", item.Name);
+                    _log.LogDebug(ex, "PosterRotator: error while notifying Jellyfin for {Name}", item.Name);
                 }
 
                 _log.LogInformation("PosterRotator: rotated \"{Item}\" to {Poster} ({Dest})",
                     item.Name, Path.GetFileName(chosen), Path.GetFileName(destinationPath));
             }
 
-            // Ensure filesystem change is visible: touch the destination file and its parent directory.
+            // Touch the parent directory so filesystem watchers notice the change.
             if (rotated)
             {
                 try
@@ -396,11 +597,11 @@ namespace Jellyfin.Plugin.PosterRotator
                 }
                 catch { }
             }
-            // record last-rotated time
+            // Persist the last rotation timestamp.
             state.LastRotatedUtcByItem[key] = now.ToUnixTimeSeconds();
             SaveState(statePath, state);
 
-            // Best-effort: ask Jellyfin to notice the change. Try reflection-based refresh if available.
+            // Best-effort: ask Jellyfin to notice the change through reflection.
             if (rotated)
             {
                 try
@@ -413,23 +614,6 @@ namespace Jellyfin.Plugin.PosterRotator
                 }
             }
             return rotated;
-        }
-
-        // Build a minimal MetadataRefreshOptions using reflection (kept if you ever want to refresh metadata)
-        private static object? CreateDefaultRefreshOptions(Type mroType)
-        {
-            try
-            {
-                var mro = Activator.CreateInstance(mroType);
-                mroType.GetProperty("ReplaceAllImages")?.SetValue(mro, false);
-                mroType.GetProperty("ImageRefreshMode")?.SetValue(mro, Enum.Parse(mroType.GetProperty("ImageRefreshMode")!.PropertyType, "FullRefresh", ignoreCase: true));
-                mroType.GetProperty("MetadataRefreshMode")?.SetValue(mro, Enum.Parse(mroType.GetProperty("MetadataRefreshMode")!.PropertyType, "None", ignoreCase: true));
-                return mro;
-            }
-            catch
-            {
-                return null;
-            }
         }
 
         // Best-effort: try to call library/metadata refresh methods via reflection so Jellyfin notices changed files.
@@ -978,7 +1162,7 @@ namespace Jellyfin.Plugin.PosterRotator
             }
         }
 
-        // ---- helpers --------------------------------------------------------
+    // Helper methods
 
         private static string ResolveItemDirectory(BaseItem item)
         {
@@ -997,9 +1181,8 @@ namespace Jellyfin.Plugin.PosterRotator
             }
         }
 
-        // New helpers for mixed-folder handling
-
-    private static string GetItemDir(BaseItem item) => ResolveItemDirectory(item);
+        // Helpers for mixed-folder handling.
+        private static string GetItemDir(BaseItem item) => ResolveItemDirectory(item);
 
         private static bool IsMixedFolder(BaseItem item, IDictionary<string,int> dirCounts)
         {
@@ -1102,7 +1285,6 @@ namespace Jellyfin.Plugin.PosterRotator
             List<string> files,
             BaseItem item,
             Configuration cfg,
-            string poolDir,
             RotationState state)
         {
             // deterministic order: push pool_currentprimary.* to the end, then sort by filename
@@ -1270,7 +1452,7 @@ namespace Jellyfin.Plugin.PosterRotator
             return false;
         }
 
-        // ---- library root helpers (nudge once per root) ----------------------
+    // Library root helpers (nudge once per root)
 
         private Dictionary<string, List<string>> GetLibraryRootPaths()
         {
@@ -1328,7 +1510,7 @@ namespace Jellyfin.Plugin.PosterRotator
         {
             try
             {
-                _log.LogDebug("PosterRotator: notification à Jellyfin pour {Root}", rootPath);
+                _log.LogDebug("PosterRotator: notifying Jellyfin for {Root}", rootPath);
 
                 // Créer/modifier un fichier .touch pour signaler un changement
                 var touch = Path.Combine(rootPath, ".posterrotator.touch");
@@ -1350,11 +1532,11 @@ namespace Jellyfin.Plugin.PosterRotator
                 }
                 catch { }
 
-                _log.LogInformation("PosterRotator: Jellyfin notifié du changement");
+                _log.LogInformation("PosterRotator: Jellyfin notified about poster updates");
             }
             catch (Exception ex)
             {
-                _log.LogWarning(ex, "PosterRotator: impossible de notifier Jellyfin");
+                _log.LogWarning(ex, "PosterRotator: unable to notify Jellyfin");
             }
 
                 // Final best-effort: try to find a scheduled task manager and trigger a Library Scan task for this root.

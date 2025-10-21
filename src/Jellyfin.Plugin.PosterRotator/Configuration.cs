@@ -17,20 +17,16 @@ public class Configuration : BasePluginConfiguration
     // Preferred shape for the UI: list of named rules with Enabled flag
     public List<LibraryRule> LibraryRules { get; set; } = new();
 
-    // NEW: si true -> tenter la détection automatique des bibliothèques (comportement par défaut)
-    public bool AutoDetectLibraries { get; set; } = true;
-
     public int PoolSize { get; set; } = 5;
     public bool SequentialRotation { get; set; } = false;
-    public bool SaveNextToMedia { get; set; } = true;
     public bool LockImagesAfterFill { get; set; } = false;
-    public bool DryRun { get; set; } = false;
     public List<string> ExtraPosterPatterns { get; set; } = new();
     public int MinHoursBetweenSwitches { get; set; } = 23;
+    public bool EnableSeasonPosters { get; set; } = false;
+    public bool EnableEpisodePosters { get; set; } = false;
     // If true, the plugin will attempt to trigger a library scan after rotating posters.
     // This is a heavy operation; default is true (will attempt to refresh libraries after rotation).
     public bool TriggerLibraryScanAfterRotation { get; set; } = true;
-    // Manual list of library root paths to process. If non-empty, these paths will be used
-    // to select which items the rotator will operate on. One path per entry.
+    // Optional list of library root paths to process. When filled, overrides auto detection.
     public List<string> ManualLibraryRoots { get; set; } = new();
 }

@@ -8,6 +8,6 @@ build_property.PlatformNeutralAssembly =
 build_property.EnforceExtendedAnalyzerRules = 
 build_property._SupportedPlatformList = Linux,macOS,Windows
 build_property.RootNamespace = Jellyfin.Plugin.PosterRotator
-build_property.ProjectDir = c:\Users\Mael\Documents\GitHub\jellyfin-plugin-poster-rotator\src\Jellyfin.Plugin.PosterRotator\
+build_property.ProjectDir = C:\Users\Mael\Documents\GitHub\jellyfin-plugin-poster-rotator\src\Jellyfin.Plugin.PosterRotator\
 build_property.EnableComHosting = 
 build_property.EnableGeneratedComInterfaceComImportInterop = 

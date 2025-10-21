@@ -56,6 +56,22 @@
             <div class="fieldDescription">Empêche les mises à jour de métadonnées de modifier le pool</div>
           </div>
 
+          <div class="checkboxContainer checkboxContainer-withDescription">
+            <label class="emby-checkbox-label">
+              <input id="EnableSeasonPosters" type="checkbox" is="emby-checkbox" />
+              <span>Inclure les saisons</span>
+            </label>
+            <div class="fieldDescription">Ajoute les affiches des saisons à la rotation (désactivé par défaut)</div>
+          </div>
+
+          <div class="checkboxContainer checkboxContainer-withDescription">
+            <label class="emby-checkbox-label">
+              <input id="EnableEpisodePosters" type="checkbox" is="emby-checkbox" />
+              <span>Inclure les épisodes</span>
+            </label>
+            <div class="fieldDescription">Ajoute les miniatures des épisodes à la rotation (désactivé par défaut)</div>
+          </div>
+
           <div class="checkboxContainer checkboxContainer-withDescription" style="margin-bottom:14px;">
             <label class="emby-checkbox-label">
               <input id="TriggerLibraryScanAfterRotation" type="checkbox" is="emby-checkbox" />
@@ -128,9 +144,8 @@
               if (byId('LockImagesAfterFill')) byId('LockImagesAfterFill').checked = !!cfg.LockImagesAfterFill;
               if (byId('TriggerLibraryScanAfterRotation')) byId('TriggerLibraryScanAfterRotation').checked = (cfg.TriggerLibraryScanAfterRotation === undefined ? true : !!cfg.TriggerLibraryScanAfterRotation);
 
-              // EnableMovies / EnableShows (on les a ajoutés dans l'UI)
-              if (byId('EnableMovies')) byId('EnableMovies').checked = !!cfg.EnableMovies;
-              if (byId('EnableShows')) byId('EnableShows').checked = !!cfg.EnableShows;
+              if (byId('EnableSeasonPosters')) byId('EnableSeasonPosters').checked = !!cfg.EnableSeasonPosters;
+              if (byId('EnableEpisodePosters')) byId('EnableEpisodePosters').checked = !!cfg.EnableEpisodePosters;
 
               // ExtraPosterPatterns may be stored as an array; guard accordingly
               try {
@@ -256,8 +271,8 @@
               cfg.SequentialRotation = !!(byId('SequentialRotation') && byId('SequentialRotation').checked);
               cfg.LockImagesAfterFill = !!(byId('LockImagesAfterFill') && byId('LockImagesAfterFill').checked);
               cfg.TriggerLibraryScanAfterRotation = !!(byId('TriggerLibraryScanAfterRotation') && byId('TriggerLibraryScanAfterRotation').checked);
-              cfg.EnableMovies = !!(byId('EnableMovies') && byId('EnableMovies').checked);
-              cfg.EnableShows = !!(byId('EnableShows') && byId('EnableShows').checked);
+              cfg.EnableSeasonPosters = !!(byId('EnableSeasonPosters') && byId('EnableSeasonPosters').checked);
+              cfg.EnableEpisodePosters = !!(byId('EnableEpisodePosters') && byId('EnableEpisodePosters').checked);
 
               // Patterns
               var extra = (byId('ExtraPosterPatterns')?.value || '');
