@@ -198,6 +198,57 @@ public class PoolController : ControllerBase
 
         return Ok(new { message = $"Deleted {count} orphaned pool(s)", deletedCount = count });
     }
+
+    /// <summary>
+    /// Recherche des images disponibles pour un item via les providers.
+    /// </summary>
+    [HttpGet("Search/{itemId}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<List<RemoteImageResult>>> SearchImages(
+        [FromRoute] Guid itemId,
+        CancellationToken ct)
+    {
+        _log.LogDebug("PoolController: Searching images for item {ItemId}", itemId);
+
+        var images = await _poolService.SearchRemoteImagesAsync(itemId, ct).ConfigureAwait(false);
+
+        if (images == null)
+        {
+            return NotFound(new { message = "Item not found" });
+        }
+
+        return Ok(images);
+    }
+
+    /// <summary>
+    /// Ajoute une image depuis une URL (provider) au pool.
+    /// </summary>
+    [HttpPost("Pool/{itemId}/AddFromUrl")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult> AddImageFromUrl(
+        [FromRoute] Guid itemId,
+        [FromBody] AddFromUrlRequest request,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request?.Url))
+        {
+            return BadRequest(new { message = "URL is required" });
+        }
+
+        _log.LogInformation("PoolController: Adding image from URL for item {ItemId}", itemId);
+
+        var success = await _poolService.AddImageFromUrlAsync(itemId, request.Url, ct).ConfigureAwait(false);
+
+        if (!success)
+        {
+            return NotFound(new { message = "Item not found or download failed" });
+        }
+
+        return Ok(new { message = "Image added successfully" });
+    }
 }
 
 /// <summary>
@@ -209,4 +260,28 @@ public class ReorderRequest
     /// Liste ordonnée des noms de fichiers.
     /// </summary>
     public List<string> FileNames { get; set; } = new();
+}
+
+/// <summary>
+/// Requête pour ajouter une image depuis une URL.
+/// </summary>
+public class AddFromUrlRequest
+{
+    /// <summary>
+    /// URL de l'image à télécharger.
+    /// </summary>
+    public string Url { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Résultat d'une recherche d'image distante.
+/// </summary>
+public class RemoteImageResult
+{
+    public string Url { get; set; } = string.Empty;
+    public string ProviderName { get; set; } = string.Empty;
+    public string? Language { get; set; }
+    public int? Width { get; set; }
+    public int? Height { get; set; }
+    public string? ThumbnailUrl { get; set; }
 }

@@ -814,16 +814,27 @@ namespace Jellyfin.Plugin.PosterRotator
                 if (cfg.EnableLanguageFilter)
                 {
                     var prefLang = cfg.PreferredLanguage?.ToLowerInvariant() ?? "fr";
-                    var fallbackLang = cfg.FallbackLanguage?.ToLowerInvariant() ?? "en";
                     var maxPrefLang = cfg.MaxPreferredLanguageImages;
                     var includeUnknown = cfg.IncludeUnknownLanguage;
+
+                    // Determine fallback language: use original language if enabled, otherwise use config
+                    string fallbackLang;
+                    if (cfg.UseOriginalLanguageAsFallback)
+                    {
+                        fallbackLang = GetOriginalLanguage(item)?.ToLowerInvariant() ?? "";
+                        _log.LogDebug("PosterRotator: Using original language '{Lang}' for {Item}", fallbackLang, item.Name);
+                    }
+                    else
+                    {
+                        fallbackLang = cfg.FallbackLanguage?.ToLowerInvariant() ?? "";
+                    }
 
                     // Count how many preferred language images we already have in the pool
                     var prefLangInPool = CountLanguageImagesInPool(poolDir, prefLang);
                     var remainingPrefSlots = Math.Max(0, maxPrefLang - prefLangInPool);
 
-                    _log.LogDebug("PosterRotator: Language filter - preferred={Lang}, max={Max}, inPool={InPool}, remaining={Rem}",
-                        prefLang, maxPrefLang, prefLangInPool, remainingPrefSlots);
+                    _log.LogDebug("PosterRotator: Language filter - preferred={PrefLang}, fallback={FallLang}, max={Max}, inPool={InPool}, remaining={Rem}",
+                        prefLang, fallbackLang, maxPrefLang, prefLangInPool, remainingPrefSlots);
 
                     // Separate images by language
                     var prefLangImages = imageList
@@ -832,6 +843,7 @@ namespace Jellyfin.Plugin.PosterRotator
                                    i.Language.Equals(prefLang, StringComparison.OrdinalIgnoreCase))
                         .ToList();
 
+                    // Fallback: original language, or all if empty
                     var fallbackImages = imageList
                         .Where(i => i.Type == ImageType.Primary && 
                                    (string.IsNullOrEmpty(fallbackLang) || 
@@ -840,8 +852,8 @@ namespace Jellyfin.Plugin.PosterRotator
                         .Where(i => !prefLangImages.Contains(i)) // Exclude already selected
                         .ToList();
 
-                    _log.LogDebug("PosterRotator: Found {PrefCount} {PrefLang} images, {FallCount} fallback images",
-                        prefLangImages.Count, prefLang, fallbackImages.Count);
+                    _log.LogDebug("PosterRotator: Found {PrefCount} {PrefLang} images, {FallCount} {FallLang} images",
+                        prefLangImages.Count, prefLang, fallbackImages.Count, fallbackLang);
 
                     // Download preferred language images first (up to limit)
                     foreach (var info in prefLangImages.Take(remainingPrefSlots))
@@ -851,7 +863,7 @@ namespace Jellyfin.Plugin.PosterRotator
                         gotAny = true;
                     }
 
-                    // Then download fallback language images
+                    // Then download fallback language images (original/VO)
                     foreach (var info in fallbackImages)
                     {
                         if (added.Count >= needed) break;
@@ -973,6 +985,150 @@ namespace Jellyfin.Plugin.PosterRotator
                 }
                 catch { }
             }
+        }
+
+        /// <summary>
+        /// Get the original language of a media item from its metadata.
+        /// Tries multiple sources: OriginalTitle comparison, provider data, PreferredMetadataLanguage.
+        /// </summary>
+        private string? GetOriginalLanguage(BaseItem item)
+        {
+            try
+            {
+                // Try to get the original language via reflection (different Jellyfin versions)
+                var itemType = item.GetType();
+                
+                // 1. Try PreferredMetadataLanguage property
+                var prefLangProp = itemType.GetProperty("PreferredMetadataLanguage");
+                if (prefLangProp != null)
+                {
+                    var prefLang = prefLangProp.GetValue(item) as string;
+                    // This is often the server's metadata language, not the movie's original language
+                    // But can be useful as a hint
+                }
+
+                // 2. Try to get ProviderIds and check for TMDb language
+                var providerIds = item.ProviderIds;
+                if (providerIds != null && providerIds.TryGetValue("Tmdb", out var tmdbId))
+                {
+                    // TMDb stores original_language in the movie/series data
+                    // We can try to access it via the item's metadata
+                }
+
+                // 3. Compare Name vs OriginalTitle to guess language
+                var originalTitle = itemType.GetProperty("OriginalTitle")?.GetValue(item) as string;
+                var name = item.Name;
+
+                if (!string.IsNullOrEmpty(originalTitle) && !string.IsNullOrEmpty(name))
+                {
+                    // If OriginalTitle differs from Name, Name is translated
+                    if (!originalTitle.Equals(name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        // The original title is in the original language
+                        // We can try to detect the language from the characters
+                        return DetectLanguageFromTitle(originalTitle);
+                    }
+                }
+
+                // 4. Try to access metadata info directly
+                // Check for common language patterns in provider metadata
+                var fields = itemType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                foreach (var field in fields)
+                {
+                    if (field.Name.Contains("Language", StringComparison.OrdinalIgnoreCase) ||
+                        field.Name.Contains("OriginalLanguage", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var val = field.GetValue(item) as string;
+                        if (!string.IsNullOrEmpty(val) && val.Length == 2)
+                        {
+                            return val;
+                        }
+                    }
+                }
+
+                // 5. Default based on common patterns from provider IDs
+                if (providerIds != null)
+                {
+                    // Japanese content (anime)
+                    if (providerIds.ContainsKey("AniDB") || providerIds.ContainsKey("AniList"))
+                    {
+                        return "ja";
+                    }
+                    // Korean dramas
+                    if (item.Name?.Contains("드라마") == true || item.Path?.Contains("Korean") == true)
+                    {
+                        return "ko";
+                    }
+                }
+
+                // 6. Last resort: try to get it from Path patterns
+                var path = item.Path;
+                if (!string.IsNullOrEmpty(path))
+                {
+                    var pathLower = path.ToLowerInvariant();
+                    if (pathLower.Contains("/japanese/") || pathLower.Contains("\\japanese\\") || pathLower.Contains("/anime/"))
+                        return "ja";
+                    if (pathLower.Contains("/french/") || pathLower.Contains("\\french\\"))
+                        return "fr";
+                    if (pathLower.Contains("/german/") || pathLower.Contains("\\german\\"))
+                        return "de";
+                    if (pathLower.Contains("/spanish/") || pathLower.Contains("\\spanish\\"))
+                        return "es";
+                    if (pathLower.Contains("/korean/") || pathLower.Contains("\\korean\\"))
+                        return "ko";
+                }
+            }
+            catch (Exception ex)
+            {
+                _log.LogDebug(ex, "PosterRotator: Failed to detect original language for {Item}", item.Name);
+            }
+
+            // Default to English if we can't determine
+            return "en";
+        }
+
+        /// <summary>
+        /// Simple heuristic to detect language from title characters.
+        /// </summary>
+        private string? DetectLanguageFromTitle(string title)
+        {
+            if (string.IsNullOrEmpty(title)) return null;
+
+            // Check for CJK characters
+            foreach (var c in title)
+            {
+                // Japanese (Hiragana, Katakana)
+                if (c >= 0x3040 && c <= 0x309F) return "ja"; // Hiragana
+                if (c >= 0x30A0 && c <= 0x30FF) return "ja"; // Katakana
+                
+                // Korean (Hangul)
+                if (c >= 0xAC00 && c <= 0xD7AF) return "ko";
+                
+                // Chinese (CJK Unified Ideographs) - could be zh, ja, or ko
+                if (c >= 0x4E00 && c <= 0x9FFF)
+                {
+                    // If we have no kana, assume Chinese
+                    var hasKana = title.Any(ch => (ch >= 0x3040 && ch <= 0x30FF));
+                    if (!hasKana) return "zh";
+                }
+                
+                // Cyrillic (Russian, etc.)
+                if (c >= 0x0400 && c <= 0x04FF) return "ru";
+                
+                // Arabic
+                if (c >= 0x0600 && c <= 0x06FF) return "ar";
+                
+                // Hebrew
+                if (c >= 0x0590 && c <= 0x05FF) return "he";
+                
+                // Thai
+                if (c >= 0x0E00 && c <= 0x0E7F) return "th";
+            }
+
+            // If no special characters, likely Western language
+            // Could check for accented characters to guess French, Spanish, German, etc.
+            // But default to English
+            return "en";
         }
 
         private IEnumerable<IRemoteImageProvider> ResolveImageProviders()

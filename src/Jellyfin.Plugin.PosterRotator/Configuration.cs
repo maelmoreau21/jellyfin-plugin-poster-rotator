@@ -60,9 +60,16 @@ public class Configuration : BasePluginConfiguration
     public int MaxPreferredLanguageImages { get; set; } = 2;
 
     /// <summary>
-    /// Langue de fallback pour les autres images (vide = toutes langues, "en" = anglais/VO).
+    /// Langue de fallback pour les autres images (code ISO ou vide pour toutes).
+    /// Ignoré si UseOriginalLanguageAsFallback est activé.
     /// </summary>
     public string FallbackLanguage { get; set; } = "en";
+
+    /// <summary>
+    /// Utiliser automatiquement la langue originale du média (VO) comme fallback.
+    /// Si activé, FallbackLanguage est ignoré et la vraie langue originale est détectée.
+    /// </summary>
+    public bool UseOriginalLanguageAsFallback { get; set; } = true;
 
     /// <summary>
     /// Inclure les images sans information de langue.

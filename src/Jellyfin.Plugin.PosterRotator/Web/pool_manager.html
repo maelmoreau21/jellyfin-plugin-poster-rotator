@@ -2,593 +2,757 @@
 <html lang="fr">
 
 <head>
-  <meta charset="utf-8" />
-  <title>Pool Manager - Poster Rotator</title>
-  <style>
-    .pr-container {
-      padding: 20px;
-    }
+    <meta charset="utf-8" />
+    <title>Pool Manager</title>
+    <style>
+        /* Reset & Fonts */
+        :root {
+            --bg-dark: #101014;
+            --bg-panel: #18181f;
+            --bg-hover: #2a2a35;
+            --accent: #00a4dc;
+            --accent-hover: #008cc0;
+            --text-main: #e5e5e5;
+            --text-muted: #999;
+            --border: #2a2a35;
+            --danger: #dc2626;
+        }
 
-    .pr-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 20px;
-    }
+        * {
+            box-sizing: border-box;
+            outline: none;
+        }
 
-    .pr-stats {
-      display: flex;
-      gap: 20px;
-      flex-wrap: wrap;
-      margin-bottom: 20px;
-    }
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-main);
+            margin: 0;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
 
-    .pr-stat {
-      background: rgba(255, 255, 255, 0.05);
-      padding: 15px 25px;
-      border-radius: 8px;
-      text-align: center;
-    }
+        /* === LAYOUT === */
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
 
-    .pr-stat-value {
-      font-size: 2em;
-      font-weight: bold;
-      color: #00a4dc;
-    }
+        /* Header */
+        .header {
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            background: var(--bg-panel);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
 
-    .pr-stat-label {
-      font-size: 0.85em;
-      color: #888;
-      margin-top: 5px;
-    }
+        .header h1 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 600;
+        }
 
-    .pr-stat.warning .pr-stat-value {
-      color: #ff9800;
-    }
+        .stats-row {
+            display: flex;
+            gap: 20px;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
 
-    .pr-stat.success .pr-stat-value {
-      color: #4caf50;
-    }
+        .stat-val {
+            color: var(--accent);
+            font-weight: bold;
+        }
 
-    .pr-filters {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 20px;
-      flex-wrap: wrap;
-    }
+        .stat-warn {
+            color: #f59e0b;
+            font-weight: bold;
+        }
 
-    .pr-filters input,
-    .pr-filters select {
-      padding: 8px 12px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 4px;
-      background: rgba(255, 255, 255, 0.05);
-      color: inherit;
-    }
+        .header-actions {
+            display: flex;
+            gap: 10px;
+        }
 
-    .pr-filters input {
-      flex: 1;
-      min-width: 200px;
-    }
+        /* Button Styles */
+        .btn {
+            padding: 8px 16px;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--text-main);
+            cursor: pointer;
+            font-size: 13px;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
 
-    .pr-table {
-      width: 100%;
-      border-collapse: collapse;
-    }
+        .btn:hover {
+            background: var(--bg-hover);
+        }
 
-    .pr-table th,
-    .pr-table td {
-      padding: 12px;
-      text-align: left;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    }
+        .btn-primary {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #fff;
+        }
 
-    .pr-table th {
-      background: rgba(255, 255, 255, 0.05);
-    }
+        .btn-primary:hover {
+            background: var(--accent-hover);
+        }
 
-    .pr-table tr:hover {
-      background: rgba(0, 164, 220, 0.1);
-      cursor: pointer;
-    }
+        .btn-danger {
+            border-color: #7f1d1d;
+            color: #f87171;
+        }
 
-    .pr-badge {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 10px;
-      font-size: 0.8em;
-    }
+        .btn-danger:hover {
+            background: #7f1d1d;
+            color: #fff;
+        }
 
-    .pr-badge.movie {
-      background: #e91e63;
-      color: white;
-    }
+        /* Main Split View */
+        .split-view {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
 
-    .pr-badge.series {
-      background: #9c27b0;
-      color: white;
-    }
+        /* --- LEFT: Media List --- */
+        .sidebar {
+            width: 380px;
+            background: #14141a;
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+        }
 
-    .pr-badge.season {
-      background: #673ab7;
-      color: white;
-    }
+        .search-area {
+            padding: 15px;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg-panel);
+        }
 
-    .pr-badge.boxset {
-      background: #3f51b5;
-      color: white;
-    }
+        .search-input {
+            width: 100%;
+            padding: 10px 12px;
+            background: #0f0f12;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: #fff;
+            font-size: 14px;
+        }
 
-    .pr-loading {
-      text-align: center;
-      padding: 40px;
-      color: #888;
-    }
+        .search-input:focus {
+            border-color: var(--accent);
+        }
 
-    .pr-error {
-      color: #f44336;
-      padding: 20px;
-      text-align: center;
-    }
+        .filter-tabs {
+            display: flex;
+            padding: 10px 15px;
+            gap: 10px;
+            border-bottom: 1px solid var(--border);
+        }
 
-    .pr-empty {
-      color: #888;
-      padding: 20px;
-      text-align: center;
-    }
+        .filter-tab {
+            flex: 1;
+            padding: 6px;
+            text-align: center;
+            font-size: 12px;
+            cursor: pointer;
+            border-radius: 4px;
+            color: var(--text-muted);
+            background: transparent;
+            border: 1px solid transparent;
+        }
 
-    .pr-modal {
-      display: none;
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.85);
-      z-index: 9999;
-      overflow-y: auto;
-    }
+        .filter-tab:hover {
+            background: var(--bg-hover);
+        }
 
-    .pr-modal.active {
-      display: flex;
-      justify-content: center;
-      padding: 40px 20px;
-    }
+        .filter-tab.active {
+            background: var(--bg-hover);
+            color: #fff;
+            border-color: var(--border);
+            font-weight: bold;
+        }
 
-    .pr-modal-box {
-      background: #1c1c1c;
-      border-radius: 10px;
-      max-width: 800px;
-      width: 100%;
-      max-height: calc(100vh - 80px);
-      overflow-y: auto;
-    }
+        .media-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0;
+        }
 
-    .pr-modal-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 15px 20px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    }
+        .media-item {
+            padding: 12px 15px;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            transition: background 0.1s;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            border-left: 4px solid transparent;
+        }
 
-    .pr-modal-close {
-      background: none;
-      border: none;
-      font-size: 24px;
-      cursor: pointer;
-      color: #888;
-    }
+        .media-item:hover {
+            background: var(--bg-hover);
+        }
 
-    .pr-modal-close:hover {
-      color: white;
-    }
+        .media-item.selected {
+            background: #0d3a5c;
+            /* Blueish background */
+            border-left-color: var(--accent);
+        }
 
-    .pr-modal-body {
-      padding: 20px;
-    }
+        .media-name {
+            font-weight: 600;
+            font-size: 14px;
+            display: flex;
+            justify-content: space-between;
+        }
 
-    .pr-images {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-      gap: 15px;
-    }
+        .media-item.selected .media-name {
+            color: #fff;
+        }
 
-    .pr-image {
-      position: relative;
-      border-radius: 6px;
-      overflow: hidden;
-      border: 2px solid transparent;
-    }
+        .media-info {
+            font-size: 12px;
+            color: var(--text-muted);
+            display: flex;
+            justify-content: space-between;
+        }
 
-    .pr-image.current {
-      border-color: #4caf50;
-    }
+        .media-item.selected .media-info {
+            color: #ccc;
+        }
 
-    .pr-image img {
-      width: 100%;
-      height: 180px;
-      object-fit: cover;
-      display: block;
-    }
+        .type-badge {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            background: var(--bg-hover);
+            text-transform: uppercase;
+        }
 
-    .pr-image-info {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: linear-gradient(transparent, rgba(0, 0, 0, 0.9));
-      padding: 8px;
-    }
+        /* --- RIGHT: Content --- */
+        .content-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-dark);
+        }
 
-    .pr-image-size {
-      font-size: 0.75em;
-      color: #ccc;
-    }
+        .content-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg-panel);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
 
-    .pr-image-del {
-      position: absolute;
-      top: 5px;
-      right: 5px;
-      background: #f44336;
-      border: none;
-      border-radius: 4px;
-      color: white;
-      padding: 3px 8px;
-      cursor: pointer;
-      font-size: 0.75em;
-    }
+        .content-title {
+            font-size: 18px;
+            font-weight: bold;
+        }
 
-    .pr-current-tag {
-      position: absolute;
-      top: 5px;
-      left: 5px;
-      background: #4caf50;
-      color: white;
-      padding: 2px 6px;
-      border-radius: 3px;
-      font-size: 0.7em;
-    }
+        .content-subtitle {
+            margin-left: 10px;
+            font-weight: normal;
+            font-size: 14px;
+            color: var(--text-muted);
+        }
 
-    .pr-dropzone {
-      border: 2px dashed rgba(255, 255, 255, 0.2);
-      border-radius: 8px;
-      padding: 30px;
-      text-align: center;
-      color: #888;
-      margin-top: 20px;
-      transition: all 0.2s;
-    }
+        .images-grid-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
 
-    .pr-dropzone.over {
-      border-color: #00a4dc;
-      background: rgba(0, 164, 220, 0.1);
-    }
+        .images-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 20px;
+        }
 
-    .pr-dropzone input {
-      display: none;
-    }
-  </style>
+        /* Fixed Aspect Ratio Card */
+        .img-card {
+            position: relative;
+            width: 100%;
+            padding-bottom: 150%;
+            /* 2:3 Ratio */
+            background: #1a1a20;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 3px solid transparent;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .img-card:hover {
+            transform: scale(1.03);
+            border-color: var(--accent);
+        }
+
+        .img-card.current {
+            border-color: #22c55e;
+        }
+
+        .img-card img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            /* Crucial for uniform look */
+        }
+
+        .img-status {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            background: #22c55e;
+            color: #fff;
+            font-size: 10px;
+            font-weight: bold;
+            padding: 3px 8px;
+            border-radius: 4px;
+            z-index: 2;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .img-delete {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 24px;
+            height: 24px;
+            background: var(--danger);
+            color: #fff;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 2;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .img-card:hover .img-delete {
+            opacity: 1;
+        }
+
+        /* Bottom Panel (Search/Upload) */
+        .bottom-panel {
+            height: 250px;
+            border-top: 1px solid var(--border);
+            background: var(--bg-panel);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .bottom-header {
+            padding: 10px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #1a1a20;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+        }
+
+        .tab-btn {
+            padding: 6px 14px;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text-muted);
+            cursor: pointer;
+        }
+
+        .tab-btn.active {
+            background: var(--accent);
+            color: #fff;
+            border-color: var(--accent);
+        }
+
+        .bottom-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+        }
+
+        .remote-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 10px;
+        }
+
+        .remote-card {
+            position: relative;
+            width: 100%;
+            padding-bottom: 150%;
+            border-radius: 4px;
+            overflow: hidden;
+            cursor: pointer;
+        }
+
+        .remote-card img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .remote-card .add-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 164, 220, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 24px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .remote-card:hover .add-overlay {
+            opacity: 1;
+        }
+
+        /* Upload Box */
+        .upload-box {
+            border: 2px dashed var(--border);
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .upload-box:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: #0d3a5c20;
+        }
+
+        .upload-box input {
+            display: none;
+        }
+
+        /* Loading/Empty */
+        .state-msg {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text-muted);
+            gap: 10px;
+        }
+
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
 </head>
 
 <body>
-  <div id="PoolManagerPage" data-role="page" class="page type-interior pluginConfigurationPage"
-    data-require="emby-button">
-    <div data-role="content">
-      <div class="content-primary pr-container">
+    <div id="PoolManagerPage" data-role="page" class="page type-interior pluginConfigurationPage">
+        <div data-role="content" class="app-container">
 
-        <div class="pr-header">
-          <h1>Pool Manager</h1>
-          <a href="#!/configurationpage?name=Poster%20Rotator" is="emby-button" class="raised">Retour aux parametres</a>
+            <!-- HEADER -->
+            <div class="header">
+                <h1>Pool Manager</h1>
+                <div class="stats-row" id="stats">
+                    <span>Chargement...</span>
+                </div>
+                <div class="header-actions">
+                    <button class="btn btn-danger" id="btnCleanup">🗑️ Nettoyer orphelins</button>
+                    <a href="#!/configurationpage?name=Poster%20Rotator" class="btn">← Retour</a>
+                </div>
+            </div>
+
+            <!-- MAIN SPLIT -->
+            <div class="split-view">
+
+                <!-- SIDEBAR -->
+                <div class="sidebar">
+                    <div class="search-area">
+                        <input type="text" class="search-input" id="search" placeholder="🔍 Rechercher..." />
+                    </div>
+                    <div class="filter-tabs">
+                        <button class="filter-tab active" data-f="">Tous</button>
+                        <button class="filter-tab" data-f="Movie">Films</button>
+                        <button class="filter-tab" data-f="Series">Séries</button>
+                    </div>
+                    <div class="media-list" id="list">
+                        <div class="state-msg">
+                            <div class="spinner"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CONTENT -->
+                <div class="content-panel">
+                    <div class="content-header">
+                        <div id="titleContainer">
+                            <span class="content-title" id="titleMain">Sélectionnez un média</span>
+                            <span class="content-subtitle" id="titleSub">pour voir ses images</span>
+                        </div>
+                        <button class="btn btn-primary" id="btnRefresh" style="display:none;">↻ Actualiser</button>
+                    </div>
+
+                    <div class="images-grid-container" id="imagesArea">
+                        <div class="state-msg">👈 Sélectionnez un élément dans la liste</div>
+                    </div>
+
+                    <!-- BOTTOM PANEL -->
+                    <div class="bottom-panel" id="bottomPanel" style="display:none;">
+                        <div class="bottom-header">
+                            <div class="tabs">
+                                <button class="tab-btn active" data-tab="search">🔍 Rechercher images</button>
+                                <button class="tab-btn" data-tab="upload">📤 Upload manuel</button>
+                            </div>
+                            <button class="btn" id="btnCloseBottom">✕ Fermer</button>
+                        </div>
+                        <div class="bottom-content" id="bottomContent"></div>
+                    </div>
+                </div>
+
+            </div>
+
         </div>
 
-        <div id="prStats" class="pr-stats">
-          <div class="pr-loading">Chargement des statistiques...</div>
-        </div>
+        <!-- SCRIPT -->
+        <script type="text/javascript">
+            (function () {
+                var pools = [], selId = null, filter = '', tab = 'search';
+                var $ = function (id) { return document.getElementById(id); };
+                var esc = function (s) { var d = document.createElement('div'); d.innerText = s || ''; return d.innerHTML; };
 
-        <div class="pr-filters">
-          <input type="text" id="prSearch" placeholder="Rechercher..." />
-          <select id="prType">
-            <option value="">Tous</option>
-            <option value="Movie">Films</option>
-            <option value="Series">Series</option>
-            <option value="Season">Saisons</option>
-            <option value="BoxSet">Collections</option>
-          </select>
-          <button is="emby-button" class="raised" id="prCleanup">Nettoyer orphelins</button>
-        </div>
+                function api(m, u, d) {
+                    return new Promise((res, rej) => {
+                        ApiClient.ajax({
+                            type: m,
+                            url: ApiClient.getUrl(u),
+                            data: d ? JSON.stringify(d) : null,
+                            contentType: 'application/json',
+                            dataType: 'json'
+                        }).then(res, rej);
+                    });
+                }
 
-        <div id="prItems">
-          <div class="pr-loading">Chargement des pools...</div>
-        </div>
+                function renderStats(s) {
+                    var h = '';
+                    h += '<span class="stat-val">' + (s.TotalPools || 0) + '</span> pools &nbsp;•&nbsp; ';
+                    h += '<span class="stat-val">' + (s.TotalImages || 0) + '</span> images &nbsp;•&nbsp; ';
+                    h += '<span>' + (s.TotalSizeFormatted || '0 B') + '</span> &nbsp;•&nbsp; ';
+                    var warn = s.OrphanedPools > 0 ? 'stat-warn' : 'stat-val';
+                    h += '<span class="' + warn + '">' + (s.OrphanedPools || 0) + '</span> orphelins';
+                    $('stats').innerHTML = h;
+                }
 
-      </div>
+                function loadAll() {
+                    api('GET', 'PosterRotator/Stats').then(renderStats);
+                    api('GET', 'PosterRotator/Items').then(function (p) {
+                        pools = p || [];
+                        renderList();
+                    });
+                }
+
+                function renderList() {
+                    var q = ($('search').value || '').toLowerCase();
+                    var f = pools.filter(function (p) {
+                        return (!filter || p.ItemType === filter) && (!q || p.ItemName.toLowerCase().indexOf(q) >= 0);
+                    });
+
+                    if (!f.length) {
+                        $('list').innerHTML = '<div class="state-msg">Aucun résultat</div>';
+                        return;
+                    }
+
+                    var h = '';
+                    f.forEach(function (p) {
+                        var sel = p.ItemId === selId ? ' selected' : '';
+                        var cnt = p.Images ? p.Images.length : 0;
+                        h += '<div class="media-item' + sel + '" data-id="' + p.ItemId + '">';
+                        h += '<div class="media-name"><span>' + esc(p.ItemName) + '</span> <span class="type-badge">' + esc(p.ItemType) + '</span></div>';
+                        h += '<div class="media-info"><span>' + cnt + ' images</span> <span>' + esc(p.TotalSizeFormatted) + '</span></div>';
+                        h += '</div>';
+                    });
+                    $('list').innerHTML = h;
+
+                    document.querySelectorAll('.media-item').forEach(function (el) {
+                        el.onclick = function () { select(el.dataset.id); };
+                    });
+                }
+
+                function select(id) {
+                    selId = id;
+                    renderList();
+                    loadPool(id);
+                    $('bottomPanel').style.display = 'flex';
+                    $('btnRefresh').style.display = 'inline-flex';
+                    renderBottom();
+                }
+
+                function loadPool(id) {
+                    $('imagesArea').innerHTML = '<div class="state-msg"><div class="spinner"></div></div>';
+                    api('GET', 'PosterRotator/Pool/' + id).then(function (p) {
+                        $('titleMain').textContent = p.ItemName;
+                        $('titleSub').textContent = (p.Images ? p.Images.length : 0) + ' images dans le pool';
+
+                        if (!p.Images || !p.Images.length) {
+                            $('imagesArea').innerHTML = '<div class="state-msg">Le pool est vide</div>';
+                            return;
+                        }
+
+                        var h = '<div class="images-grid">';
+                        p.Images.forEach(function (img) {
+                            var cur = img.IsCurrent ? ' current' : '';
+                            var url = ApiClient.getUrl(img.Url) + '&v=' + Date.now(); // Cache bust
+                            h += '<div class="img-card' + cur + '">';
+                            h += '<img src="' + url + '" loading="lazy"/>';
+                            if (img.IsCurrent) h += '<div class="img-status">ACTIF</div>';
+                            h += '<button class="img-delete" data-f="' + esc(img.FileName) + '">×</button>';
+                            h += '</div>';
+                        });
+                        h += '</div>';
+                        $('imagesArea').innerHTML = h;
+
+                        document.querySelectorAll('.img-delete').forEach(function (b) {
+                            b.onclick = function (e) { e.stopPropagation(); del(b.dataset.f); };
+                        });
+                    });
+                }
+
+                function del(f) {
+                    if (!confirm('Supprimer cette image ?')) return;
+                    api('DELETE', 'PosterRotator/Pool/' + selId + '/' + encodeURIComponent(f)).then(refresh);
+                }
+
+                function refresh() {
+                    loadPool(selId);
+                    loadAll();
+                }
+
+                function renderBottom() {
+                    if (tab === 'search') {
+                        $('bottomContent').innerHTML = '<div class="state-msg"><div class="spinner"></div>Recherche...</div>';
+                        api('GET', 'PosterRotator/Search/' + selId).then(function (imgs) {
+                            if (!imgs || !imgs.length) {
+                                $('bottomContent').innerHTML = '<div class="state-msg">Aucune image trouvée via les providers</div>';
+                                return;
+                            }
+                            var h = '<div class="remote-grid">';
+                            imgs.slice(0, 30).forEach(function (i) {
+                                h += '<div class="remote-card" data-url="' + esc(i.Url) + '">';
+                                h += '<img src="' + esc(i.ThumbnailUrl || i.Url) + '" loading="lazy" />';
+                                h += '<div class="add-overlay">+</div>';
+                                h += '</div>';
+                            });
+                            h += '</div>';
+                            $('bottomContent').innerHTML = h;
+                            document.querySelectorAll('.remote-card').forEach(function (el) {
+                                el.onclick = function () { addUrl(el.dataset.url); };
+                            });
+                        });
+                    } else {
+                        var h = '<div class="upload-box" id="dropzone">';
+                        h += '<div style="font-size:32px;margin-bottom:10px">📤</div>';
+                        h += 'Glissez des images ici ou cliquez pour parcourir';
+                        h += '<input type="file" id="fileinput" multiple accept="image/*" />';
+                        h += '</div>';
+                        $('bottomContent').innerHTML = h;
+
+                        var dz = $('dropzone'), fi = $('fileinput');
+                        dz.onclick = function () { fi.click(); };
+                        fi.onchange = function () { upload(fi.files); };
+                        dz.ondragover = function (e) { e.preventDefault(); };
+                        dz.ondrop = function (e) { e.preventDefault(); upload(e.dataTransfer.files); };
+                    }
+                }
+
+                function addUrl(url) {
+                    api('POST', 'PosterRotator/Pool/' + selId + '/AddFromUrl', { Url: url }).then(refresh);
+                }
+
+                function upload(files) {
+                    if (!files.length) return;
+                    var pending = files.length;
+                    Array.from(files).forEach(function (f) {
+                        var fd = new FormData(); fd.append('file', f);
+                        var xhr = new XMLHttpRequest();
+                        xhr.open('POST', ApiClient.getUrl('PosterRotator/Pool/' + selId));
+                        xhr.setRequestHeader('X-Emby-Token', ApiClient.accessToken());
+                        xhr.onload = function () { if (--pending === 0) refresh(); };
+                        xhr.send(fd);
+                    });
+                }
+
+                // Binds
+                $('search').oninput = renderList;
+                document.querySelectorAll('.filter-tab').forEach(function (b) {
+                    b.onclick = function () {
+                        document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+                        b.classList.add('active');
+                        filter = b.dataset.f;
+                        renderList();
+                    };
+                });
+                document.querySelectorAll('.tab-btn').forEach(function (b) {
+                    b.onclick = function () {
+                        document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
+                        b.classList.add('active');
+                        tab = b.dataset.tab;
+                        renderBottom();
+                    };
+                });
+                $('btnCloseBottom').onclick = function () { $('bottomPanel').style.display = 'none'; };
+                $('btnRefresh').onclick = refresh;
+                $('btnCleanup').onclick = function () {
+                    if (confirm('Nettoyer les pools orphelins ?')) api('POST', 'PosterRotator/Cleanup').then(alert('Nettoyage terminé')).then(loadAll);
+                };
+
+                // Init
+                $('PoolManagerPage').addEventListener('pageshow', loadAll);
+            })();
+        </script>
     </div>
-
-    <div id="prModal" class="pr-modal">
-      <div class="pr-modal-box">
-        <div class="pr-modal-header">
-          <h2 id="prModalTitle">Pool</h2>
-          <button class="pr-modal-close" id="prModalClose">&times;</button>
-        </div>
-        <div class="pr-modal-body" id="prModalBody">
-          <div class="pr-loading">Chargement...</div>
-        </div>
-      </div>
-    </div>
-
-    <script type="text/javascript">
-      (function () {
-        'use strict';
-
-        var allPools = [];
-        var currentPoolId = null;
-
-        // Simple element getter
-        function $(id) { return document.getElementById(id); }
-
-        // Safe text escaping
-        function esc(text) {
-          if (!text) return '';
-          var d = document.createElement('div');
-          d.textContent = text;
-          return d.innerHTML;
-        }
-
-        // API helper using Jellyfin's fetch with auth
-        function api(method, path, body) {
-          return new Promise(function (resolve, reject) {
-            var url = ApiClient.getUrl(path);
-            var opts = {
-              type: method,
-              url: url,
-              dataType: 'json'
-            };
-            if (body) {
-              opts.data = JSON.stringify(body);
-              opts.contentType = 'application/json';
-            }
-            ApiClient.ajax(opts).then(resolve, reject);
-          });
-        }
-
-        // Load stats
-        function loadStats() {
-          api('GET', 'PosterRotator/Stats').then(function (s) {
-            var html = '';
-            html += '<div class="pr-stat"><div class="pr-stat-value">' + (s.TotalPools || 0) + '</div><div class="pr-stat-label">Pools</div></div>';
-            html += '<div class="pr-stat"><div class="pr-stat-value">' + (s.TotalImages || 0) + '</div><div class="pr-stat-label">Images</div></div>';
-            html += '<div class="pr-stat"><div class="pr-stat-value">' + esc(s.TotalSizeFormatted || '0 B') + '</div><div class="pr-stat-label">Taille</div></div>';
-            html += '<div class="pr-stat' + (s.OrphanedPools > 0 ? ' warning' : '') + '"><div class="pr-stat-value">' + (s.OrphanedPools || 0) + '</div><div class="pr-stat-label">Orphelins</div></div>';
-            html += '<div class="pr-stat success"><div class="pr-stat-value">' + (s.RotationsLast24h || 0) + '</div><div class="pr-stat-label">Rotations 24h</div></div>';
-            $('prStats').innerHTML = html;
-          }).catch(function (e) {
-            console.error('Stats error:', e);
-            $('prStats').innerHTML = '<div class="pr-error">Erreur chargement stats. API non disponible.</div>';
-          });
-        }
-
-        // Load pools list
-        function loadPools() {
-          api('GET', 'PosterRotator/Items').then(function (pools) {
-            allPools = pools || [];
-            renderPools();
-          }).catch(function (e) {
-            console.error('Pools error:', e);
-            allPools = [];
-            $('prItems').innerHTML = '<div class="pr-error">Erreur chargement pools. Verifiez que le plugin est bien installe.</div>';
-          });
-        }
-
-        // Render pools table
-        function renderPools() {
-          var search = ($('prSearch').value || '').toLowerCase();
-          var type = $('prType').value;
-
-          var filtered = allPools.filter(function (p) {
-            if (!p) return false;
-            var matchName = !search || (p.ItemName || '').toLowerCase().indexOf(search) >= 0;
-            var matchType = !type || p.ItemType === type;
-            return matchName && matchType;
-          });
-
-          if (filtered.length === 0) {
-            $('prItems').innerHTML = '<div class="pr-empty">Aucun pool trouve. ' + allPools.length + ' pool(s) au total.</div>';
-            return;
-          }
-
-          var html = '<table class="pr-table"><thead><tr><th>Nom</th><th>Type</th><th>Images</th><th>Taille</th><th>Derniere rotation</th></tr></thead><tbody>';
-
-          filtered.forEach(function (p) {
-            var typeClass = (p.ItemType || 'unknown').toLowerCase();
-            var date = p.LastRotation ? new Date(p.LastRotation).toLocaleDateString('fr-FR') : '-';
-            var imgCount = p.Images ? p.Images.length : 0;
-
-            html += '<tr data-id="' + p.ItemId + '">';
-            html += '<td><strong>' + esc(p.ItemName || 'Sans nom') + '</strong></td>';
-            html += '<td><span class="pr-badge ' + typeClass + '">' + esc(p.ItemType) + '</span></td>';
-            html += '<td>' + imgCount + '</td>';
-            html += '<td>' + esc(p.TotalSizeFormatted || '0 B') + '</td>';
-            html += '<td>' + date + '</td>';
-            html += '</tr>';
-          });
-
-          html += '</tbody></table>';
-          $('prItems').innerHTML = html;
-
-          // Add click handlers
-          var rows = document.querySelectorAll('.pr-table tbody tr');
-          rows.forEach(function (row) {
-            row.onclick = function () {
-              openPool(row.getAttribute('data-id'));
-            };
-          });
-        }
-
-        // Open pool detail modal
-        function openPool(itemId) {
-          currentPoolId = itemId;
-          $('prModal').classList.add('active');
-          $('prModalBody').innerHTML = '<div class="pr-loading">Chargement...</div>';
-
-          api('GET', 'PosterRotator/Pool/' + itemId).then(function (pool) {
-            $('prModalTitle').textContent = pool.ItemName || 'Pool';
-            renderPoolDetail(pool);
-          }).catch(function (e) {
-            console.error('Pool detail error:', e);
-            $('prModalBody').innerHTML = '<div class="pr-error">Erreur chargement du pool</div>';
-          });
-        }
-
-        // Render pool images
-        function renderPoolDetail(pool) {
-          var html = '<div class="pr-images">';
-
-          if (pool.Images && pool.Images.length > 0) {
-            pool.Images.forEach(function (img) {
-              var isCurrent = img.IsCurrent;
-              var imgUrl = ApiClient.getUrl(img.Url);
-
-              html += '<div class="pr-image' + (isCurrent ? ' current' : '') + '">';
-              if (isCurrent) html += '<div class="pr-current-tag">Actuel</div>';
-              html += '<button class="pr-image-del" data-file="' + esc(img.FileName) + '">X</button>';
-              html += '<img src="' + imgUrl + '" alt="' + esc(img.FileName) + '" loading="lazy" />';
-              html += '<div class="pr-image-info"><span class="pr-image-size">' + esc(img.SizeFormatted || '') + '</span></div>';
-              html += '</div>';
-            });
-          } else {
-            html += '<div class="pr-empty">Aucune image</div>';
-          }
-
-          html += '</div>';
-
-          // Drop zone for upload
-          html += '<div class="pr-dropzone" id="prDropzone">';
-          html += '<p>Glissez des images ici ou <label style="color:#00a4dc;cursor:pointer;">parcourir<input type="file" id="prFileInput" accept="image/*" multiple /></label></p>';
-          html += '</div>';
-
-          $('prModalBody').innerHTML = html;
-
-          // Delete buttons
-          document.querySelectorAll('.pr-image-del').forEach(function (btn) {
-            btn.onclick = function (e) {
-              e.stopPropagation();
-              var fileName = btn.getAttribute('data-file');
-              if (confirm('Supprimer ' + fileName + ' ?')) {
-                deleteImage(fileName);
-              }
-            };
-          });
-
-          // File upload
-          var fileInput = $('prFileInput');
-          var dropzone = $('prDropzone');
-
-          if (fileInput) {
-            fileInput.onchange = function () { uploadFiles(fileInput.files); };
-          }
-
-          if (dropzone) {
-            dropzone.ondragover = function (e) { e.preventDefault(); dropzone.classList.add('over'); };
-            dropzone.ondragleave = function () { dropzone.classList.remove('over'); };
-            dropzone.ondrop = function (e) {
-              e.preventDefault();
-              dropzone.classList.remove('over');
-              uploadFiles(e.dataTransfer.files);
-            };
-          }
-        }
-
-        // Delete image
-        function deleteImage(fileName) {
-          api('DELETE', 'PosterRotator/Pool/' + currentPoolId + '/' + encodeURIComponent(fileName)).then(function () {
-            openPool(currentPoolId);
-            loadStats();
-            loadPools();
-          }).catch(function (e) {
-            console.error('Delete error:', e);
-            alert('Erreur suppression');
-          });
-        }
-
-        // Upload files
-        function uploadFiles(files) {
-          if (!files || files.length === 0) return;
-
-          var remaining = files.length;
-
-          Array.from(files).forEach(function (file) {
-            var formData = new FormData();
-            formData.append('file', file);
-
-            var xhr = new XMLHttpRequest();
-            xhr.open('POST', ApiClient.getUrl('PosterRotator/Pool/' + currentPoolId));
-
-            // Add auth header
-            var authKey = ApiClient.accessToken();
-            if (authKey) {
-              xhr.setRequestHeader('X-Emby-Token', authKey);
-            }
-
-            xhr.onload = function () {
-              remaining--;
-              if (remaining === 0) {
-                openPool(currentPoolId);
-                loadStats();
-                loadPools();
-              }
-            };
-
-            xhr.onerror = function () {
-              remaining--;
-              console.error('Upload error for ' + file.name);
-            };
-
-            xhr.send(formData);
-          });
-        }
-
-        // Cleanup orphans
-        function cleanupOrphans() {
-          if (!confirm('Supprimer tous les pools orphelins (medias supprimes) ?')) return;
-
-          api('POST', 'PosterRotator/Cleanup').then(function (res) {
-            alert(res.message || 'Nettoyage termine');
-            loadStats();
-            loadPools();
-          }).catch(function (e) {
-            console.error('Cleanup error:', e);
-            alert('Erreur nettoyage');
-          });
-        }
-
-        // Close modal
-        function closeModal() {
-          $('prModal').classList.remove('active');
-          currentPoolId = null;
-        }
-
-        // Event bindings
-        $('prSearch').oninput = renderPools;
-        $('prType').onchange = renderPools;
-        $('prCleanup').onclick = cleanupOrphans;
-        $('prModalClose').onclick = closeModal;
-        $('prModal').onclick = function (e) { if (e.target === this) closeModal(); };
-
-        // Init on page show
-        var page = $('PoolManagerPage');
-        page.addEventListener('viewshow', function () {
-          loadStats();
-          loadPools();
-        });
-        page.addEventListener('pageshow', function () {
-          loadStats();
-          loadPools();
-        });
-
-      })();
-    </script>
-  </div>
 </body>
 
 </html>

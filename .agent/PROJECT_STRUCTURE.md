@@ -24,10 +24,10 @@ jellyfin-plugin-poster-rotator-1/
         │   └── PoolService.cs       # Service métier pour les pools
         ├── Web/
         │   ├── config.html          # Interface de configuration
-        │   └── pool_manager.html    # Interface de gestion des pools
-        ├── Plugin.cs                # Enregistrement du plugin, implémente IHasWebPages
-        ├── Configuration.cs         # Classe de configuration (settings persistants)
-        ├── PosterRotatorService.cs  # Service principal de rotation (1628 lignes)
+        │   └── pool_manager.html    # Interface Pool Manager (split-view)
+        ├── Plugin.cs                # Enregistrement du plugin
+        ├── Configuration.cs         # Classe de configuration
+        ├── PosterRotatorService.cs  # Service principal de rotation
         ├── PosterRotationTask.cs    # Tâche planifiée Jellyfin
         ├── ServiceRegistrator.cs    # Injection de dépendances
         └── Jellyfin.Plugin.PosterRotator.csproj
@@ -40,66 +40,76 @@ jellyfin-plugin-poster-rotator-1/
 ### `Plugin.cs`
 - **Classe**: `Plugin : BasePlugin<Configuration>, IHasWebPages`
 - **GUID**: `7f6eea8b-0e9c-4cbd-9d2a-31f9a37ce2b7`
-- **Rôle**: Point d'entrée du plugin, expose les pages web
-- **Pages**: Renvoie `config.html` comme ressource embarquée
+- **Pages**: `config.html`, `pool_manager.html`
 
 ### `Configuration.cs`
-- **Classe**: `Configuration : BasePluginConfiguration`
-- **Propriétés actuelles**:
-  - `List<LibraryRule> LibraryRules` - Règles par bibliothèque (nom + enabled)
-  - `int PoolSize` (défaut: 5) - Nombre d'affiches par item
-  - `bool SequentialRotation` - Rotation séquentielle vs aléatoire
-  - `bool LockImagesAfterFill` - Verrouiller le pool une fois rempli
-  - `int MinHoursBetweenSwitches` (défaut: 23) - Cooldown entre rotations
-  - `bool EnableSeasonPosters` - Inclure les saisons
-  - `bool EnableEpisodePosters` - Inclure les épisodes
-  - `bool TriggerLibraryScanAfterRotation` - Déclencher scan après rotation
-  - `List<string> ExtraPosterPatterns` - Patterns de fichiers additionnels
-  - `List<string> ManualLibraryRoots` - Chemins manuels
+Propriétés principales:
+- `PoolSize` (défaut: 5)
+- `SequentialRotation`
+- `LockImagesAfterFill`
+- `MinHoursBetweenSwitches` (défaut: 23)
+- `EnableSeasonPosters`, `EnableEpisodePosters`
+- `AutoCleanupOrphanedPools`, `CleanupIntervalDays`
+- `EnableLanguageFilter`, `PreferredLanguage`, `MaxPreferredLanguageImages`
+- `UseOriginalLanguageAsFallback`, `FallbackLanguage`, `IncludeUnknownLanguage`
+
+### `PoolController.cs` (API REST)
+| Endpoint | Méthode | Description |
+|----------|---------|-------------|
+| `/PosterRotator/Stats` | GET | Statistiques globales |
+| `/PosterRotator/Items` | GET | Liste des items avec pools |
+| `/PosterRotator/Pool/{id}` | GET | Détails d'un pool |
+| `/PosterRotator/Pool/{id}` | POST | Upload image |
+| `/PosterRotator/Pool/{id}/{file}` | DELETE | Supprimer image |
+| `/PosterRotator/Search/{id}` | GET | Rechercher images providers |
+| `/PosterRotator/Pool/{id}/AddFromUrl` | POST | Ajouter depuis URL |
+| `/PosterRotator/Cleanup` | POST | Nettoyer orphelins |
+
+### `PoolService.cs`
+Méthodes principales:
+- `GetStatisticsAsync()` - Stats globales
+- `GetAllPoolsAsync()` - Liste tous les pools
+- `GetPoolForItemAsync()` - Pool d'un item
+- `AddImageToPoolAsync()` - Upload image
+- `DeleteImageFromPoolAsync()` - Supprimer image
+- `SearchRemoteImagesAsync()` - Recherche providers
+- `AddImageFromUrlAsync()` - Télécharger depuis URL
+- `CleanupOrphanedPoolsAsync()` - Nettoyage orphelins
 
 ### `PosterRotatorService.cs`
-- **Classe**: `PosterRotatorService`
-- **Dépendances injectées**:
-  - `ILibraryManager _library`
-  - `IProviderManager _providers`
-  - `IServiceProvider _services`
-  - `ILogger<PosterRotatorService> _log`
-- **Méthodes principales**:
-  - `RunAsync()` - Point d'entrée de la rotation
-  - `ProcessItemAsync()` - Traite un item (film/série)
-  - `TryTopUpFromProvidersDIAsync()` - Télécharge depuis providers
-  - `PickNextFor()` - Choisit la prochaine image
-  - `GetLibraryRootPaths()` - Récupère les chemins des bibliothèques
-
-### `Web/config.html`
-- Interface de configuration embarquée
-- Utilise `ApiClient.getPluginConfiguration()` / `updatePluginConfiguration()`
-- Composants Emby: `emby-input`, `emby-button`, `emby-checkbox`
+- `RunAsync()` - Point d'entrée de la rotation
+- `ProcessItemAsync()` - Traite un item
+- `Harvest()` - Filtre et télécharge images avec préférences de langue
+- `GetOriginalLanguage()` - Détecte la langue originale du média
+- `DetectLanguageFromTitle()` - Détection heuristique de langue
 
 ---
 
-## 📂 Structure des Pools (par item média)
+## 📂 Structure des Pools
 
 ```
-/chemin/vers/media/
-├── film.mkv
-├── poster.jpg                       # Affiche actuelle
+/path/to/movie/
+├── movie.mkv
+├── poster.jpg
 └── .poster_pool/
-    ├── pool_currentprimary.jpg      # Snapshot de l'affiche initiale
-    ├── pool_1705123456789.jpg       # Affiches téléchargées (timestamp)
-    ├── pool_1705123456790.jpg
-    ├── rotation_state.json          # État de rotation (dernière rotation, index)
-    └── pool.lock                    # Présent si pool verrouillé
+    ├── pool_currentprimary.jpg      # Backup affiche initiale
+    ├── pool_1705123456789.jpg       # Affiches téléchargées
+    ├── rotation_state.json          # État rotation
+    ├── pool_languages.json          # Métadonnées langue
+    ├── pool_order.json              # Ordre personnalisé
+    └── pool.lock                    # Verrouillage
 ```
 
-### `rotation_state.json`
-```json
-{
-  "LastRotatedUtcByItem": {
-    "<item-guid>": 1705123456
-  }
-}
-```
+---
+
+## 🌍 Détection Langue Originale
+
+La fonction `GetOriginalLanguage()` utilise plusieurs heuristiques:
+1. Comparaison `OriginalTitle` vs `Name`
+2. Détection caractères Unicode (japonais, coréen, chinois, russe, arabe)
+3. Provider IDs (AniDB → japonais)
+4. Patterns dans le chemin (/anime/, /korean/)
+5. Fallback configurable
 
 ---
 
@@ -107,48 +117,33 @@ jellyfin-plugin-poster-rotator-1/
 
 | Service | Utilisation |
 |---------|-------------|
-| `ILibraryManager` | Récupérer les items (films, séries, etc.) |
+| `ILibraryManager` | Récupérer les items média |
 | `IProviderManager` | Accéder aux providers d'images |
-| `IRemoteImageProvider` | Télécharger les images distantes |
+| `IRemoteImageProvider` | Télécharger images distantes |
 | `BaseItem` | Représente un item média |
-| `ImageType` | Types d'images (Primary, Backdrop, etc.) |
+| `ImageType` | Types d'images (Primary, etc.) |
 
 ---
 
 ## ⚡ Points d'Attention
 
-1. **Compatibilité Jellyfin 10.10/10.11**: Utilise la réflexion pour les APIs qui ont changé
-2. **Mixed Folders**: Gestion spéciale quand plusieurs films dans le même dossier
-3. **Cooldown**: Respecte `MinHoursBetweenSwitches` avant de rotater
-4. **Locking**: Option pour verrouiller le pool une fois rempli
+1. **Compatibilité Jellyfin 10.10/10.11**: Utilise la réflexion
+2. **API Frontend**: Utilise `ApiClient.ajax()` et `ApiClient.getUrl()`
+3. **Cooldown**: Respecte `MinHoursBetweenSwitches`
+4. **Language Detection**: Heuristiques basées sur Unicode et métadonnées
 
 ---
 
-## 🚀 Fonctionnalités Planifiées (v1.3.0)
+## ✅ Fonctionnalités Implémentées (v1.3.0)
 
-1. **Interface web de gestion du pool** 
-   - Visualiser les images du pool par item
-   - Supprimer des images individuelles
-   - Réordonner les images manuellement
-
-2. **Dashboard de statistiques**
-   - Nombre d'items avec pools
-   - Taille totale des pools
-   - Dernières rotations effectuées
-
-3. **Import manuel d'images**
-   - Glisser-déposer des images dans l'interface
-   - Upload vers le pool d'un item spécifique
-
-4. **Nettoyage automatique**
-   - Détecter les pools orphelins (médias supprimés)
-   - Option pour supprimer automatiquement
-
----
-
-## 📝 Conventions de Code
-
-- **Namespace**: `Jellyfin.Plugin.PosterRotator`
-- **Logging**: Via `ILogger<T>` avec préfixe "PosterRotator:"
-- **Async**: Toutes les opérations I/O sont async
-- **Réflexion**: Utilisée pour la compatibilité multi-versions
+- [x] Pool Manager avec interface split-view
+- [x] Statistiques (pools, images, taille, orphelins)
+- [x] Recherche et filtrage des pools
+- [x] Visualisation des images du pool
+- [x] Recherche d'images via providers Jellyfin
+- [x] Ajout d'images depuis URL
+- [x] Import manuel (drag & drop)
+- [x] Suppression d'images
+- [x] Nettoyage des pools orphelins
+- [x] Préférences de langue
+- [x] Détection automatique langue originale (VO)

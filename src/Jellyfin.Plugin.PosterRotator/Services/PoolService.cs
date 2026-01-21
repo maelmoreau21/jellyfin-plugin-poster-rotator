@@ -304,6 +304,196 @@ public class PoolService
         }
     }
 
+    /// <summary>
+    /// Recherche des images disponibles via les providers Jellyfin.
+    /// </summary>
+    public async Task<List<Api.RemoteImageResult>?> SearchRemoteImagesAsync(Guid itemId, CancellationToken ct = default)
+    {
+        var item = _library.GetItemById(itemId);
+        if (item == null)
+        {
+            return null;
+        }
+
+        var results = new List<Api.RemoteImageResult>();
+
+        try
+        {
+            // Utiliser l'API native de Jellyfin pour rechercher des images
+            // On accède à IProviderManager via le service provider
+            var providerManager = GetProviderManager();
+            if (providerManager == null)
+            {
+                _log.LogWarning("PoolService: Cannot access IProviderManager");
+                return results;
+            }
+
+            // Appeler GetRemoteImages via réflexion pour compatibilité
+            var method = providerManager.GetType().GetMethods()
+                .FirstOrDefault(m => m.Name == "GetRemoteImages" && 
+                                    m.GetParameters().Length >= 2);
+
+            if (method != null)
+            {
+                // Essayer différentes signatures
+                object? imageResult = null;
+                
+                try
+                {
+                    // Jellyfin 10.10+: GetRemoteImages(item, options, ct)
+                    var optionsType = Type.GetType("MediaBrowser.Controller.Providers.RemoteImageQuery, Jellyfin.Controller") ??
+                                     Type.GetType("MediaBrowser.Model.Providers.RemoteImageQuery, Jellyfin.Model");
+                    
+                    if (optionsType != null)
+                    {
+                        var options = Activator.CreateInstance(optionsType);
+                        optionsType.GetProperty("ImageType")?.SetValue(options, ImageType.Primary);
+                        optionsType.GetProperty("IncludeAllLanguages")?.SetValue(options, true);
+                        
+                        var task = method.Invoke(providerManager, new[] { item, options, ct }) as Task;
+                        if (task != null)
+                        {
+                            await task.ConfigureAwait(false);
+                            imageResult = task.GetType().GetProperty("Result")?.GetValue(task);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _log.LogDebug(ex, "PoolService: Failed to get remote images via new API");
+                }
+
+                // Parser les résultats
+                if (imageResult != null)
+                {
+                    var imagesProperty = imageResult.GetType().GetProperty("Images");
+                    if (imagesProperty?.GetValue(imageResult) is System.Collections.IEnumerable images)
+                    {
+                        foreach (var img in images)
+                        {
+                            var url = img.GetType().GetProperty("Url")?.GetValue(img) as string;
+                            var provider = img.GetType().GetProperty("ProviderName")?.GetValue(img) as string;
+                            var lang = img.GetType().GetProperty("Language")?.GetValue(img) as string;
+                            var width = img.GetType().GetProperty("Width")?.GetValue(img) as int?;
+                            var height = img.GetType().GetProperty("Height")?.GetValue(img) as int?;
+                            var thumb = img.GetType().GetProperty("ThumbnailUrl")?.GetValue(img) as string;
+
+                            if (!string.IsNullOrEmpty(url))
+                            {
+                                results.Add(new Api.RemoteImageResult
+                                {
+                                    Url = url,
+                                    ProviderName = provider ?? "Unknown",
+                                    Language = lang,
+                                    Width = width,
+                                    Height = height,
+                                    ThumbnailUrl = thumb ?? url
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+
+            _log.LogDebug("PoolService: Found {Count} remote images for {Item}", results.Count, item.Name);
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "PoolService: Failed to search remote images for {Item}", item.Name);
+        }
+
+        return results;
+    }
+
+    /// <summary>
+    /// Télécharge une image depuis une URL et l'ajoute au pool.
+    /// </summary>
+    public async Task<bool> AddImageFromUrlAsync(Guid itemId, string url, CancellationToken ct = default)
+    {
+        var item = _library.GetItemById(itemId);
+        if (item == null || string.IsNullOrWhiteSpace(url))
+        {
+            return false;
+        }
+
+        var poolDir = GetPoolDirectory(item);
+        if (string.IsNullOrEmpty(poolDir))
+        {
+            return false;
+        }
+
+        Directory.CreateDirectory(poolDir);
+
+        try
+        {
+            using var http = new System.Net.Http.HttpClient();
+            using var response = await http.GetAsync(url, ct).ConfigureAwait(false);
+            response.EnsureSuccessStatusCode();
+
+            // Deviner l'extension depuis l'URL ou le content-type
+            var ext = GuessExtensionFromUrl(url) ?? ".jpg";
+            var fileName = $"pool_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}{ext}";
+            var destPath = Path.Combine(poolDir, fileName);
+
+            using var stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+            using var fs = new FileStream(destPath, FileMode.Create, FileAccess.Write);
+            await stream.CopyToAsync(fs, ct).ConfigureAwait(false);
+
+            _log.LogInformation("PoolService: Downloaded image from URL to {Path}", destPath);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "PoolService: Failed to download image from URL for {Item}", item.Name);
+            return false;
+        }
+    }
+
+    private object? GetProviderManager()
+    {
+        try
+        {
+            // Le provider manager est injecté via DI dans Jellyfin
+            // On peut y accéder via le service provider global
+            var assembly = typeof(ILibraryManager).Assembly;
+            var providerManagerType = assembly.GetType("MediaBrowser.Controller.Providers.IProviderManager");
+            
+            // Essayer différentes méthodes pour obtenir le provider manager
+            var libraryType = _library.GetType();
+            
+            // Chercher une propriété ou un champ qui pourrait contenir le provider manager
+            foreach (var prop in libraryType.GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance))
+            {
+                if (prop.PropertyType.Name.Contains("ProviderManager"))
+                {
+                    return prop.GetValue(_library);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.LogDebug(ex, "PoolService: Could not get provider manager");
+        }
+        return null;
+    }
+
+    private static string? GuessExtensionFromUrl(string url)
+    {
+        try
+        {
+            var uri = new Uri(url);
+            var path = uri.AbsolutePath.ToLowerInvariant();
+            
+            if (path.EndsWith(".jpg") || path.EndsWith(".jpeg")) return ".jpg";
+            if (path.EndsWith(".png")) return ".png";
+            if (path.EndsWith(".webp")) return ".webp";
+            if (path.EndsWith(".gif")) return ".gif";
+        }
+        catch { }
+        
+        return ".jpg";
+    }
+
     #region Private Helpers
 
     private PoolInfo? GetPoolInfoForItem(BaseItem item)

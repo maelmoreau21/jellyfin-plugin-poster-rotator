@@ -146,24 +146,35 @@
 
           <div class="inputContainer">
             <label class="inputLabel inputLabelUnfocused" for="MaxPreferredLanguageImages">Nombre max d'images dans la
-              langue préférée</label>
+              langue preferee</label>
             <input id="MaxPreferredLanguageImages" type="number" min="0" max="10" is="emby-input" value="2" />
-            <div class="fieldDescription">Ex: 2 = maximum 2 affiches françaises, le reste sera en VO</div>
+            <div class="fieldDescription">Ex: 2 = maximum 2 affiches francaises, le reste sera en VO</div>
+          </div>
+
+          <div class="checkboxContainer checkboxContainer-withDescription">
+            <label class="emby-checkbox-label">
+              <input id="UseOriginalLanguageAsFallback" type="checkbox" is="emby-checkbox" checked />
+              <span>Utiliser la langue originale du media (vraie VO)</span>
+            </label>
+            <div class="fieldDescription">Detecte automatiquement la langue originale (ex: japonais pour les animes,
+              coreen pour les K-dramas). Si desactive, utilise la langue de fallback ci-dessous.</div>
           </div>
 
           <div class="inputContainer">
-            <label class="inputLabel inputLabelUnfocused" for="FallbackLanguage">Langue de fallback (VO)</label>
+            <label class="inputLabel inputLabelUnfocused" for="FallbackLanguage">Langue de fallback (si auto-detection
+              echoue)</label>
             <input id="FallbackLanguage" type="text" is="emby-input" value="en"
-              placeholder="en, de, es... (vide = toutes)" />
-            <div class="fieldDescription">Langue pour les autres affiches. Laisser vide pour toutes langues.</div>
+              placeholder="en, de, es, ja, ko... (vide = toutes)" />
+            <div class="fieldDescription">Utilise seulement si "Utiliser la langue originale" est desactive ou si la
+              detection echoue.</div>
           </div>
 
           <div class="checkboxContainer checkboxContainer-withDescription">
             <label class="emby-checkbox-label">
               <input id="IncludeUnknownLanguage" type="checkbox" is="emby-checkbox" checked />
-              <span>Inclure les images sans langue définie</span>
+              <span>Inclure les images sans langue definie</span>
             </label>
-            <div class="fieldDescription">Inclut les affiches dont la langue n'est pas spécifiée par le provider</div>
+            <div class="fieldDescription">Inclut les affiches dont la langue n'est pas specifiee par le provider</div>
           </div>
 
           <!-- BOUTON SAVE -->
@@ -233,6 +244,7 @@
               if (byId('EnableLanguageFilter')) byId('EnableLanguageFilter').checked = !!cfg.EnableLanguageFilter;
               if (byId('PreferredLanguage')) byId('PreferredLanguage').value = (cfg.PreferredLanguage ?? 'fr');
               if (byId('MaxPreferredLanguageImages')) byId('MaxPreferredLanguageImages').value = (cfg.MaxPreferredLanguageImages ?? 2);
+              if (byId('UseOriginalLanguageAsFallback')) byId('UseOriginalLanguageAsFallback').checked = (cfg.UseOriginalLanguageAsFallback === undefined ? true : !!cfg.UseOriginalLanguageAsFallback);
               if (byId('FallbackLanguage')) byId('FallbackLanguage').value = (cfg.FallbackLanguage ?? 'en');
               if (byId('IncludeUnknownLanguage')) byId('IncludeUnknownLanguage').checked = (cfg.IncludeUnknownLanguage === undefined ? true : !!cfg.IncludeUnknownLanguage);
 
@@ -373,6 +385,7 @@
               cfg.PreferredLanguage = (byId('PreferredLanguage')?.value || 'fr').trim();
               var maxPrefLang = parseInt((byId('MaxPreferredLanguageImages')?.value || '2'), 10);
               cfg.MaxPreferredLanguageImages = (isNaN(maxPrefLang) || maxPrefLang < 0) ? 2 : maxPrefLang;
+              cfg.UseOriginalLanguageAsFallback = !!(byId('UseOriginalLanguageAsFallback') && byId('UseOriginalLanguageAsFallback').checked);
               cfg.FallbackLanguage = (byId('FallbackLanguage')?.value || '').trim();
               cfg.IncludeUnknownLanguage = !!(byId('IncludeUnknownLanguage') && byId('IncludeUnknownLanguage').checked);
 
