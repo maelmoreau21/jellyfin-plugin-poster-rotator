@@ -800,43 +800,118 @@ namespace Jellyfin.Plugin.PosterRotator
 
             return added;
 
-            // order + download a batch
+            // order + download a batch with language filtering
             async Task<bool> Harvest(IEnumerable<RemoteImageInfo>? images, bool preferPrimary)
             {
                 if (images == null) return false;
 
-                var ordered = (preferPrimary
-                        ? images.OrderByDescending(i => i.Type == ImageType.Primary).ThenBy(i => i.ProviderName)
-                        : images.OrderBy(i => i.ProviderName))
-                    .ToList();
+                var imageList = images.ToList();
+                if (imageList.Count == 0) return false;
 
                 var gotAny = false;
 
-                // Primary first
-                    foreach (var info in ordered.Where(i => i.Type == ImageType.Primary))
+                // Apply language filtering if enabled
+                if (cfg.EnableLanguageFilter)
                 {
-                    if (added.Count >= needed) break;
-                    	await TryDownloadRemote(info, item, poolDir, cfg, ct, added).ConfigureAwait(false);
-                    gotAny = true;
-                }
+                    var prefLang = cfg.PreferredLanguage?.ToLowerInvariant() ?? "fr";
+                    var fallbackLang = cfg.FallbackLanguage?.ToLowerInvariant() ?? "en";
+                    var maxPrefLang = cfg.MaxPreferredLanguageImages;
+                    var includeUnknown = cfg.IncludeUnknownLanguage;
 
-                // then others
-                if (added.Count < needed)
-                {
-                        foreach (var info in ordered.Where(i => i.Type == ImageType.Thumb || i == null || i.Type == ImageType.Backdrop))
+                    // Count how many preferred language images we already have in the pool
+                    var prefLangInPool = CountLanguageImagesInPool(poolDir, prefLang);
+                    var remainingPrefSlots = Math.Max(0, maxPrefLang - prefLangInPool);
+
+                    _log.LogDebug("PosterRotator: Language filter - preferred={Lang}, max={Max}, inPool={InPool}, remaining={Rem}",
+                        prefLang, maxPrefLang, prefLangInPool, remainingPrefSlots);
+
+                    // Separate images by language
+                    var prefLangImages = imageList
+                        .Where(i => i.Type == ImageType.Primary && 
+                                   !string.IsNullOrEmpty(i.Language) && 
+                                   i.Language.Equals(prefLang, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+
+                    var fallbackImages = imageList
+                        .Where(i => i.Type == ImageType.Primary && 
+                                   (string.IsNullOrEmpty(fallbackLang) || 
+                                    (!string.IsNullOrEmpty(i.Language) && i.Language.Equals(fallbackLang, StringComparison.OrdinalIgnoreCase)) ||
+                                    (includeUnknown && string.IsNullOrEmpty(i.Language))))
+                        .Where(i => !prefLangImages.Contains(i)) // Exclude already selected
+                        .ToList();
+
+                    _log.LogDebug("PosterRotator: Found {PrefCount} {PrefLang} images, {FallCount} fallback images",
+                        prefLangImages.Count, prefLang, fallbackImages.Count);
+
+                    // Download preferred language images first (up to limit)
+                    foreach (var info in prefLangImages.Take(remainingPrefSlots))
                     {
                         if (added.Count >= needed) break;
-                            await TryDownloadRemote(info, item, poolDir, cfg, ct, added).ConfigureAwait(false);
+                        await TryDownloadRemote(info, item, poolDir, cfg, ct, added, prefLang).ConfigureAwait(false);
                         gotAny = true;
+                    }
+
+                    // Then download fallback language images
+                    foreach (var info in fallbackImages)
+                    {
+                        if (added.Count >= needed) break;
+                        await TryDownloadRemote(info, item, poolDir, cfg, ct, added, info.Language ?? "unknown").ConfigureAwait(false);
+                        gotAny = true;
+                    }
+                }
+                else
+                {
+                    // Original behavior without language filtering
+                    var ordered = (preferPrimary
+                            ? imageList.OrderByDescending(i => i.Type == ImageType.Primary).ThenBy(i => i.ProviderName)
+                            : imageList.OrderBy(i => i.ProviderName))
+                        .ToList();
+
+                    // Primary first
+                    foreach (var info in ordered.Where(i => i.Type == ImageType.Primary))
+                    {
+                        if (added.Count >= needed) break;
+                        await TryDownloadRemote(info, item, poolDir, cfg, ct, added, null).ConfigureAwait(false);
+                        gotAny = true;
+                    }
+
+                    // then others
+                    if (added.Count < needed)
+                    {
+                        foreach (var info in ordered.Where(i => i.Type == ImageType.Thumb || i == null || i.Type == ImageType.Backdrop))
+                        {
+                            if (added.Count >= needed) break;
+                            await TryDownloadRemote(info, item, poolDir, cfg, ct, added, null).ConfigureAwait(false);
+                            gotAny = true;
+                        }
                     }
                 }
 
                 return gotAny;
             }
 
+            // Count images in pool that match a specific language (based on filename pattern)
+            int CountLanguageImagesInPool(string dir, string lang)
+            {
+                if (!Directory.Exists(dir)) return 0;
+                // We store language info in a metadata file or filename suffix
+                var metaPath = Path.Combine(dir, "pool_languages.json");
+                if (File.Exists(metaPath))
+                {
+                    try
+                    {
+                        var json = File.ReadAllText(metaPath);
+                        var langMap = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(json);
+                        return langMap?.Count(kv => kv.Value.Equals(lang, StringComparison.OrdinalIgnoreCase)) ?? 0;
+                    }
+                    catch { }
+                }
+                return 0;
+            }
+
             async Task TryDownloadRemote(RemoteImageInfo info,
                                         BaseItem mv, string dir, Configuration c,
-                                        CancellationToken token, List<string> bucket)
+                                        CancellationToken token, List<string> bucket, string? language)
             {
                 if (info == null) return;
                 // Prefer portrait images: if provider supplied width/height and image is landscape, skip.
@@ -861,11 +936,42 @@ namespace Jellyfin.Plugin.PosterRotator
                     await s.CopyToAsync(f, token).ConfigureAwait(false);
 
                     bucket.Add(full);
+
+                    // Save language metadata if available
+                    var actualLang = language ?? info.Language ?? "unknown";
+                    if (!string.IsNullOrEmpty(actualLang))
+                    {
+                        SaveLanguageMetadata(dir, name, actualLang);
+                    }
+
+                    _log.LogDebug("PosterRotator: downloaded {Name} (lang={Lang}) for {Item}", name, actualLang, mv.Name);
                 }
                 catch (Exception ex)
                 {
                     _log.LogDebug(ex, "PosterRotator: download failed for {Url} ({Item})", url, mv.Name);
                 }
+            }
+
+            void SaveLanguageMetadata(string dir, string fileName, string lang)
+            {
+                var metaPath = Path.Combine(dir, "pool_languages.json");
+                try
+                {
+                    Dictionary<string, string> langMap;
+                    if (File.Exists(metaPath))
+                    {
+                        var json = File.ReadAllText(metaPath);
+                        langMap = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(json) ?? new();
+                    }
+                    else
+                    {
+                        langMap = new Dictionary<string, string>();
+                    }
+
+                    langMap[fileName] = lang;
+                    File.WriteAllText(metaPath, System.Text.Json.JsonSerializer.Serialize(langMap));
+                }
+                catch { }
             }
         }
 

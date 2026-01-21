@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using MediaBrowser.Controller;                 // IServerApplicationHost
 using MediaBrowser.Controller.Plugins;         // IPluginServiceRegistrator
+using Jellyfin.Plugin.PosterRotator.Services;  // PoolService
 
 namespace Jellyfin.Plugin.PosterRotator
 {
@@ -11,7 +12,7 @@ namespace Jellyfin.Plugin.PosterRotator
         public void RegisterServices(IServiceCollection services, IServerApplicationHost applicationHost)
         {
             services.AddSingleton<PosterRotatorService>();
-            // services.AddSingleton<AnyOtherService>(); // add more if needed
+            services.AddSingleton<PoolService>();
         }
     }
 }

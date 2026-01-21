@@ -27,6 +27,11 @@ public class Plugin : BasePlugin<Configuration>, IHasWebPages
         {
             Name = "Poster Rotator",
             EmbeddedResourcePath = "Jellyfin.Plugin.PosterRotator.Web.config.html"
+        },
+        new PluginPageInfo
+        {
+            Name = "Pool Manager",
+            EmbeddedResourcePath = "Jellyfin.Plugin.PosterRotator.Web.pool_manager.html"
         }
     };
 

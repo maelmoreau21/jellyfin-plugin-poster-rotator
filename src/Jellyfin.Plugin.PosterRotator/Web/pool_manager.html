@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+  <meta charset="utf-8" />
+  <title>Pool Manager - Poster Rotator</title>
+  <style>
+    .pr-container {
+      padding: 20px;
+    }
+
+    .pr-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .pr-stats {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+
+    .pr-stat {
+      background: rgba(255, 255, 255, 0.05);
+      padding: 15px 25px;
+      border-radius: 8px;
+      text-align: center;
+    }
+
+    .pr-stat-value {
+      font-size: 2em;
+      font-weight: bold;
+      color: #00a4dc;
+    }
+
+    .pr-stat-label {
+      font-size: 0.85em;
+      color: #888;
+      margin-top: 5px;
+    }
+
+    .pr-stat.warning .pr-stat-value {
+      color: #ff9800;
+    }
+
+    .pr-stat.success .pr-stat-value {
+      color: #4caf50;
+    }
+
+    .pr-filters {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .pr-filters input,
+    .pr-filters select {
+      padding: 8px 12px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.05);
+      color: inherit;
+    }
+
+    .pr-filters input {
+      flex: 1;
+      min-width: 200px;
+    }
+
+    .pr-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .pr-table th,
+    .pr-table td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .pr-table th {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .pr-table tr:hover {
+      background: rgba(0, 164, 220, 0.1);
+      cursor: pointer;
+    }
+
+    .pr-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 0.8em;
+    }
+
+    .pr-badge.movie {
+      background: #e91e63;
+      color: white;
+    }
+
+    .pr-badge.series {
+      background: #9c27b0;
+      color: white;
+    }
+
+    .pr-badge.season {
+      background: #673ab7;
+      color: white;
+    }
+
+    .pr-badge.boxset {
+      background: #3f51b5;
+      color: white;
+    }
+
+    .pr-loading {
+      text-align: center;
+      padding: 40px;
+      color: #888;
+    }
+
+    .pr-error {
+      color: #f44336;
+      padding: 20px;
+      text-align: center;
+    }
+
+    .pr-empty {
+      color: #888;
+      padding: 20px;
+      text-align: center;
+    }
+
+    .pr-modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.85);
+      z-index: 9999;
+      overflow-y: auto;
+    }
+
+    .pr-modal.active {
+      display: flex;
+      justify-content: center;
+      padding: 40px 20px;
+    }
+
+    .pr-modal-box {
+      background: #1c1c1c;
+      border-radius: 10px;
+      max-width: 800px;
+      width: 100%;
+      max-height: calc(100vh - 80px);
+      overflow-y: auto;
+    }
+
+    .pr-modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 15px 20px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .pr-modal-close {
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: #888;
+    }
+
+    .pr-modal-close:hover {
+      color: white;
+    }
+
+    .pr-modal-body {
+      padding: 20px;
+    }
+
+    .pr-images {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 15px;
+    }
+
+    .pr-image {
+      position: relative;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 2px solid transparent;
+    }
+
+    .pr-image.current {
+      border-color: #4caf50;
+    }
+
+    .pr-image img {
+      width: 100%;
+      height: 180px;
+      object-fit: cover;
+      display: block;
+    }
+
+    .pr-image-info {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: linear-gradient(transparent, rgba(0, 0, 0, 0.9));
+      padding: 8px;
+    }
+
+    .pr-image-size {
+      font-size: 0.75em;
+      color: #ccc;
+    }
+
+    .pr-image-del {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      background: #f44336;
+      border: none;
+      border-radius: 4px;
+      color: white;
+      padding: 3px 8px;
+      cursor: pointer;
+      font-size: 0.75em;
+    }
+
+    .pr-current-tag {
+      position: absolute;
+      top: 5px;
+      left: 5px;
+      background: #4caf50;
+      color: white;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 0.7em;
+    }
+
+    .pr-dropzone {
+      border: 2px dashed rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      padding: 30px;
+      text-align: center;
+      color: #888;
+      margin-top: 20px;
+      transition: all 0.2s;
+    }
+
+    .pr-dropzone.over {
+      border-color: #00a4dc;
+      background: rgba(0, 164, 220, 0.1);
+    }
+
+    .pr-dropzone input {
+      display: none;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="PoolManagerPage" data-role="page" class="page type-interior pluginConfigurationPage"
+    data-require="emby-button">
+    <div data-role="content">
+      <div class="content-primary pr-container">
+
+        <div class="pr-header">
+          <h1>Pool Manager</h1>
+          <a href="#!/configurationpage?name=Poster%20Rotator" is="emby-button" class="raised">Retour aux parametres</a>
+        </div>
+
+        <div id="prStats" class="pr-stats">
+          <div class="pr-loading">Chargement des statistiques...</div>
+        </div>
+
+        <div class="pr-filters">
+          <input type="text" id="prSearch" placeholder="Rechercher..." />
+          <select id="prType">
+            <option value="">Tous</option>
+            <option value="Movie">Films</option>
+            <option value="Series">Series</option>
+            <option value="Season">Saisons</option>
+            <option value="BoxSet">Collections</option>
+          </select>
+          <button is="emby-button" class="raised" id="prCleanup">Nettoyer orphelins</button>
+        </div>
+
+        <div id="prItems">
+          <div class="pr-loading">Chargement des pools...</div>
+        </div>
+
+      </div>
+    </div>
+
+    <div id="prModal" class="pr-modal">
+      <div class="pr-modal-box">
+        <div class="pr-modal-header">
+          <h2 id="prModalTitle">Pool</h2>
+          <button class="pr-modal-close" id="prModalClose">&times;</button>
+        </div>
+        <div class="pr-modal-body" id="prModalBody">
+          <div class="pr-loading">Chargement...</div>
+        </div>
+      </div>
+    </div>
+
+    <script type="text/javascript">
+      (function () {
+        'use strict';
+
+        var allPools = [];
+        var currentPoolId = null;
+
+        // Simple element getter
+        function $(id) { return document.getElementById(id); }
+
+        // Safe text escaping
+        function esc(text) {
+          if (!text) return '';
+          var d = document.createElement('div');
+          d.textContent = text;
+          return d.innerHTML;
+        }
+
+        // API helper using Jellyfin's fetch with auth
+        function api(method, path, body) {
+          return new Promise(function (resolve, reject) {
+            var url = ApiClient.getUrl(path);
+            var opts = {
+              type: method,
+              url: url,
+              dataType: 'json'
+            };
+            if (body) {
+              opts.data = JSON.stringify(body);
+              opts.contentType = 'application/json';
+            }
+            ApiClient.ajax(opts).then(resolve, reject);
+          });
+        }
+
+        // Load stats
+        function loadStats() {
+          api('GET', 'PosterRotator/Stats').then(function (s) {
+            var html = '';
+            html += '<div class="pr-stat"><div class="pr-stat-value">' + (s.TotalPools || 0) + '</div><div class="pr-stat-label">Pools</div></div>';
+            html += '<div class="pr-stat"><div class="pr-stat-value">' + (s.TotalImages || 0) + '</div><div class="pr-stat-label">Images</div></div>';
+            html += '<div class="pr-stat"><div class="pr-stat-value">' + esc(s.TotalSizeFormatted || '0 B') + '</div><div class="pr-stat-label">Taille</div></div>';
+            html += '<div class="pr-stat' + (s.OrphanedPools > 0 ? ' warning' : '') + '"><div class="pr-stat-value">' + (s.OrphanedPools || 0) + '</div><div class="pr-stat-label">Orphelins</div></div>';
+            html += '<div class="pr-stat success"><div class="pr-stat-value">' + (s.RotationsLast24h || 0) + '</div><div class="pr-stat-label">Rotations 24h</div></div>';
+            $('prStats').innerHTML = html;
+          }).catch(function (e) {
+            console.error('Stats error:', e);
+            $('prStats').innerHTML = '<div class="pr-error">Erreur chargement stats. API non disponible.</div>';
+          });
+        }
+
+        // Load pools list
+        function loadPools() {
+          api('GET', 'PosterRotator/Items').then(function (pools) {
+            allPools = pools || [];
+            renderPools();
+          }).catch(function (e) {
+            console.error('Pools error:', e);
+            allPools = [];
+            $('prItems').innerHTML = '<div class="pr-error">Erreur chargement pools. Verifiez que le plugin est bien installe.</div>';
+          });
+        }
+
+        // Render pools table
+        function renderPools() {
+          var search = ($('prSearch').value || '').toLowerCase();
+          var type = $('prType').value;
+
+          var filtered = allPools.filter(function (p) {
+            if (!p) return false;
+            var matchName = !search || (p.ItemName || '').toLowerCase().indexOf(search) >= 0;
+            var matchType = !type || p.ItemType === type;
+            return matchName && matchType;
+          });
+
+          if (filtered.length === 0) {
+            $('prItems').innerHTML = '<div class="pr-empty">Aucun pool trouve. ' + allPools.length + ' pool(s) au total.</div>';
+            return;
+          }
+
+          var html = '<table class="pr-table"><thead><tr><th>Nom</th><th>Type</th><th>Images</th><th>Taille</th><th>Derniere rotation</th></tr></thead><tbody>';
+
+          filtered.forEach(function (p) {
+            var typeClass = (p.ItemType || 'unknown').toLowerCase();
+            var date = p.LastRotation ? new Date(p.LastRotation).toLocaleDateString('fr-FR') : '-';
+            var imgCount = p.Images ? p.Images.length : 0;
+
+            html += '<tr data-id="' + p.ItemId + '">';
+            html += '<td><strong>' + esc(p.ItemName || 'Sans nom') + '</strong></td>';
+            html += '<td><span class="pr-badge ' + typeClass + '">' + esc(p.ItemType) + '</span></td>';
+            html += '<td>' + imgCount + '</td>';
+            html += '<td>' + esc(p.TotalSizeFormatted || '0 B') + '</td>';
+            html += '<td>' + date + '</td>';
+            html += '</tr>';
+          });
+
+          html += '</tbody></table>';
+          $('prItems').innerHTML = html;
+
+          // Add click handlers
+          var rows = document.querySelectorAll('.pr-table tbody tr');
+          rows.forEach(function (row) {
+            row.onclick = function () {
+              openPool(row.getAttribute('data-id'));
+            };
+          });
+        }
+
+        // Open pool detail modal
+        function openPool(itemId) {
+          currentPoolId = itemId;
+          $('prModal').classList.add('active');
+          $('prModalBody').innerHTML = '<div class="pr-loading">Chargement...</div>';
+
+          api('GET', 'PosterRotator/Pool/' + itemId).then(function (pool) {
+            $('prModalTitle').textContent = pool.ItemName || 'Pool';
+            renderPoolDetail(pool);
+          }).catch(function (e) {
+            console.error('Pool detail error:', e);
+            $('prModalBody').innerHTML = '<div class="pr-error">Erreur chargement du pool</div>';
+          });
+        }
+
+        // Render pool images
+        function renderPoolDetail(pool) {
+          var html = '<div class="pr-images">';
+
+          if (pool.Images && pool.Images.length > 0) {
+            pool.Images.forEach(function (img) {
+              var isCurrent = img.IsCurrent;
+              var imgUrl = ApiClient.getUrl(img.Url);
+
+              html += '<div class="pr-image' + (isCurrent ? ' current' : '') + '">';
+              if (isCurrent) html += '<div class="pr-current-tag">Actuel</div>';
+              html += '<button class="pr-image-del" data-file="' + esc(img.FileName) + '">X</button>';
+              html += '<img src="' + imgUrl + '" alt="' + esc(img.FileName) + '" loading="lazy" />';
+              html += '<div class="pr-image-info"><span class="pr-image-size">' + esc(img.SizeFormatted || '') + '</span></div>';
+              html += '</div>';
+            });
+          } else {
+            html += '<div class="pr-empty">Aucune image</div>';
+          }
+
+          html += '</div>';
+
+          // Drop zone for upload
+          html += '<div class="pr-dropzone" id="prDropzone">';
+          html += '<p>Glissez des images ici ou <label style="color:#00a4dc;cursor:pointer;">parcourir<input type="file" id="prFileInput" accept="image/*" multiple /></label></p>';
+          html += '</div>';
+
+          $('prModalBody').innerHTML = html;
+
+          // Delete buttons
+          document.querySelectorAll('.pr-image-del').forEach(function (btn) {
+            btn.onclick = function (e) {
+              e.stopPropagation();
+              var fileName = btn.getAttribute('data-file');
+              if (confirm('Supprimer ' + fileName + ' ?')) {
+                deleteImage(fileName);
+              }
+            };
+          });
+
+          // File upload
+          var fileInput = $('prFileInput');
+          var dropzone = $('prDropzone');
+
+          if (fileInput) {
+            fileInput.onchange = function () { uploadFiles(fileInput.files); };
+          }
+
+          if (dropzone) {
+            dropzone.ondragover = function (e) { e.preventDefault(); dropzone.classList.add('over'); };
+            dropzone.ondragleave = function () { dropzone.classList.remove('over'); };
+            dropzone.ondrop = function (e) {
+              e.preventDefault();
+              dropzone.classList.remove('over');
+              uploadFiles(e.dataTransfer.files);
+            };
+          }
+        }
+
+        // Delete image
+        function deleteImage(fileName) {
+          api('DELETE', 'PosterRotator/Pool/' + currentPoolId + '/' + encodeURIComponent(fileName)).then(function () {
+            openPool(currentPoolId);
+            loadStats();
+            loadPools();
+          }).catch(function (e) {
+            console.error('Delete error:', e);
+            alert('Erreur suppression');
+          });
+        }
+
+        // Upload files
+        function uploadFiles(files) {
+          if (!files || files.length === 0) return;
+
+          var remaining = files.length;
+
+          Array.from(files).forEach(function (file) {
+            var formData = new FormData();
+            formData.append('file', file);
+
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', ApiClient.getUrl('PosterRotator/Pool/' + currentPoolId));
+
+            // Add auth header
+            var authKey = ApiClient.accessToken();
+            if (authKey) {
+              xhr.setRequestHeader('X-Emby-Token', authKey);
+            }
+
+            xhr.onload = function () {
+              remaining--;
+              if (remaining === 0) {
+                openPool(currentPoolId);
+                loadStats();
+                loadPools();
+              }
+            };
+
+            xhr.onerror = function () {
+              remaining--;
+              console.error('Upload error for ' + file.name);
+            };
+
+            xhr.send(formData);
+          });
+        }
+
+        // Cleanup orphans
+        function cleanupOrphans() {
+          if (!confirm('Supprimer tous les pools orphelins (medias supprimes) ?')) return;
+
+          api('POST', 'PosterRotator/Cleanup').then(function (res) {
+            alert(res.message || 'Nettoyage termine');
+            loadStats();
+            loadPools();
+          }).catch(function (e) {
+            console.error('Cleanup error:', e);
+            alert('Erreur nettoyage');
+          });
+        }
+
+        // Close modal
+        function closeModal() {
+          $('prModal').classList.remove('active');
+          currentPoolId = null;
+        }
+
+        // Event bindings
+        $('prSearch').oninput = renderPools;
+        $('prType').onchange = renderPools;
+        $('prCleanup').onclick = cleanupOrphans;
+        $('prModalClose').onclick = closeModal;
+        $('prModal').onclick = function (e) { if (e.target === this) closeModal(); };
+
+        // Init on page show
+        var page = $('PoolManagerPage');
+        page.addEventListener('viewshow', function () {
+          loadStats();
+          loadPools();
+        });
+        page.addEventListener('pageshow', function () {
+          loadStats();
+          loadPools();
+        });
+
+      })();
+    </script>
+  </div>
+</body>
+
+</html>

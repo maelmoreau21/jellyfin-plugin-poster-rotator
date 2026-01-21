@@ -1,19 +1,29 @@
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
   <meta charset="utf-8" />
   <title>Poster Rotator</title>
   <style>
-    .fieldDescription { font-size: 0.85em; color: #999; margin-top: 4px; }
-    .checkboxContainer-withDescription { margin-top: 16px; }
-    .inputContainer { margin-top: 12px; }
+    .fieldDescription {
+      font-size: 0.85em;
+      color: #999;
+      margin-top: 4px;
+    }
+
+    .checkboxContainer-withDescription {
+      margin-top: 16px;
+    }
+
+    .inputContainer {
+      margin-top: 12px;
+    }
   </style>
 </head>
+
 <body>
-  <div id="PosterRotatorConfigPage"
-       data-role="page"
-       class="page type-interior pluginConfigurationPage"
-       data-require="emby-input,emby-button,emby-checkbox">
+  <div id="PosterRotatorConfigPage" data-role="page" class="page type-interior pluginConfigurationPage"
+    data-require="emby-input,emby-button,emby-checkbox">
 
     <div data-role="content">
       <div class="content-primary">
@@ -35,7 +45,8 @@
           </div>
 
           <div class="inputContainer">
-            <label class="inputLabel inputLabelUnfocused" for="MinHoursBetweenSwitches">Heures minimum entre les changements</label>
+            <label class="inputLabel inputLabelUnfocused" for="MinHoursBetweenSwitches">Heures minimum entre les
+              changements</label>
             <input id="MinHoursBetweenSwitches" type="number" min="1" is="emby-input" value="24" />
             <div class="fieldDescription">Durée minimale avant de changer l'affiche (en heures)</div>
           </div>
@@ -77,15 +88,82 @@
               <input id="TriggerLibraryScanAfterRotation" type="checkbox" is="emby-checkbox" />
               <span>Déclencher un scan de la bibliothèque après rotation</span>
             </label>
-            <div class="fieldDescription">Optionnel et coûteux : force un scan pour que Jellyfin réindexe les images (activé par défaut)</div>
+            <div class="fieldDescription">Optionnel et coûteux : force un scan pour que Jellyfin réindexe les images
+              (activé par défaut)</div>
           </div>
 
           <!-- SECTION: Paramètres avancés -->
           <h2>Paramètres avancés</h2>
 
           <div class="inputContainer">
-            <label class="inputLabel inputLabelUnfocused" for="ExtraPosterPatterns">Motifs supplémentaires (séparés par virgule)</label>
+            <label class="inputLabel inputLabelUnfocused" for="ExtraPosterPatterns">Motifs supplémentaires (séparés par
+              virgule)</label>
             <input id="ExtraPosterPatterns" type="text" is="emby-input" placeholder="folder.jpg, alt-*.png" />
+          </div>
+
+          <!-- SECTION: Gestion des pools -->
+          <h2>Gestion des pools</h2>
+
+          <div style="margin-bottom: 16px;">
+            <a href="#!/configurationpage?name=Pool%20Manager" class="raised button-accent emby-button"
+              style="display: inline-block; padding: 12px 24px; text-decoration: none;">
+              🎨 Ouvrir le gestionnaire de pools
+            </a>
+            <div class="fieldDescription">Visualiser, supprimer, réordonner et importer des images dans les pools</div>
+          </div>
+
+          <div class="checkboxContainer checkboxContainer-withDescription">
+            <label class="emby-checkbox-label">
+              <input id="AutoCleanupOrphanedPools" type="checkbox" is="emby-checkbox" />
+              <span>Nettoyage automatique des pools orphelins</span>
+            </label>
+            <div class="fieldDescription">Supprime automatiquement les pools dont le média a été supprimé</div>
+          </div>
+
+          <div class="inputContainer">
+            <label class="inputLabel inputLabelUnfocused" for="CleanupIntervalDays">Intervalle de nettoyage
+              (jours)</label>
+            <input id="CleanupIntervalDays" type="number" min="1" max="30" is="emby-input" value="7" />
+            <div class="fieldDescription">Nombre de jours entre chaque nettoyage automatique</div>
+          </div>
+
+          <!-- SECTION: Préférences de langue -->
+          <h2>Préférences de langue des affiches</h2>
+
+          <div class="checkboxContainer checkboxContainer-withDescription">
+            <label class="emby-checkbox-label">
+              <input id="EnableLanguageFilter" type="checkbox" is="emby-checkbox" />
+              <span>Activer le filtrage par langue</span>
+            </label>
+            <div class="fieldDescription">Permet de contrôler le nombre d'affiches par langue dans le pool</div>
+          </div>
+
+          <div class="inputContainer">
+            <label class="inputLabel inputLabelUnfocused" for="PreferredLanguage">Langue préférée (code ISO)</label>
+            <input id="PreferredLanguage" type="text" is="emby-input" value="fr" placeholder="fr, en, de, es..." />
+            <div class="fieldDescription">Code de langue pour les affiches prioritaires (ex: fr pour français)</div>
+          </div>
+
+          <div class="inputContainer">
+            <label class="inputLabel inputLabelUnfocused" for="MaxPreferredLanguageImages">Nombre max d'images dans la
+              langue préférée</label>
+            <input id="MaxPreferredLanguageImages" type="number" min="0" max="10" is="emby-input" value="2" />
+            <div class="fieldDescription">Ex: 2 = maximum 2 affiches françaises, le reste sera en VO</div>
+          </div>
+
+          <div class="inputContainer">
+            <label class="inputLabel inputLabelUnfocused" for="FallbackLanguage">Langue de fallback (VO)</label>
+            <input id="FallbackLanguage" type="text" is="emby-input" value="en"
+              placeholder="en, de, es... (vide = toutes)" />
+            <div class="fieldDescription">Langue pour les autres affiches. Laisser vide pour toutes langues.</div>
+          </div>
+
+          <div class="checkboxContainer checkboxContainer-withDescription">
+            <label class="emby-checkbox-label">
+              <input id="IncludeUnknownLanguage" type="checkbox" is="emby-checkbox" checked />
+              <span>Inclure les images sans langue définie</span>
+            </label>
+            <div class="fieldDescription">Inclut les affiches dont la langue n'est pas spécifiée par le provider</div>
           </div>
 
           <!-- BOUTON SAVE -->
@@ -146,6 +224,17 @@
 
               if (byId('EnableSeasonPosters')) byId('EnableSeasonPosters').checked = !!cfg.EnableSeasonPosters;
               if (byId('EnableEpisodePosters')) byId('EnableEpisodePosters').checked = !!cfg.EnableEpisodePosters;
+
+              // Pool management options
+              if (byId('AutoCleanupOrphanedPools')) byId('AutoCleanupOrphanedPools').checked = !!cfg.AutoCleanupOrphanedPools;
+              if (byId('CleanupIntervalDays')) byId('CleanupIntervalDays').value = (cfg.CleanupIntervalDays ?? 7);
+
+              // Language preferences
+              if (byId('EnableLanguageFilter')) byId('EnableLanguageFilter').checked = !!cfg.EnableLanguageFilter;
+              if (byId('PreferredLanguage')) byId('PreferredLanguage').value = (cfg.PreferredLanguage ?? 'fr');
+              if (byId('MaxPreferredLanguageImages')) byId('MaxPreferredLanguageImages').value = (cfg.MaxPreferredLanguageImages ?? 2);
+              if (byId('FallbackLanguage')) byId('FallbackLanguage').value = (cfg.FallbackLanguage ?? 'en');
+              if (byId('IncludeUnknownLanguage')) byId('IncludeUnknownLanguage').checked = (cfg.IncludeUnknownLanguage === undefined ? true : !!cfg.IncludeUnknownLanguage);
 
               // ExtraPosterPatterns may be stored as an array; guard accordingly
               try {
@@ -211,7 +300,7 @@
                       container.appendChild(addLibraryCheckboxToContainer(name, true));
                     });
 
-                    console.log('PosterRotator: bibliothèques ajoutées au DOM:', folders.map(function(f){return f.Name || f.DisplayName;}));
+                    console.log('PosterRotator: bibliothèques ajoutées au DOM:', folders.map(function (f) { return f.Name || f.DisplayName; }));
                   })
                   .catch(function (err) {
                     console.error('PosterRotator: erreur chargement bibliothèques:', err);
@@ -274,6 +363,19 @@
               cfg.EnableSeasonPosters = !!(byId('EnableSeasonPosters') && byId('EnableSeasonPosters').checked);
               cfg.EnableEpisodePosters = !!(byId('EnableEpisodePosters') && byId('EnableEpisodePosters').checked);
 
+              // Pool management options
+              cfg.AutoCleanupOrphanedPools = !!(byId('AutoCleanupOrphanedPools') && byId('AutoCleanupOrphanedPools').checked);
+              var cleanupDays = parseInt((byId('CleanupIntervalDays')?.value || '7'), 10);
+              cfg.CleanupIntervalDays = (isNaN(cleanupDays) || cleanupDays < 1) ? 7 : cleanupDays;
+
+              // Language preferences
+              cfg.EnableLanguageFilter = !!(byId('EnableLanguageFilter') && byId('EnableLanguageFilter').checked);
+              cfg.PreferredLanguage = (byId('PreferredLanguage')?.value || 'fr').trim();
+              var maxPrefLang = parseInt((byId('MaxPreferredLanguageImages')?.value || '2'), 10);
+              cfg.MaxPreferredLanguageImages = (isNaN(maxPrefLang) || maxPrefLang < 0) ? 2 : maxPrefLang;
+              cfg.FallbackLanguage = (byId('FallbackLanguage')?.value || '').trim();
+              cfg.IncludeUnknownLanguage = !!(byId('IncludeUnknownLanguage') && byId('IncludeUnknownLanguage').checked);
+
               // Patterns
               var extra = (byId('ExtraPosterPatterns')?.value || '');
               cfg.ExtraPosterPatterns = extra.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
@@ -291,7 +393,7 @@
 
               // Manual library roots (one per line)
               try {
-                var rootsVal = (byId('ManualLibraryRoots')?.value || '').split(/\r?\n/).map(function(s){return s.trim();}).filter(Boolean);
+                var rootsVal = (byId('ManualLibraryRoots')?.value || '').split(/\r?\n/).map(function (s) { return s.trim(); }).filter(Boolean);
                 cfg.ManualLibraryRoots = rootsVal;
               } catch (e) { cfg.ManualLibraryRoots = []; }
 
@@ -322,4 +424,5 @@
     </script>
   </div>
 </body>
+
 </html>

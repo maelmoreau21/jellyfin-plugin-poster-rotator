@@ -1243,13 +1243,13 @@
     "C:\\Users\\Mael\\.nuget\\packages\\": {}
   },
   "project": {
-    "version": "1.2.0",
+    "version": "1.3.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\Mael\\Documents\\GitHub\\jellyfin-plugin-poster-rotator\\src\\Jellyfin.Plugin.PosterRotator\\Jellyfin.Plugin.PosterRotator.csproj",
+      "projectUniqueName": "C:\\Users\\Mael\\Documents\\GitHub\\jellyfin-plugin-poster-rotator-1\\src\\Jellyfin.Plugin.PosterRotator\\Jellyfin.Plugin.PosterRotator.csproj",
       "projectName": "Jellyfin.Plugin.PosterRotator",
-      "projectPath": "C:\\Users\\Mael\\Documents\\GitHub\\jellyfin-plugin-poster-rotator\\src\\Jellyfin.Plugin.PosterRotator\\Jellyfin.Plugin.PosterRotator.csproj",
+      "projectPath": "C:\\Users\\Mael\\Documents\\GitHub\\jellyfin-plugin-poster-rotator-1\\src\\Jellyfin.Plugin.PosterRotator\\Jellyfin.Plugin.PosterRotator.csproj",
       "packagesPath": "C:\\Users\\Mael\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\Mael\\Documents\\GitHub\\jellyfin-plugin-poster-rotator\\src\\Jellyfin.Plugin.PosterRotator\\obj\\",
+      "outputPath": "C:\\Users\\Mael\\Documents\\GitHub\\jellyfin-plugin-poster-rotator-1\\src\\Jellyfin.Plugin.PosterRotator\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\Mael\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -1310,6 +1310,9 @@
         "assetTargetFallback": true,
         "warn": true,
         "frameworkReferences": {
+          "Microsoft.AspNetCore.App": {
+            "privateAssets": "none"
+          },
           "Microsoft.NETCore.App": {
             "privateAssets": "all"
           }
