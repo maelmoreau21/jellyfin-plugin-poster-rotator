@@ -249,6 +249,28 @@ public class PoolController : ControllerBase
 
         return Ok(new { message = "Image added successfully" });
     }
+
+    /// <summary>
+    /// Force la rotation immédiate d'un item.
+    /// </summary>
+    [HttpPost("Pool/{itemId}/Rotate")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult> ForceRotate(
+        [FromRoute] Guid itemId,
+        CancellationToken ct)
+    {
+        _log.LogInformation("PoolController: Forcing rotation for item {ItemId}", itemId);
+
+        var success = await _poolService.ForceRotateAsync(itemId, ct).ConfigureAwait(false);
+
+        if (!success)
+        {
+            return NotFound(new { message = "Item not found or rotation failed" });
+        }
+
+        return Ok(new { message = "Rotation completed" });
+    }
 }
 
 /// <summary>

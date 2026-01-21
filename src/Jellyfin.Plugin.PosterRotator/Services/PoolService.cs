@@ -268,6 +268,98 @@ public class PoolService
     }
 
     /// <summary>
+    /// Force la rotation immédiate d'un item vers la prochaine image du pool.
+    /// </summary>
+    public async Task<bool> ForceRotateAsync(Guid itemId, CancellationToken ct = default)
+    {
+        var item = _library.GetItemById(itemId);
+        if (item == null)
+        {
+            _log.LogWarning("PoolService: Cannot force rotate - Item {ItemId} not found", itemId);
+            return false;
+        }
+
+        var poolDir = GetPoolDirectory(item);
+        if (string.IsNullOrEmpty(poolDir) || !Directory.Exists(poolDir))
+        {
+            _log.LogWarning("PoolService: Cannot force rotate - No pool for {Item}", item.Name);
+            return false;
+        }
+
+        // Récupérer les images du pool
+        var images = Directory.GetFiles(poolDir)
+            .Where(f => ImageExtensions.Contains(Path.GetExtension(f).ToLowerInvariant()))
+            .OrderBy(f => f)
+            .ToList();
+
+        if (images.Count < 2)
+        {
+            _log.LogWarning("PoolService: Cannot force rotate - Not enough images for {Item}", item.Name);
+            return false;
+        }
+
+        // Trouver l'image actuelle
+        var currentPrimary = item.GetImagePath(ImageType.Primary);
+        var currentFileName = !string.IsNullOrEmpty(currentPrimary) 
+            ? Path.GetFileName(currentPrimary) 
+            : null;
+
+        // Trouver l'index actuel et passer au suivant
+        int currentIndex = -1;
+        for (int i = 0; i < images.Count; i++)
+        {
+            if (Path.GetFileName(images[i]).Equals(currentFileName, StringComparison.OrdinalIgnoreCase))
+            {
+                currentIndex = i;
+                break;
+            }
+        }
+
+        int nextIndex = (currentIndex + 1) % images.Count;
+        var nextImagePath = images[nextIndex];
+
+        try
+        {
+            // Copier la nouvelle image comme poster principal
+            var itemDir = GetItemDirectory(item);
+            if (string.IsNullOrEmpty(itemDir)) return false;
+
+            var primaryExt = Path.GetExtension(nextImagePath);
+            var primaryPath = Path.Combine(itemDir, "poster" + primaryExt);
+
+            File.Copy(nextImagePath, primaryPath, overwrite: true);
+
+            // Mettre à jour l'état de rotation
+            var statePath = Path.Combine(poolDir, "rotation_state.json");
+            var state = new Dictionary<string, object>
+            {
+                ["LastRotatedUtc"] = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+                ["CurrentImage"] = Path.GetFileName(nextImagePath)
+            };
+            await File.WriteAllTextAsync(statePath, JsonSerializer.Serialize(state), ct).ConfigureAwait(false);
+
+            // Notifier Jellyfin du changement
+            try
+            {
+                item.SetImagePath(ImageType.Primary, primaryPath);
+                await item.UpdateToRepositoryAsync(ItemUpdateType.ImageUpdate, ct).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _log.LogDebug(ex, "PoolService: Could not update repository for {Item}", item.Name);
+            }
+
+            _log.LogInformation("PoolService: Forced rotation for {Item} to {Image}", item.Name, Path.GetFileName(nextImagePath));
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "PoolService: Failed to force rotate {Item}", item.Name);
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Récupère le contenu binaire d'une image du pool.
     /// </summary>
     public Task<(byte[]? data, string? contentType)> GetPoolImageAsync(Guid itemId, string fileName, CancellationToken ct = default)
