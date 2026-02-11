@@ -57,6 +57,6 @@ public class PosterRotationTask : IScheduledTask
 
     public IEnumerable<TaskTriggerInfo> GetDefaultTriggers() => new[]
     {
-        new TaskTriggerInfo { Type = TaskTriggerInfo.TriggerDaily, TimeOfDayTicks = TimeSpan.FromHours(3).Ticks }
+        new TaskTriggerInfo { Type = TaskTriggerInfoType.DailyTrigger, TimeOfDayTicks = TimeSpan.FromHours(3).Ticks }
     };
 }

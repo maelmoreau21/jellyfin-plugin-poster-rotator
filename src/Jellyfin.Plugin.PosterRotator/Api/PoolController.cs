@@ -86,14 +86,15 @@ public class PoolController : ControllerBase
         [FromRoute] string fileName, 
         CancellationToken ct)
     {
-        var (data, contentType) = await _poolService.GetPoolImageAsync(itemId, fileName, ct).ConfigureAwait(false);
+        var (stream, contentType, length) = await _poolService.GetPoolImageAsync(itemId, fileName, ct).ConfigureAwait(false);
         
-        if (data == null || contentType == null)
+        if (stream == null)
         {
             return NotFound();
         }
 
-        return File(data, contentType);
+        // R2: Stream the file directly — no full byte[] copy in memory
+        return File(stream, contentType, enableRangeProcessing: true);
     }
 
     /// <summary>
