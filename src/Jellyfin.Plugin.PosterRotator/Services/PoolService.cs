@@ -269,93 +269,102 @@ public class PoolService
 
     /// <summary>
     /// Force la rotation immédiate d'un item vers la prochaine image du pool.
+    /// Compatible avec le format rotation_state.json de PosterRotatorService.
     /// </summary>
-    public async Task<bool> ForceRotateAsync(Guid itemId, CancellationToken ct = default)
+    public Task<bool> ForceRotateAsync(Guid itemId, CancellationToken ct = default)
     {
         var item = _library.GetItemById(itemId);
         if (item == null)
         {
             _log.LogWarning("PoolService: Cannot force rotate - Item {ItemId} not found", itemId);
-            return false;
+            return Task.FromResult(false);
         }
 
         var poolDir = GetPoolDirectory(item);
         if (string.IsNullOrEmpty(poolDir) || !Directory.Exists(poolDir))
         {
             _log.LogWarning("PoolService: Cannot force rotate - No pool for {Item}", item.Name);
-            return false;
+            return Task.FromResult(false);
         }
 
-        // Récupérer les images du pool
+        // Récupérer les images du pool (même ordre que PosterRotatorService.PickNextFor)
         var images = Directory.GetFiles(poolDir)
             .Where(f => ImageExtensions.Contains(Path.GetExtension(f).ToLowerInvariant()))
-            .OrderBy(f => f)
+            .OrderBy(f => Path.GetFileName(f).StartsWith("pool_currentprimary", StringComparison.OrdinalIgnoreCase) ? 1 : 0)
+            .ThenBy(f => Path.GetFileName(f), StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         if (images.Count < 2)
         {
             _log.LogWarning("PoolService: Cannot force rotate - Not enough images for {Item}", item.Name);
-            return false;
+            return Task.FromResult(false);
         }
 
-        // Trouver l'image actuelle
-        var currentPrimary = item.GetImagePath(ImageType.Primary);
-        var currentFileName = !string.IsNullOrEmpty(currentPrimary) 
-            ? Path.GetFileName(currentPrimary) 
-            : null;
+        // Charger l'état de rotation existant (format compatible PosterRotatorService)
+        var statePath = Path.Combine(poolDir, "rotation_state.json");
+        var state = LoadRotationState(statePath);
+        var key = item.Id.ToString();
 
-        // Trouver l'index actuel et passer au suivant
-        int currentIndex = -1;
-        for (int i = 0; i < images.Count; i++)
+        // Déterminer l'index actuel via l'état sauvegardé
+        int lastIdx = state.LastIndexByItem.TryGetValue(key, out var v) ? v : 0;
+        int nextIdx = lastIdx % images.Count;
+        
+        // Éviter pool_currentprimary si d'autres images existent
+        var chosen = images[nextIdx];
+        if (Path.GetFileName(chosen).StartsWith("pool_currentprimary", StringComparison.OrdinalIgnoreCase) && images.Count > 1)
         {
-            if (Path.GetFileName(images[i]).Equals(currentFileName, StringComparison.OrdinalIgnoreCase))
-            {
-                currentIndex = i;
-                break;
-            }
+            nextIdx = (nextIdx + 1) % images.Count;
+            chosen = images[nextIdx];
         }
-
-        int nextIndex = (currentIndex + 1) % images.Count;
-        var nextImagePath = images[nextIndex];
 
         try
         {
-            // Copier la nouvelle image comme poster principal
-            var itemDir = GetItemDirectory(item);
-            if (string.IsNullOrEmpty(itemDir)) return false;
+            // Déterminer la destination (comme PosterRotatorService.ProcessItemAsync)
+            var currentPrimary = item.GetImagePath(ImageType.Primary);
+            string destinationPath;
 
-            var primaryExt = Path.GetExtension(nextImagePath);
-            var primaryPath = Path.Combine(itemDir, "poster" + primaryExt);
-
-            File.Copy(nextImagePath, primaryPath, overwrite: true);
-
-            // Mettre à jour l'état de rotation
-            var statePath = Path.Combine(poolDir, "rotation_state.json");
-            var state = new Dictionary<string, object>
+            if (!string.IsNullOrEmpty(currentPrimary))
             {
-                ["LastRotatedUtc"] = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
-                ["CurrentImage"] = Path.GetFileName(nextImagePath)
-            };
-            await File.WriteAllTextAsync(statePath, JsonSerializer.Serialize(state), ct).ConfigureAwait(false);
+                destinationPath = currentPrimary;
+            }
+            else
+            {
+                var itemDir = GetItemDirectory(item);
+                if (string.IsNullOrEmpty(itemDir)) return Task.FromResult(false);
+                destinationPath = Path.Combine(itemDir, "poster" + Path.GetExtension(chosen));
+            }
+
+            // SafeOverwrite: temp file + rename pour éviter les corruptions
+            var dir = Path.GetDirectoryName(destinationPath);
+            if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+
+            var tmp = destinationPath + ".tmp";
+            File.Copy(chosen, tmp, overwrite: true);
+            File.Move(tmp, destinationPath, overwrite: true);
+
+            // Mettre à jour l'état (format compatible PosterRotatorService)
+            state.LastIndexByItem[key] = nextIdx + 1;
+            state.LastRotatedUtcByItem[key] = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            SaveRotationState(statePath, state);
 
             // Notifier Jellyfin du changement
             try
             {
-                item.SetImagePath(ImageType.Primary, primaryPath);
-                await item.UpdateToRepositoryAsync(ItemUpdateType.ImageUpdate, ct).ConfigureAwait(false);
+                item.SetImagePath(ImageType.Primary, destinationPath);
+                item.UpdateToRepositoryAsync(ItemUpdateType.ImageUpdate, ct).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
                 _log.LogDebug(ex, "PoolService: Could not update repository for {Item}", item.Name);
             }
 
-            _log.LogInformation("PoolService: Forced rotation for {Item} to {Image}", item.Name, Path.GetFileName(nextImagePath));
-            return true;
+            _log.LogInformation("PoolService: Forced rotation for {Item} to {Image}", item.Name, Path.GetFileName(chosen));
+            return Task.FromResult(true);
         }
         catch (Exception ex)
         {
             _log.LogError(ex, "PoolService: Failed to force rotate {Item}", item.Name);
-            return false;
+            return Task.FromResult(false);
         }
     }
 
@@ -617,17 +626,24 @@ public class PoolService
             .Where(f => ImageExtensions.Contains(Path.GetExtension(f).ToLowerInvariant()))
             .ToList();
 
-        // Image actuelle
+        // Déterminer l'image actuelle en comparant la taille du poster primaire
+        // avec les images du pool (les noms de fichiers ne correspondent jamais)
         var currentPrimary = item.GetImagePath(ImageType.Primary);
-        var currentFileName = !string.IsNullOrEmpty(currentPrimary) 
-            ? Path.GetFileName(currentPrimary) 
-            : null;
+        long currentPrimarySize = 0;
+        if (!string.IsNullOrEmpty(currentPrimary) && File.Exists(currentPrimary))
+        {
+            try { currentPrimarySize = new FileInfo(currentPrimary).Length; } catch { }
+        }
 
         var order = 0;
         foreach (var file in files)
         {
             var fi = new FileInfo(file);
             var fileName = fi.Name;
+
+            // Comparer par taille de fichier : si le poster actuel a la même taille
+            // qu'une image du pool, c'est probablement la même image
+            var isCurrent = currentPrimarySize > 0 && fi.Length == currentPrimarySize;
 
             images.Add(new PoolImage
             {
@@ -636,8 +652,7 @@ public class PoolService
                 SizeBytes = fi.Length,
                 SizeFormatted = FormatSize(fi.Length),
                 CreatedAt = fi.CreationTimeUtc,
-                IsCurrent = fileName.Equals(currentFileName, StringComparison.OrdinalIgnoreCase) ||
-                           fileName.StartsWith("pool_currentprimary", StringComparison.OrdinalIgnoreCase),
+                IsCurrent = isCurrent,
                 Order = customOrder?.IndexOf(fileName) ?? order
             });
 
@@ -654,18 +669,10 @@ public class PoolService
         // Charger l'état de rotation
         DateTimeOffset? lastRotation = null;
         var statePath = Path.Combine(poolDir, "rotation_state.json");
-        if (File.Exists(statePath))
+        var rotState = LoadRotationState(statePath);
+        if (rotState.LastRotatedUtcByItem.TryGetValue(item.Id.ToString(), out var epoch))
         {
-            try
-            {
-                var json = File.ReadAllText(statePath);
-                var state = JsonSerializer.Deserialize<RotationState>(json);
-                if (state?.LastRotatedUtcByItem?.TryGetValue(item.Id.ToString(), out var epoch) == true)
-                {
-                    lastRotation = DateTimeOffset.FromUnixTimeSeconds(epoch);
-                }
-            }
-            catch { }
+            lastRotation = DateTimeOffset.FromUnixTimeSeconds(epoch);
         }
 
         return new PoolInfo
@@ -784,11 +791,40 @@ public class PoolService
         };
     }
 
+    // Chargement/sauvegarde de l'état de rotation (format PosterRotatorService)
+    private static InternalRotationState LoadRotationState(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                var json = File.ReadAllText(path);
+                return JsonSerializer.Deserialize<InternalRotationState>(json) ?? new InternalRotationState();
+            }
+        }
+        catch { /* ignore corrupt state */ }
+
+        return new InternalRotationState();
+    }
+
+    private static void SaveRotationState(string path, InternalRotationState state)
+    {
+        try
+        {
+            var json = JsonSerializer.Serialize(state);
+            File.WriteAllText(path, json);
+        }
+        catch { /* ignore */ }
+    }
+
     #endregion
 
-    // Classe interne pour désérialiser l'état de rotation
-    private class RotationState
+    /// <summary>
+    /// Format compatible avec PosterRotatorService.RotationState.
+    /// </summary>
+    private sealed class InternalRotationState
     {
-        public Dictionary<string, long>? LastRotatedUtcByItem { get; set; }
+        public Dictionary<string, int> LastIndexByItem { get; set; } = new();
+        public Dictionary<string, long> LastRotatedUtcByItem { get; set; } = new();
     }
 }
