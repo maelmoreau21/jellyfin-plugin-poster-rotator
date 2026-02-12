@@ -15,21 +15,13 @@ jellyfin-plugin-poster-rotator-1/
 ├── jellyfin-plugin-poster-rotator.sln
 └── src/
     └── Jellyfin.Plugin.PosterRotator/
-        ├── Api/
-        │   └── PoolController.cs    # API REST pour la gestion des pools
         ├── Helpers/
         │   └── PluginHelpers.cs     # Utilitaires partagés (GuessExt, FormatSize, RotationState…)
-        ├── Models/
-        │   ├── PoolInfo.cs          # Modèle d'un pool et ses images
-        │   └── PoolStatistics.cs    # Modèle de statistiques
-        ├── Services/
-        │   └── PoolService.cs       # Service métier pour les pools (~670 lignes)
         ├── Web/
-        │   ├── config.html          # Interface de configuration
-        │   └── pool_manager.html    # Interface Pool Manager (split-view)
+        │   └── config.html          # Interface de configuration
         ├── Plugin.cs                # Enregistrement du plugin
         ├── Configuration.cs         # Classe de configuration
-        ├── PosterRotatorService.cs  # Service principal de rotation (~1010 lignes)
+        ├── PosterRotatorService.cs  # Service principal de rotation (~990 lignes)
         ├── PosterRotationTask.cs    # Tâche planifiée Jellyfin
         ├── ServiceRegistrator.cs    # Injection de dépendances
         └── Jellyfin.Plugin.PosterRotator.csproj
@@ -47,7 +39,7 @@ jellyfin-plugin-poster-rotator-1/
 ### `Plugin.cs`
 - **Classe**: `Plugin : BasePlugin<Configuration>, IHasWebPages`
 - **GUID**: `7f6eea8b-0e9c-4cbd-9d2a-31f9a37ce2b7`
-- **Pages**: `config.html`, `pool_manager.html`
+- **Pages**: `config.html`
 
 ### `Configuration.cs`
 Propriétés principales:
@@ -61,42 +53,27 @@ Propriétés principales:
 - `UseOriginalLanguageAsFallback`, `FallbackLanguage`, `IncludeUnknownLanguage`
 
 ### `ServiceRegistrator.cs`
-- Enregistre `PosterRotatorService` et `PoolService` en singletons
+- Enregistre `PosterRotatorService` en singleton
 - Pas de `IProviderManager` injecté directement — utilise `IServiceProvider` pour résolution DI
 
-### `PoolController.cs` (API REST)
-| Endpoint | Méthode | Description |
-|----------|---------|-------------|
-| `/PosterRotator/Stats` | GET | Statistiques globales |
-| `/PosterRotator/Items` | GET | Liste des items avec pools |
-| `/PosterRotator/Pool/{id}` | GET | Détails d'un pool |
-| `/PosterRotator/Pool/{id}` | POST | Upload image |
-| `/PosterRotator/Pool/{id}/{file}` | DELETE | Supprimer image |
-| `/PosterRotator/Search/{id}` | GET | Rechercher images providers |
-| `/PosterRotator/Pool/{id}/AddFromUrl` | POST | Ajouter depuis URL |
-| `/PosterRotator/Cleanup` | POST | Nettoyer orphelins |
-
-### `PoolService.cs`
-Méthodes principales:
-- `GetStatisticsAsync()` - Stats globales
-- `GetAllPoolsAsync()` - Liste tous les pools
-- `GetPoolForItemAsync()` - Pool d'un item
-- `AddImageToPoolAsync()` - Upload image
-- `DeleteImageFromPoolAsync()` - Supprimer image
-- `SearchRemoteImagesAsync()` - Recherche providers (via DI, sans réflexion)
-- `AddImageFromUrlAsync()` - Télécharger depuis URL
-- `CleanupOrphanedPoolsAsync()` - Nettoyage orphelins
-- `ForceRotateAsync()` - Rotation forcée immédiate
-
 ### `PosterRotatorService.cs`
-- `RunAsync()` - Point d'entrée de la rotation
+- `RunAsync()` - Point d'entrée de la rotation (summary de fin avec compteurs)
 - `ProcessItemAsync()` - Traite un item (pool top-up + rotation + notification Jellyfin)
-- `TryTopUpFromProvidersAsync()` - Télécharge images manquantes via providers DI
+- `TryTopUpFromProvidersAsync()` - Télécharge images manquantes via providers DI (parallel, SemaphoreSlim(3))
 - `GetOriginalLanguage()` - Détecte la langue originale (accès direct aux propriétés)
 - `DetectLanguageFromTitle()` - Détection heuristique de langue (Unicode)
 - `GetLibraryRootPaths()` - Appel direct `_library.GetVirtualFolders()`
 - `NudgeLibraryRoot()` - Notification par touch fichier (sans réflexion)
-- `ResolveImageProviders()` - Résolution DI via `IServiceProvider`
+- `ResolveImageProviders()` - Résolution DI via `IServiceProvider` (thread-safe, cachée par run)
+
+### `PluginHelpers.cs`
+- `GuessExtFromUrl()` - Détecte l'extension depuis URL/content-type
+- `FormatSize()` - Formatage taille fichier
+- `GetContentType()` - Détecte le mime type
+- `GetItemDirectory()` - Chemin dossier d'un item
+- `BuildMediaItemQuery()` - Requête centralisée pour les items média
+- `LoadRotationState()` / `SaveRotationState()` - Écriture atomique (tmp + rename)
+- `UpdateJsonMapFile()` - Écriture atomique pour pool_languages.json
 
 ---
 
@@ -134,7 +111,7 @@ La fonction `GetOriginalLanguage()` utilise plusieurs heuristiques (accès direc
 |---------|-----------|-------------|
 | `ILibraryManager` | Directe (DI) | `GetItemList()`, `GetVirtualFolders()`, `GetItemById()` |
 | `IServiceProvider` | Directe (DI) | Résolution `IEnumerable<IRemoteImageProvider>` |
-| `IHttpClientFactory` | Directe (DI) | Téléchargement images (pool top-up, URL import) |
+| `IHttpClientFactory` | Directe (DI) | Téléchargement images (pool top-up) |
 | `IRemoteImageProvider` | Via IServiceProvider | `GetImages()`, `Supports()`, `GetSupportedImages()` |
 | `BaseItem` | Via ILibraryManager | `UpdateToRepositoryAsync()`, `GetImagePath()`, `SetImagePath()` |
 | `ImageType` | Enum | Types d'images (Primary, etc.) |
@@ -150,28 +127,25 @@ La fonction `GetOriginalLanguage()` utilise plusieurs heuristiques (accès direc
 3. **IHttpClientFactory**: Injection propre, pas de HttpClient statique
 4. **Cooldown**: Respecte `MinHoursBetweenSwitches`
 5. **Language Detection**: Heuristiques Unicode + métadonnées
-6. **Helpers partagés**: `Helpers/PluginHelpers.cs` centralise le code commun (GuessExtFromUrl, FormatSize, RotationState, GetItemDirectory)
-7. **Providers cachés**: Les providers sont résolus une seule fois par run via `_cachedProviders`
+6. **Helpers partagés**: `Helpers/PluginHelpers.cs` centralise le code commun
+7. **Providers cachés**: Les providers sont résolus une seule fois par run via `_cachedProviders` (thread-safe avec `lock`)
 8. **Écriture atomique**: `pool_languages.json` et `rotation_state.json` écrits via .tmp + rename
 9. **Logging optimisé**: Debug logging gardé avec `IsEnabled(LogLevel.Debug)`, résumé de fin de run
+10. **Top-up parallèle**: Téléchargements parallélisés via `SemaphoreSlim(3)`
 
 ---
 
 ## ✅ Fonctionnalités Implémentées (v1.4.0)
 
-- [x] Pool Manager avec interface split-view
-- [x] Statistiques (pools, images, taille, orphelins)
-- [x] Recherche et filtrage des pools
-- [x] Visualisation des images du pool
-- [x] Recherche d'images via providers Jellyfin (DI, sans réflexion)
-- [x] Ajout d'images depuis URL
-- [x] Import manuel (drag & drop)
-- [x] Suppression d'images
-- [x] Nettoyage des pools orphelins
-- [x] Préférences de langue
-- [x] Détection automatique langue originale (VO)
-- [x] Force Rotate depuis Pool Manager
-- [x] Indicateur de santé des pools (couleurs)
-- [x] Badge "Active" sur l'image courante
+- [x] Rotation automatique de posters (séquentielle ou aléatoire)
+- [x] Pool local par item (.poster_pool)
+- [x] Top-up automatique via providers Jellyfin (DI, sans réflexion)
+- [x] Préférences de langue (filtrage, langue préférée, VO auto)
+- [x] Détection automatique langue originale (Unicode + heuristiques)
+- [x] Nettoyage automatique des pools orphelins
+- [x] Verrouillage des pools après remplissage
+- [x] Support Films, Séries, Saisons, Épisodes
+- [x] Page de configuration Jellyfin
 - [x] **v1.4.0**: Suppression totale de System.Reflection
-- [x] **v1.4.0 Phase 2**: Code dedup (`Helpers/PluginHelpers.cs`), bugs fixes (SafeOverwrite, SaveState, double touch, race condition), perf (providers cache, stats optimisation), logging amélioré
+- [x] **v1.4.0 Phase 2**: Code dedup (`PluginHelpers.cs`), bugs fixes, perf (providers cache), logging amélioré
+- [x] **v1.4.0 Phase 3**: Streaming images, path traversal fix, cache pools, top-up parallèle, thread-safety

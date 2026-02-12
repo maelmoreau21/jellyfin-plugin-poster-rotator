@@ -10,7 +10,7 @@ using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
 
 /// <summary>
-/// Shared utility methods and models used by both PosterRotatorService and PoolService.
+/// Shared utility methods and models used by PosterRotatorService.
 /// </summary>
 public static class PluginHelpers
 {
@@ -168,7 +168,7 @@ public static class PluginHelpers
 }
 
 /// <summary>
-/// Shared rotation state model, used by both PosterRotatorService and PoolService.
+/// Shared rotation state model, used by PosterRotatorService.
 /// Format: { "LastIndexByItem": { "guid": idx }, "LastRotatedUtcByItem": { "guid": epoch } }
 /// </summary>
 public sealed class RotationState
