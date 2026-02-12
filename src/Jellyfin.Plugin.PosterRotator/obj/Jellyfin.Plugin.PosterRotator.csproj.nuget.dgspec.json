@@ -5,7 +5,7 @@
   },
   "projects": {
     "C:\\Users\\Mael\\Documents\\GitHub\\jellyfin-plugin-poster-rotator-1\\src\\Jellyfin.Plugin.PosterRotator\\Jellyfin.Plugin.PosterRotator.csproj": {
-      "version": "1.4.0",
+      "version": "1.5.0",
       "restore": {
         "projectUniqueName": "C:\\Users\\Mael\\Documents\\GitHub\\jellyfin-plugin-poster-rotator-1\\src\\Jellyfin.Plugin.PosterRotator\\Jellyfin.Plugin.PosterRotator.csproj",
         "projectName": "Jellyfin.Plugin.PosterRotator",
