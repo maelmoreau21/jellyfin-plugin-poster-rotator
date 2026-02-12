@@ -7,20 +7,25 @@ Rotate poster images in Jellyfin by building a local pool of artwork next to eac
 ## Key Features
 
 - **Automatic Rotation**: Cycles through poster images on a schedule
-- **Pool Manager**: Web interface to browse and manage image pools
-- **Provider Search**: Search and add images directly from TMDb, Fanart, etc.
+- **Provider Search**: Download images from TMDb, Fanart, etc.
 - **Language Preferences**: Prioritize posters in your preferred language + original language (VO)
-- **Manual Import**: Drag & drop custom images into any pool
-- **Orphan Cleanup**: Automatically detect and remove pools for deleted media
 - **Per-library Rules**: Enable/disable rotation by library
+- **Orphan Cleanup**: Automatically detect and remove pools for deleted media
 - Works with Movies, TV Shows, Seasons, Episodes, and Collections
+
+### New in v1.5.0
+
+- **Image Quality Filtering**: Reject low-resolution posters (configurable min width/height)
+- **Retry with Backoff**: Automatic retry (1s→2s→4s) on provider/download failures
+- **Duplicate Detection**: Optional perceptual hash to skip visually identical posters
+- **Pool Purge**: One-click button to delete all .poster_pool directories
 
 ---
 
 ## Requirements
 
-- Jellyfin **10.10.3 or newer** (tested with 10.11.x)
-- **.NET 8 runtime** on the Jellyfin server
+- Jellyfin **10.11.6 or newer**
+- **.NET 9 runtime** on the Jellyfin server
 - At least one remote image provider enabled (TMDb, Fanart, etc.)
 
 ---
@@ -58,37 +63,14 @@ When the scheduled task runs:
 1. Creates a `.poster_pool` directory next to each media file
 2. Downloads posters from enabled remote providers until pool is full
 3. Applies language filtering (preferred language + original language)
-4. Rotates to the next image (sequential or random)
-5. Updates the primary poster and nudges Jellyfin's library watchers
+4. Checks image quality and rejects low-resolution images (v1.5.0)
+5. Detects and skips visual duplicates if enabled (v1.5.0)
+6. Rotates to the next image (sequential or random)
+7. Updates the primary poster and nudges Jellyfin's library watchers
 
 ---
 
-## Pool Manager (New in v1.3.0)
-
-Access via **Dashboard → Plugins → Poster Rotator → Pool Manager**
-
-The Pool Manager provides a split-view interface:
-
-- **Left Panel**: Browse all media items with pools, filter by type
-- **Right Panel**: View and manage images for the selected item
-- **Bottom Panel**: Search provider images or upload custom ones
-
-### Features
-
-| Feature | Description |
-|---------|-------------|
-| **Browse Pools** | See all items with image pools |
-| **Search & Filter** | Filter by name or type (Movies/Series) |
-| **Provider Search** | Find images from TMDb, Fanart, etc. |
-| **One-Click Add** | Click any provider image to add to pool |
-| **Drag & Drop** | Import custom images from your computer |
-| **Delete Images** | Remove unwanted images from any pool |
-| **Orphan Cleanup** | Remove pools for deleted media items |
-| **Statistics** | View total pools, images, and disk usage |
-
----
-
-## Language Preferences (New in v1.3.0)
+## Language Preferences
 
 Configure poster language selection:
 
@@ -112,8 +94,11 @@ Example: With `PreferredLanguage=fr` and `MaxPreferredLanguageImages=2`:
 | **Min Hours Between Switches** | Cooldown before rotating again (default: 23) |
 | **Lock After Fill** | Freeze pool once full |
 | **Language Filter** | Enable language-based selection |
+| **Min Image Width / Height** | Reject images below these dimensions (v1.5.0) |
+| **Duplicate Detection** | Toggle perceptual hash dedup at download (v1.5.0) |
 | **Auto Cleanup** | Remove orphaned pools automatically |
 | **Cleanup Interval** | Days between auto-cleanup runs |
+| **🗑 Purge All Pools** | Delete ALL .poster_pool directories (v1.5.0) |
 
 ---
 
@@ -128,6 +113,7 @@ Example: With `PreferredLanguage=fr` and `MaxPreferredLanguageImages=2`:
     ├── pool_1705123456789.jpg       # Downloaded posters
     ├── rotation_state.json          # Rotation history
     ├── pool_languages.json          # Language metadata
+    ├── pool_hashes.json             # Perceptual hashes (v1.5.0)
     └── pool.lock                    # Present if locked
 ```
 
@@ -161,6 +147,7 @@ The plugin registers **Rotate Movie Posters (Pool Then Rotate)** under **Dashboa
 
 ## Version History
 
+- **1.5.0.0** – Image quality filtering, retry with backoff, perceptual duplicate detection, pool purge button. Pool Manager removed.
 - **1.3.0.0** – Pool Manager web interface, language preferences, provider image search, orphan cleanup, drag & drop import
 - **1.2.0.0** – Jellyfin 10.11 compatibility, season/episode toggles, collection support
 - **1.1.0.0** – Initial fork with per-library selection

@@ -101,6 +101,28 @@
             <input id="ExtraPosterPatterns" type="text" is="emby-input" placeholder="folder.jpg, alt-*.png" />
           </div>
 
+          <div style="display: flex; gap: 16px;">
+            <div class="inputContainer" style="flex: 1;">
+              <label class="inputLabel inputLabelUnfocused" for="MinImageWidth">Largeur minimale (px)</label>
+              <input id="MinImageWidth" type="number" min="0" max="4000" is="emby-input" value="500" />
+              <div class="fieldDescription">Images plus étroites seront rejetées (0 = pas de filtre)</div>
+            </div>
+            <div class="inputContainer" style="flex: 1;">
+              <label class="inputLabel inputLabelUnfocused" for="MinImageHeight">Hauteur minimale (px)</label>
+              <input id="MinImageHeight" type="number" min="0" max="4000" is="emby-input" value="750" />
+              <div class="fieldDescription">Images plus courtes seront rejetées (0 = pas de filtre)</div>
+            </div>
+          </div>
+
+          <div class="checkboxContainer checkboxContainer-withDescription">
+            <label class="emby-checkbox-label">
+              <input id="EnableDuplicateDetection" type="checkbox" is="emby-checkbox" />
+              <span>Détection des doublons visuels</span>
+            </label>
+            <div class="fieldDescription">Utilise un hash perceptuel pour rejeter les images quasi-identiques lors du
+              téléchargement</div>
+          </div>
+
           <!-- SECTION: Gestion des pools -->
           <h2>Gestion des pools</h2>
 
@@ -117,6 +139,16 @@
               (jours)</label>
             <input id="CleanupIntervalDays" type="number" min="1" max="30" is="emby-input" value="7" />
             <div class="fieldDescription">Nombre de jours entre chaque nettoyage automatique</div>
+          </div>
+
+          <div style="margin-top: 16px;">
+            <button id="PurgeAllPoolsBtn" type="button" class="raised button-cancel emby-button"
+              style="display: inline-block; padding: 12px 24px;">
+              🗑 Supprimer tous les pools
+            </button>
+            <div class="fieldDescription">Supprime tous les dossiers .poster_pool de toutes les bibliothèques. Cette
+              action est irréversible.</div>
+            <div id="PurgeResult" style="display:none; margin-top: 8px; color: #4caf50; font-weight: bold;"></div>
           </div>
 
           <!-- SECTION: Préférences de langue -->
@@ -231,6 +263,11 @@
               // Pool management options
               if (byId('AutoCleanupOrphanedPools')) byId('AutoCleanupOrphanedPools').checked = !!cfg.AutoCleanupOrphanedPools;
               if (byId('CleanupIntervalDays')) byId('CleanupIntervalDays').value = (cfg.CleanupIntervalDays ?? 7);
+
+              // Image quality
+              if (byId('MinImageWidth')) byId('MinImageWidth').value = (cfg.MinImageWidth ?? 500);
+              if (byId('MinImageHeight')) byId('MinImageHeight').value = (cfg.MinImageHeight ?? 750);
+              if (byId('EnableDuplicateDetection')) byId('EnableDuplicateDetection').checked = !!cfg.EnableDuplicateDetection;
 
               // Language preferences
               if (byId('EnableLanguageFilter')) byId('EnableLanguageFilter').checked = !!cfg.EnableLanguageFilter;
@@ -372,6 +409,13 @@
               var cleanupDays = parseInt((byId('CleanupIntervalDays')?.value || '7'), 10);
               cfg.CleanupIntervalDays = (isNaN(cleanupDays) || cleanupDays < 1) ? 7 : cleanupDays;
 
+              // Image quality
+              var minW = parseInt((byId('MinImageWidth')?.value || '500'), 10);
+              cfg.MinImageWidth = (isNaN(minW) || minW < 0) ? 500 : minW;
+              var minH = parseInt((byId('MinImageHeight')?.value || '750'), 10);
+              cfg.MinImageHeight = (isNaN(minH) || minH < 0) ? 750 : minH;
+              cfg.EnableDuplicateDetection = !!(byId('EnableDuplicateDetection') && byId('EnableDuplicateDetection').checked);
+
               // Language preferences
               cfg.EnableLanguageFilter = !!(byId('EnableLanguageFilter') && byId('EnableLanguageFilter').checked);
               cfg.PreferredLanguage = (byId('PreferredLanguage')?.value || 'fr').trim();
@@ -424,6 +468,35 @@
         }
         if (form) {
           form.addEventListener('submit', save);
+        }
+
+        // Purge button handler
+        var purgeBtn = byId('PurgeAllPoolsBtn');
+        if (purgeBtn) {
+          purgeBtn.addEventListener('click', function () {
+            if (!confirm('⚠️ Êtes-vous sûr ? Cela supprimera TOUS les dossiers .poster_pool de toutes vos bibliothèques. Cette action est irréversible.')) return;
+            purgeBtn.disabled = true;
+            purgeBtn.textContent = '⏳ Suppression en cours...';
+            var resultDiv = byId('PurgeResult');
+            ApiClient.ajax({
+              type: 'POST',
+              url: ApiClient.getUrl('PosterRotator/PurgeAllPools'),
+              dataType: 'json'
+            }).then(function (data) {
+              purgeBtn.disabled = false;
+              purgeBtn.textContent = '🗑 Supprimer tous les pools';
+              if (resultDiv) {
+                resultDiv.style.display = 'block';
+                resultDiv.textContent = '✅ ' + (data.DeletedCount || 0) + ' pool(s) supprimé(s).';
+                setTimeout(function () { resultDiv.style.display = 'none'; }, 5000);
+              }
+            }).catch(function (err) {
+              purgeBtn.disabled = false;
+              purgeBtn.textContent = '🗑 Supprimer tous les pools';
+              console.error('PosterRotator purge error:', err);
+              alert('Erreur lors de la suppression. Voir la console.');
+            });
+          });
         }
       })();
     </script>

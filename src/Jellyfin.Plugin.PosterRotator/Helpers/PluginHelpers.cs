@@ -4,10 +4,14 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 using Jellyfin.Data.Enums;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
+using Microsoft.Extensions.Logging;
 
 /// <summary>
 /// Shared utility methods and models used by PosterRotatorService.
@@ -164,6 +168,139 @@ public static class PluginHelpers
         }
         catch { }
         return 0;
+    }
+
+    /// <summary>
+    /// Get image dimensions by reading file headers only (no full decode).
+    /// Supports JPEG (SOF markers), PNG (IHDR), WebP (VP8/VP8L), GIF (header).
+    /// Returns (0,0) if format is unrecognized or file is corrupt.
+    /// </summary>
+    public static (int Width, int Height) GetImageDimensions(string filePath)
+    {
+        try
+        {
+            using var fs = File.OpenRead(filePath);
+            var header = new byte[30];
+            if (fs.Read(header, 0, header.Length) < 8) return (0, 0);
+
+            // PNG: 89 50 4E 47 ... IHDR at offset 16 (width BE), 20 (height BE)
+            if (header[0] == 0x89 && header[1] == 0x50 && header[2] == 0x4E && header[3] == 0x47)
+            {
+                if (fs.Length < 24) return (0, 0);
+                int w = (header[16] << 24) | (header[17] << 16) | (header[18] << 8) | header[19];
+                int h = (header[20] << 24) | (header[21] << 16) | (header[22] << 8) | header[23];
+                return (w, h);
+            }
+
+            // GIF: GIF87a/GIF89a — width LE at 6, height LE at 8
+            if (header[0] == 'G' && header[1] == 'I' && header[2] == 'F')
+            {
+                int w = header[6] | (header[7] << 8);
+                int h = header[8] | (header[9] << 8);
+                return (w, h);
+            }
+
+            // WebP: RIFF....WEBP
+            if (header[0] == 'R' && header[1] == 'I' && header[2] == 'F' && header[3] == 'F'
+                && header[8] == 'W' && header[9] == 'E' && header[10] == 'B' && header[11] == 'P')
+            {
+                // VP8 lossy: at offset 26, width LE 16-bit & height LE 16-bit
+                if (header[12] == 'V' && header[13] == 'P' && header[14] == '8' && header[15] == ' ')
+                {
+                    var buf = new byte[10];
+                    fs.Seek(23, SeekOrigin.Begin);
+                    if (fs.Read(buf, 0, 10) >= 10)
+                    {
+                        // Skip frame tag (3 bytes) + start code (3 bytes) then dims at +6
+                        int w = (buf[6] | (buf[7] << 8)) & 0x3FFF;
+                        int h = (buf[8] | (buf[9] << 8)) & 0x3FFF;
+                        return (w, h);
+                    }
+                }
+                // VP8L lossless: at offset 21, 14-bit width + 14-bit height packed
+                if (header[12] == 'V' && header[13] == 'P' && header[14] == '8' && header[15] == 'L')
+                {
+                    var buf = new byte[5];
+                    fs.Seek(21, SeekOrigin.Begin);
+                    if (fs.Read(buf, 0, 5) >= 5 && buf[0] == 0x2F)
+                    {
+                        int bits = buf[1] | (buf[2] << 8) | (buf[3] << 16) | (buf[4] << 24);
+                        int w = (bits & 0x3FFF) + 1;
+                        int h = ((bits >> 14) & 0x3FFF) + 1;
+                        return (w, h);
+                    }
+                }
+                return (0, 0);
+            }
+
+            // JPEG: scan for SOF markers (0xFF 0xC0..0xCF except 0xC4, 0xC8, 0xCC)
+            if (header[0] == 0xFF && header[1] == 0xD8)
+            {
+                fs.Seek(2, SeekOrigin.Begin);
+                var buf = new byte[9];
+                while (fs.Position < fs.Length - 9)
+                {
+                    // Find marker
+                    int b = fs.ReadByte();
+                    if (b != 0xFF) continue;
+                    while (b == 0xFF && fs.Position < fs.Length) b = fs.ReadByte();
+                    if (b < 0) break;
+
+                    // SOF marker? (C0-CF except C4, C8, CC)
+                    if (b >= 0xC0 && b <= 0xCF && b != 0xC4 && b != 0xC8 && b != 0xCC)
+                    {
+                        if (fs.Read(buf, 0, 7) >= 7)
+                        {
+                            int h = (buf[3] << 8) | buf[4];
+                            int w = (buf[5] << 8) | buf[6];
+                            return (w, h);
+                        }
+                        break;
+                    }
+                    // Skip segment
+                    if (fs.Read(buf, 0, 2) < 2) break;
+                    int segLen = (buf[0] << 8) | buf[1];
+                    if (segLen < 2) break;
+                    fs.Seek(segLen - 2, SeekOrigin.Current);
+                }
+            }
+        }
+        catch { }
+        return (0, 0);
+    }
+
+    /// <summary>
+    /// Retry an async operation with exponential backoff (1s, 2s, 4s).
+    /// Retries on HttpRequestException and transient HTTP status codes (429, 500-599).
+    /// </summary>
+    public static async Task<T> RetryAsync<T>(
+        Func<Task<T>> action, int maxRetries, ILogger? log, CancellationToken ct)
+    {
+        int attempt = 0;
+        while (true)
+        {
+            try
+            {
+                return await action().ConfigureAwait(false);
+            }
+            catch (HttpRequestException ex) when (attempt < maxRetries && !ct.IsCancellationRequested)
+            {
+                attempt++;
+                var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt - 1)); // 1s, 2s, 4s
+                log?.LogDebug("PosterRotator: retry {Attempt}/{Max} after {Delay}s — {Error}",
+                    attempt, maxRetries, delay.TotalSeconds, ex.Message);
+                await Task.Delay(delay, ct).ConfigureAwait(false);
+            }
+            catch (TaskCanceledException) when (ct.IsCancellationRequested) { throw; }
+        }
+    }
+
+    /// <summary>Overload for void-returning async tasks.</summary>
+    public static async Task RetryAsync(
+        Func<Task> action, int maxRetries, ILogger? log, CancellationToken ct)
+    {
+        await RetryAsync(async () => { await action().ConfigureAwait(false); return 0; },
+            maxRetries, log, ct).ConfigureAwait(false);
     }
 }
 

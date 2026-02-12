@@ -15,13 +15,16 @@ jellyfin-plugin-poster-rotator-1/
 ├── jellyfin-plugin-poster-rotator.sln
 └── src/
     └── Jellyfin.Plugin.PosterRotator/
+        ├── Api/
+        │   └── PurgeController.cs   # API REST: POST PurgeAllPools (suppression pools)
         ├── Helpers/
-        │   └── PluginHelpers.cs     # Utilitaires partagés (GuessExt, FormatSize, RotationState…)
+        │   ├── PluginHelpers.cs     # Utilitaires (GuessExt, FormatSize, GetImageDimensions, RetryAsync…)
+        │   └── ImageHash.cs         # Hash perceptuel (aHash, Hamming distance, pool_hashes.json)
         ├── Web/
         │   └── config.html          # Interface de configuration
         ├── Plugin.cs                # Enregistrement du plugin
         ├── Configuration.cs         # Classe de configuration
-        ├── PosterRotatorService.cs  # Service principal de rotation (~990 lignes)
+        ├── PosterRotatorService.cs  # Service principal de rotation (~1060 lignes)
         ├── PosterRotationTask.cs    # Tâche planifiée Jellyfin
         ├── ServiceRegistrator.cs    # Injection de dépendances
         └── Jellyfin.Plugin.PosterRotator.csproj
@@ -33,7 +36,7 @@ jellyfin-plugin-poster-rotator-1/
 
 ### `Jellyfin.Plugin.PosterRotator.csproj`
 - **Target Framework**: `net9.0`
-- **Version**: `1.4.0.0`
+- **Version**: `1.5.0.0`
 - **Packages**: Jellyfin.Model, Controller, Common, Extensions `10.11.6`
 
 ### `Plugin.cs`
@@ -51,29 +54,44 @@ Propriétés principales:
 - `AutoCleanupOrphanedPools`, `CleanupIntervalDays`
 - `EnableLanguageFilter`, `PreferredLanguage`, `MaxPreferredLanguageImages`
 - `UseOriginalLanguageAsFallback`, `FallbackLanguage`, `IncludeUnknownLanguage`
+- **v1.5.0**: `MinImageWidth` (défaut: 500), `MinImageHeight` (défaut: 750)
+- **v1.5.0**: `EnableDuplicateDetection` (défaut: false) — détection doublons visuels au téléchargement
 
 ### `ServiceRegistrator.cs`
 - Enregistre `PosterRotatorService` en singleton
-- Pas de `IProviderManager` injecté directement — utilise `IServiceProvider` pour résolution DI
 
 ### `PosterRotatorService.cs`
-- `RunAsync()` - Point d'entrée de la rotation (summary de fin avec compteurs)
-- `ProcessItemAsync()` - Traite un item (pool top-up + rotation + notification Jellyfin)
-- `TryTopUpFromProvidersAsync()` - Télécharge images manquantes via providers DI (parallel, SemaphoreSlim(3))
-- `GetOriginalLanguage()` - Détecte la langue originale (accès direct aux propriétés)
-- `DetectLanguageFromTitle()` - Détection heuristique de langue (Unicode)
+- `RunAsync()` - Point d'entrée de la rotation
+- `ProcessItemAsync()` - Traite un item (pool top-up + rotation + notification)
+- `TryTopUpFromProvidersAsync()` - Télécharges images via providers DI (parallel, SemaphoreSlim(3))
+  - **v1.5.0**: `RetryAsync` sur `GetImages()` et `GetAsync()` (backoff exponentiel 1s→2s→4s)
+  - **v1.5.0**: Filtre qualité (pre-download via RemoteImageInfo, post-download via header parsing)
+  - **v1.5.0**: Dedup perceptuel (aHash + Hamming distance, rejet si ≤10 bits de différence)
+- `GetOriginalLanguage()` - Détecte la langue originale
 - `GetLibraryRootPaths()` - Appel direct `_library.GetVirtualFolders()`
-- `NudgeLibraryRoot()` - Notification par touch fichier (sans réflexion)
-- `ResolveImageProviders()` - Résolution DI via `IServiceProvider` (thread-safe, cachée par run)
+- `NudgeLibraryRoot()` - Notification par touch fichier
+- `ResolveImageProviders()` - Résolution DI via `IServiceProvider`
+- **v1.5.0**: `PurgeAllPools()` - Supprime tous les `.poster_pool` de toutes les bibliothèques
 
 ### `PluginHelpers.cs`
-- `GuessExtFromUrl()` - Détecte l'extension depuis URL/content-type
+- `GuessExtFromUrl()` / `GuessExtFromMime()` - Extensions depuis URL/mime
 - `FormatSize()` - Formatage taille fichier
 - `GetContentType()` - Détecte le mime type
 - `GetItemDirectory()` - Chemin dossier d'un item
-- `BuildMediaItemQuery()` - Requête centralisée pour les items média
 - `LoadRotationState()` / `SaveRotationState()` - Écriture atomique (tmp + rename)
-- `UpdateJsonMapFile()` - Écriture atomique pour pool_languages.json
+- `UpdateJsonMapFile()` / `CountInJsonMap()` - JSON map atomique
+- **v1.5.0**: `GetImageDimensions()` - Dimensions via headers JPEG/PNG/WebP/GIF (pas de décodage)
+- **v1.5.0**: `RetryAsync()` - Retry générique avec backoff exponentiel
+
+### `ImageHash.cs` (v1.5.0)
+- `ComputeHash()` → `ulong` - Hash perceptuel par échantillonnage bytes (64-bit)
+- `HammingDistance()` - Distance de Hamming entre 2 hashes
+- `IsDuplicate()` - Détection doublon (seuil: 10 bits)
+- `LoadHashes()` / `SaveHash()` / `RemoveHash()` - Persistence JSON atomique
+
+### `PurgeController.cs` (v1.5.0)
+- `POST /PosterRotator/PurgeAllPools` - Supprime tous les pools, renvoie `{ DeletedCount: N }`
+- Autorisé admin uniquement (`Policies.RequiresElevation`)
 
 ---
 
@@ -88,20 +106,10 @@ Propriétés principales:
     ├── pool_1705123456789.jpg       # Affiches téléchargées
     ├── rotation_state.json          # État rotation
     ├── pool_languages.json          # Métadonnées langue
+    ├── pool_hashes.json             # Hashes perceptuels (v1.5.0)
     ├── pool_order.json              # Ordre personnalisé
     └── pool.lock                    # Verrouillage
 ```
-
----
-
-## 🌍 Détection Langue Originale
-
-La fonction `GetOriginalLanguage()` utilise plusieurs heuristiques (accès direct, sans réflexion):
-1. Comparaison `item.OriginalTitle` vs `item.Name`
-2. Détection caractères Unicode (japonais, coréen, chinois, russe, arabe)
-3. Provider IDs (`item.ProviderIds` — AniDB → japonais)
-4. Patterns dans le chemin (/anime/, /korean/)
-5. Fallback configurable
 
 ---
 
@@ -112,40 +120,21 @@ La fonction `GetOriginalLanguage()` utilise plusieurs heuristiques (accès direc
 | `ILibraryManager` | Directe (DI) | `GetItemList()`, `GetVirtualFolders()`, `GetItemById()` |
 | `IServiceProvider` | Directe (DI) | Résolution `IEnumerable<IRemoteImageProvider>` |
 | `IHttpClientFactory` | Directe (DI) | Téléchargement images (pool top-up) |
-| `IRemoteImageProvider` | Via IServiceProvider | `GetImages()`, `Supports()`, `GetSupportedImages()` |
-| `BaseItem` | Via ILibraryManager | `UpdateToRepositoryAsync()`, `GetImagePath()`, `SetImagePath()` |
-| `ImageType` | Enum | Types d'images (Primary, etc.) |
-
-> **Important**: Aucune utilisation de `System.Reflection` — tous les appels sont directs et typés.
 
 ---
 
-## ⚡ Points d'Attention
-
-1. **Packages 10.11.6**: Nécessite .NET 9 SDK pour compiler
-2. **Zéro réflexion**: Toute la réflexion a été supprimée en v1.4.0
-3. **IHttpClientFactory**: Injection propre, pas de HttpClient statique
-4. **Cooldown**: Respecte `MinHoursBetweenSwitches`
-5. **Language Detection**: Heuristiques Unicode + métadonnées
-6. **Helpers partagés**: `Helpers/PluginHelpers.cs` centralise le code commun
-7. **Providers cachés**: Les providers sont résolus une seule fois par run via `_cachedProviders` (thread-safe avec `lock`)
-8. **Écriture atomique**: `pool_languages.json` et `rotation_state.json` écrits via .tmp + rename
-9. **Logging optimisé**: Debug logging gardé avec `IsEnabled(LogLevel.Debug)`, résumé de fin de run
-10. **Top-up parallèle**: Téléchargements parallélisés via `SemaphoreSlim(3)`
-
----
-
-## ✅ Fonctionnalités Implémentées (v1.4.0)
+## ✅ Fonctionnalités (v1.5.0)
 
 - [x] Rotation automatique de posters (séquentielle ou aléatoire)
 - [x] Pool local par item (.poster_pool)
-- [x] Top-up automatique via providers Jellyfin (DI, sans réflexion)
+- [x] Top-up automatique via providers Jellyfin
 - [x] Préférences de langue (filtrage, langue préférée, VO auto)
-- [x] Détection automatique langue originale (Unicode + heuristiques)
+- [x] Détection automatique langue originale
 - [x] Nettoyage automatique des pools orphelins
 - [x] Verrouillage des pools après remplissage
 - [x] Support Films, Séries, Saisons, Épisodes
 - [x] Page de configuration Jellyfin
-- [x] **v1.4.0**: Suppression totale de System.Reflection
-- [x] **v1.4.0 Phase 2**: Code dedup (`PluginHelpers.cs`), bugs fixes, perf (providers cache), logging amélioré
-- [x] **v1.4.0 Phase 3**: Streaming images, path traversal fix, cache pools, top-up parallèle, thread-safety
+- [x] **v1.5.0**: Filtre qualité d'image (dimensions minimales)
+- [x] **v1.5.0**: Retry avec backoff exponentiel (providers + downloads)
+- [x] **v1.5.0**: Détection doublons visuels (hash perceptuel aHash)
+- [x] **v1.5.0**: Bouton purge tous les pools (API + UI)

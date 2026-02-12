@@ -75,4 +75,22 @@ public class Configuration : BasePluginConfiguration
     /// Inclure les images sans information de langue.
     /// </summary>
     public bool IncludeUnknownLanguage { get; set; } = true;
+
+    // === Image Quality ===
+
+    /// <summary>
+    /// Largeur minimale des images téléchargées (en pixels). Images plus petites sont rejetées.
+    /// </summary>
+    public int MinImageWidth { get; set; } = 500;
+
+    /// <summary>
+    /// Hauteur minimale des images téléchargées (en pixels). Images plus petites sont rejetées.
+    /// </summary>
+    public int MinImageHeight { get; set; } = 750;
+
+    /// <summary>
+    /// Activer la détection de doublons visuels lors du téléchargement.
+    /// Utilise un hash perceptuel pour éviter les images quasi-identiques.
+    /// </summary>
+    public bool EnableDuplicateDetection { get; set; } = false;
 }

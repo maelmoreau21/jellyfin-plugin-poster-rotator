@@ -460,7 +460,9 @@ namespace Jellyfin.Plugin.PosterRotator
 
                         var prefersPrimary = supportedTypes?.Contains(ImageType.Primary) == true;
 
-                        var images = await provider.GetImages(item, ct).ConfigureAwait(false);
+                        // Feature 2: retry with exponential backoff on transient failures
+                        var images = await PluginHelpers.RetryAsync(
+                            () => provider.GetImages(item, ct), maxRetries: 3, _log, ct).ConfigureAwait(false);
                         await Harvest(images, preferPrimary: prefersPrimary).ConfigureAwait(false);
                     }
                     catch (Exception ex)
@@ -592,18 +594,58 @@ namespace Jellyfin.Plugin.PosterRotator
                 var url = info.Url;
                 if (string.IsNullOrWhiteSpace(url)) return;
 
+                // Feature 1: Pre-download quality check (if provider reports dimensions)
+                if (info.Width > 0 && info.Height > 0
+                    && (info.Width < cfg.MinImageWidth || info.Height < cfg.MinImageHeight))
+                {
+                    _log.LogDebug("PosterRotator: skipping {Url} — too small ({W}×{H}, min {MW}×{MH})",
+                        url, info.Width, info.Height, cfg.MinImageWidth, cfg.MinImageHeight);
+                    return;
+                }
+
                 var ext = PluginHelpers.GuessExtFromUrl(url) ?? ".jpg";
                 var name = $"pool_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}{ext}";
                 var full = Path.Combine(dir, name);
 
                 try
                 {
+                    // Feature 2: retry download with exponential backoff
                     using var client = _httpFactory.CreateClient("PosterRotator");
-                    using var resp = await client.GetAsync(url, token).ConfigureAwait(false);
+                    using var resp = await PluginHelpers.RetryAsync(
+                        () => client.GetAsync(url, token), maxRetries: 3, _log, token).ConfigureAwait(false);
                     resp.EnsureSuccessStatusCode();
                     await using var s = await resp.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
                     await using var f = File.Create(full);
                     await s.CopyToAsync(f, token).ConfigureAwait(false);
+                    await f.FlushAsync(token).ConfigureAwait(false);
+                    f.Close();
+
+                    // Feature 1: Post-download quality check (header-based dimensions)
+                    var (w, h) = PluginHelpers.GetImageDimensions(full);
+                    if (w > 0 && h > 0 && (w < cfg.MinImageWidth || h < cfg.MinImageHeight))
+                    {
+                        _log.LogInformation("PosterRotator: rejected {Name} — too small ({W}×{H}, min {MW}×{MH})",
+                            name, w, h, cfg.MinImageWidth, cfg.MinImageHeight);
+                        try { File.Delete(full); } catch { }
+                        return;
+                    }
+
+                    // Feature 3: Perceptual hash dedup (only when enabled)
+                    if (cfg.EnableDuplicateDetection)
+                    {
+                        var hash = ImageHash.ComputeHash(full);
+                        if (hash != 0)
+                        {
+                            var existingHashes = ImageHash.LoadHashes(dir);
+                            if (ImageHash.IsDuplicate(hash, existingHashes.Values))
+                            {
+                                _log.LogInformation("PosterRotator: rejected {Name} — visually duplicate", name);
+                                try { File.Delete(full); } catch { }
+                                return;
+                            }
+                            ImageHash.SaveHash(dir, name, hash);
+                        }
+                    }
 
                     bucket.Add(full);
 
@@ -614,11 +656,13 @@ namespace Jellyfin.Plugin.PosterRotator
                         SaveLanguageMetadata(dir, name, actualLang);
                     }
 
-                    _log.LogDebug("PosterRotator: downloaded {Name} (lang={Lang}) for {Item}", name, actualLang, mv.Name);
+                    _log.LogDebug("PosterRotator: downloaded {Name} ({W}×{H}, lang={Lang}) for {Item}",
+                        name, w > 0 ? w : (int?)null, h > 0 ? h : (int?)null, actualLang, mv.Name);
                 }
                 catch (Exception ex)
                 {
                     _log.LogDebug(ex, "PosterRotator: download failed for {Url} ({Item})", url, mv.Name);
+                    try { if (File.Exists(full)) File.Delete(full); } catch { }
                 }
             }
 
@@ -977,6 +1021,52 @@ namespace Jellyfin.Plugin.PosterRotator
             {
                 _log.LogWarning(ex, "PosterRotator: unable to notify Jellyfin");
             }
+        }
+
+        /// <summary>
+        /// Feature 4: Delete ALL .poster_pool directories across all libraries.
+        /// Returns the number of pools deleted.
+        /// </summary>
+        public int PurgeAllPools()
+        {
+            int deleted = 0;
+
+            try
+            {
+                var libraryMap = GetLibraryRootPaths();
+                var roots = libraryMap.Values.SelectMany(v => v).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                _log.LogInformation("PosterRotator: purging all pools across {Count} library root(s)", roots.Count);
+
+                foreach (var root in roots)
+                {
+                    if (!Directory.Exists(root)) continue;
+
+                    string[] poolDirs;
+                    try { poolDirs = Directory.GetDirectories(root, ".poster_pool", SearchOption.AllDirectories); }
+                    catch (Exception ex) { _log.LogDebug(ex, "PosterRotator: cannot scan {Root}", root); continue; }
+
+                    foreach (var poolDir in poolDirs)
+                    {
+                        try
+                        {
+                            Directory.Delete(poolDir, recursive: true);
+                            deleted++;
+                        }
+                        catch (Exception ex)
+                        {
+                            _log.LogWarning(ex, "PosterRotator: failed to delete pool {Dir}", poolDir);
+                        }
+                    }
+                }
+
+                _log.LogInformation("PosterRotator: purged {Count} pool(s)", deleted);
+            }
+            catch (Exception ex)
+            {
+                _log.LogError(ex, "PosterRotator: purge failed");
+            }
+
+            return deleted;
         }
     }
 }

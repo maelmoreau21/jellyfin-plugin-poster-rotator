@@ -15,6 +15,10 @@ Rotate poster images in Jellyfin by building a small local pool of images next t
 - Language preferences: filter posters by language, auto-detect original language (VO)
 - Automatic cleanup of orphaned pools
 - Lock pools after fill to prevent metadata updates from changing them
+- **v1.5.0**: Image quality filtering — reject low-resolution posters automatically
+- **v1.5.0**: Retry with exponential backoff on provider/download failures
+- **v1.5.0**: Perceptual duplicate detection — skip visually identical posters
+- **v1.5.0**: Purge button to delete all poster pools at once
 
 ---
 
@@ -91,10 +95,18 @@ Important: Jellyfin and clients sometimes cache images. After the plugin rotates
 - **Fallback Language** → used when auto-detection fails
 - **Include Unknown Language** → include posters without language metadata
 
+### Image Quality (v1.5.0)
+
+- **Min Image Width** → minimum pixel width (default: 500). Set to 0 to disable.
+- **Min Image Height** → minimum pixel height (default: 750). Set to 0 to disable.
+- Images below these thresholds are automatically rejected during pool top-up.
+- The plugin checks both provider-reported dimensions (before download) and actual file headers (after download).
+
 ### Pool Management
 
 - **Auto Cleanup Orphaned Pools** → automatically remove pools for deleted media
 - **Cleanup Interval (days)** → how often to run orphan cleanup
+- **🗑 Purge All Pools** → button to delete ALL `.poster_pool` directories across all libraries (with confirmation)
 
 💡 *Tip: The scheduled task can run more often than your cooldown. The plugin skips fetching new images for movies still within the Min Hour window.*
 
