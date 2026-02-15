@@ -12,11 +12,11 @@ using System.Reflection;
 
 [assembly: System.Reflection.AssemblyCompanyAttribute("Jellyfin.Plugin.PosterRotator")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
-[assembly: System.Reflection.AssemblyFileVersionAttribute("1.5.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.5.0.0+84f1947e719f42bbb36c4dc389c0a4f6bea74cd6")]
+[assembly: System.Reflection.AssemblyFileVersionAttribute("1.5.6.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.5.6.0+e4f52b557930845698c0182dc2e7bbd981be64b8")]
 [assembly: System.Reflection.AssemblyProductAttribute("Jellyfin.Plugin.PosterRotator")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Jellyfin.Plugin.PosterRotator")]
-[assembly: System.Reflection.AssemblyVersionAttribute("1.5.0.0")]
+[assembly: System.Reflection.AssemblyVersionAttribute("1.5.6.0")]
 
 // Généré par la classe MSBuild WriteCodeFragment.
 

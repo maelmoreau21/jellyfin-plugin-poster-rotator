@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "BDbHH3YHArQ=",
+  "dgSpecHash": "UNnKAW7Y+5g=",
   "success": true,
-  "projectFilePath": "C:\\Users\\Mael\\Documents\\GitHub\\jellyfin-plugin-poster-rotator-1\\src\\Jellyfin.Plugin.PosterRotator\\Jellyfin.Plugin.PosterRotator.csproj",
+  "projectFilePath": "C:\\Users\\Mael\\Documents\\GitHub\\jellyfin-plugin-poster-rotator\\src\\Jellyfin.Plugin.PosterRotator\\Jellyfin.Plugin.PosterRotator.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\Mael\\.nuget\\packages\\bitfaster.caching\\2.5.4\\bitfaster.caching.2.5.4.nupkg.sha512",
     "C:\\Users\\Mael\\.nuget\\packages\\diacritics\\4.0.17\\diacritics.4.0.17.nupkg.sha512",

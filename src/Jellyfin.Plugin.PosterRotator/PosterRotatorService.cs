@@ -21,34 +21,31 @@ namespace Jellyfin.Plugin.PosterRotator
     public class PosterRotatorService
     {
         private readonly ILibraryManager _library;
-        private readonly IServiceProvider _services;
+        private readonly IProviderManager _providerManager;
+        private readonly IDirectoryService _directoryService;
         private readonly IHttpClientFactory _httpFactory;
         private readonly ILogger<PosterRotatorService> _log;
 
         public PosterRotatorService(
             ILibraryManager library,
-            IServiceProvider services,
+            IProviderManager providerManager,
+            IDirectoryService directoryService,
             IHttpClientFactory httpFactory,
             ILogger<PosterRotatorService> log)
         {
             _library = library;
-            _services = services;
+            _providerManager = providerManager;
+            _directoryService = directoryService;
             _httpFactory = httpFactory;
             _log = log;
         }
-
-        // Providers cached for the duration of a single run (perf #7)
-        private IReadOnlyList<IRemoteImageProvider>? _cachedProviders;
-        private readonly object _providersLock = new();
 
         public async Task RunAsync(Configuration cfg, IProgress<double>? progress, CancellationToken ct)
         {
             var sw = Stopwatch.StartNew();
             int rotatedCount = 0, skippedCount = 0, errorCount = 0, topUpCount = 0;
 
-            // Resolve providers once for the entire run (thread-safe Q9)
-            var providers = ResolveImageProviders().ToList();
-            lock (_providersLock) { _cachedProviders = providers; }
+            // Providers are now fetched per-item using IProviderManager
 
             try
             {
@@ -151,7 +148,7 @@ namespace Jellyfin.Plugin.PosterRotator
             }
             finally
             {
-                lock (_providersLock) { _cachedProviders = null; }
+
             }
         }
 
@@ -423,10 +420,23 @@ namespace Jellyfin.Plugin.PosterRotator
             BaseItem item, string poolDir, int needed, Configuration cfg, CancellationToken ct)
         {
             var added = new List<string>();
+            
+            // Load known URLs to prevent re-downloading duplicate source images
+            var urlMapPath = Path.Combine(poolDir, "pool_urls.json");
+            var urlMap = PluginHelpers.LoadJsonMap(urlMapPath);
+            var knownUrls = new HashSet<string>(urlMap.Values, StringComparer.OrdinalIgnoreCase);
+
             try
             {
-                IReadOnlyList<IRemoteImageProvider> provList;
-                lock (_providersLock) { provList = _cachedProviders ?? ResolveImageProviders().ToList(); }
+                // Use IProviderManager with null options (assuming defaults)
+                var providers = _providerManager.GetImageProviders(item, null);
+                
+                IReadOnlyList<IRemoteImageProvider> provList = providers
+                    .OfType<IRemoteImageProvider>()
+                    .Where(p => p.Supports(item))
+                    .Where(p => p.GetSupportedImages(item).Contains(ImageType.Primary))
+                    .OrderByDescending(p => PreferredProviderScore(p.GetType().Name))
+                    .ToList();
 
                 if (provList.Count == 0)
                 {
@@ -535,14 +545,14 @@ namespace Jellyfin.Plugin.PosterRotator
                     foreach (var info in prefLangImages.Take(remainingPrefSlots))
                     {
                         if (added.Count >= needed) break;
-                        await TryDownloadRemote(info, item, poolDir, ct, added, prefLang).ConfigureAwait(false);
+                        await TryDownloadRemote(info, item, poolDir, ct, added, prefLang, knownUrls, urlMapPath).ConfigureAwait(false);
                         gotAny = true;
                     }
 
                     foreach (var info in fallbackImages)
                     {
                         if (added.Count >= needed) break;
-                        await TryDownloadRemote(info, item, poolDir, ct, added, info.Language ?? "unknown").ConfigureAwait(false);
+                        await TryDownloadRemote(info, item, poolDir, ct, added, info.Language ?? "unknown", knownUrls, urlMapPath).ConfigureAwait(false);
                         gotAny = true;
                     }
                 }
@@ -557,7 +567,7 @@ namespace Jellyfin.Plugin.PosterRotator
                     foreach (var info in ordered.Where(i => i.Type == ImageType.Primary))
                     {
                         if (added.Count >= needed) break;
-                        await TryDownloadRemote(info, item, poolDir, ct, added, null).ConfigureAwait(false);
+                        await TryDownloadRemote(info, item, poolDir, ct, added, null, knownUrls, urlMapPath).ConfigureAwait(false);
                         gotAny = true;
                     }
 
@@ -566,7 +576,7 @@ namespace Jellyfin.Plugin.PosterRotator
                         foreach (var info in ordered.Where(i => i.Type == ImageType.Thumb || i.Type == ImageType.Backdrop))
                         {
                             if (added.Count >= needed) break;
-                            await TryDownloadRemote(info, item, poolDir, ct, added, null).ConfigureAwait(false);
+                            await TryDownloadRemote(info, item, poolDir, ct, added, null, knownUrls, urlMapPath).ConfigureAwait(false);
                             gotAny = true;
                         }
                     }
@@ -584,7 +594,8 @@ namespace Jellyfin.Plugin.PosterRotator
 
             async Task TryDownloadRemote(RemoteImageInfo info,
                                         BaseItem mv, string dir,
-                                        CancellationToken token, List<string> bucket, string? language)
+                                        CancellationToken token, List<string> bucket, string? language,
+                                        HashSet<string> knownUrls, string urlMapPath)
             {
                 if (info == null) return;
 
@@ -593,6 +604,13 @@ namespace Jellyfin.Plugin.PosterRotator
 
                 var url = info.Url;
                 if (string.IsNullOrWhiteSpace(url)) return;
+
+                // Feature 4: URL dedup
+                if (knownUrls.Contains(url))
+                {
+                    _log.LogDebug("PosterRotator: skipping {Url} — already in pool", url);
+                    return;
+                }
 
                 // Feature 1: Pre-download quality check (if provider reports dimensions)
                 if (info.Width > 0 && info.Height > 0
@@ -658,6 +676,10 @@ namespace Jellyfin.Plugin.PosterRotator
 
                     _log.LogDebug("PosterRotator: downloaded {Name} ({W}×{H}, lang={Lang}) for {Item}",
                         name, w > 0 ? w : (int?)null, h > 0 ? h : (int?)null, actualLang, mv.Name);
+
+                    // Track URL to avoid re-downloading
+                    PluginHelpers.UpdateJsonMapFile(urlMapPath, name, url);
+                    knownUrls.Add(url);
                 }
                 catch (Exception ex)
                 {
@@ -756,22 +778,7 @@ namespace Jellyfin.Plugin.PosterRotator
             return "en";
         }
 
-        /// <summary>
-        /// Resolve image providers via DI — typed IEnumerable resolution.
-        /// </summary>
-        private IEnumerable<IRemoteImageProvider> ResolveImageProviders()
-        {
-            try
-            {
-                return (_services.GetService(typeof(IEnumerable<IRemoteImageProvider>))
-                        as IEnumerable<IRemoteImageProvider>)
-                       ?? Array.Empty<IRemoteImageProvider>();
-            }
-            catch
-            {
-                return Array.Empty<IRemoteImageProvider>();
-            }
-        }
+
 
     // Helper methods
 
@@ -822,10 +829,17 @@ namespace Jellyfin.Plugin.PosterRotator
         {
             try
             {
+                // Clean up legacy "pool_currentprimary" files if present
+                var legacy = Directory.GetFiles(poolDir, "pool_currentprimary.*");
+                foreach (var f in legacy)
+                {
+                    try { File.Delete(f); } catch { }
+                }
+
                 var primary = item.GetImagePath(ImageType.Primary);
                 if (!string.IsNullOrEmpty(primary) && File.Exists(primary))
                 {
-                    var name = "pool_currentprimary" + Path.GetExtension(primary);
+                    var name = "pool_original" + Path.GetExtension(primary);
                     var dest = Path.Combine(poolDir, name);
                     File.Copy(primary, dest, overwrite: true);
                     return dest;
@@ -846,7 +860,7 @@ namespace Jellyfin.Plugin.PosterRotator
                     var existing = candidates.FirstOrDefault();
                     if (!string.IsNullOrEmpty(existing))
                     {
-                        var name = "pool_currentprimary" + Path.GetExtension(existing);
+                        var name = "pool_original" + Path.GetExtension(existing);
                         var dest = Path.Combine(poolDir, name);
                         File.Copy(existing, dest, overwrite: true);
                         return dest;
@@ -865,7 +879,7 @@ namespace Jellyfin.Plugin.PosterRotator
             RotationState state)
         {
             var reordered = files
-                .OrderBy(f => Path.GetFileName(f).StartsWith("pool_currentprimary", StringComparison.OrdinalIgnoreCase) ? 1 : 0)
+                .OrderBy(f => Path.GetFileName(f).StartsWith("pool_original", StringComparison.OrdinalIgnoreCase) ? 1 : 0)
                 .ThenBy(f => Path.GetFileName(f), StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
@@ -891,7 +905,7 @@ namespace Jellyfin.Plugin.PosterRotator
                 if (reordered.Count > 1)
                 {
                     var nonCurrent = reordered.Where(f =>
-                        !Path.GetFileName(f).StartsWith("pool_currentprimary", StringComparison.OrdinalIgnoreCase)).ToList();
+                        !Path.GetFileName(f).StartsWith("pool_original", StringComparison.OrdinalIgnoreCase)).ToList();
                     if (nonCurrent.Count > 0)
                     {
                         var pick = nonCurrent[Random.Shared.Next(nonCurrent.Count)];

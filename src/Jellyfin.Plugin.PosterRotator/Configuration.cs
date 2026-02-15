@@ -92,5 +92,5 @@ public class Configuration : BasePluginConfiguration
     /// Activer la détection de doublons visuels lors du téléchargement.
     /// Utilise un hash perceptuel pour éviter les images quasi-identiques.
     /// </summary>
-    public bool EnableDuplicateDetection { get; set; } = false;
+    public bool EnableDuplicateDetection { get; set; } = true;
 }

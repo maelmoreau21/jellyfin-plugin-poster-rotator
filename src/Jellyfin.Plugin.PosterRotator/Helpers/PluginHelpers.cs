@@ -152,6 +152,23 @@ public static class PluginHelpers
     }
 
     /// <summary>
+    /// Load a key-value JSON map file. Returns empty dictionary if missing.
+    /// </summary>
+    public static Dictionary<string, string> LoadJsonMap(string filePath)
+    {
+        try
+        {
+            if (File.Exists(filePath))
+            {
+                var json = File.ReadAllText(filePath);
+                return JsonSerializer.Deserialize<Dictionary<string, string>>(json) ?? new();
+            }
+        }
+        catch { }
+        return new Dictionary<string, string>();
+    }
+
+    /// <summary>
     /// Read a key-value JSON map file and count entries matching a predicate.
     /// Returns 0 if the file is missing or corrupt.
     /// </summary>
