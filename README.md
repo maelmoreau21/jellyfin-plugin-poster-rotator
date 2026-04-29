@@ -1,68 +1,70 @@
-# Jellyfin Poster Rotator
+<p align="center">
+  <img src="jellyfin-plugin-posterrotator.png" alt="Poster Rotator Banner">
+</p>
 
-Poster Rotator keeps Jellyfin feeling fresh by rotating primary poster images on a schedule. It builds a small local pool of remote artwork for each movie, series, collection, season, or episode, then asks Jellyfin to save the selected image as the item primary image.
+<h1 align="center">Jellyfin Poster Rotator</h1>
 
-## Compatibility
+<p align="center">
+  <img src="https://img.shields.io/github/v/release/maelmoreau21/jellyfin-plugin-poster-rotator" alt="GitHub Release">
+  <img src="https://img.shields.io/github/license/maelmoreau21/jellyfin-plugin-poster-rotator" alt="License">
+</p>
 
-- Jellyfin `10.11.0.0` through `10.11.8.0`
-- .NET 9 runtime on the Jellyfin server
-- At least one remote image provider enabled, such as TMDb, TVDB, or Fanart
+<p align="center">
+  <strong>Poster Rotator garde votre interface Jellyfin dynamique en faisant tourner les affiches (posters) de vos médias selon un planning défini.</strong>
+</p>
 
-The plugin is built against Jellyfin `10.11.0` by default and the manifest uses `targetAbi: 10.11.0.0` so the same release can install across the 10.11.x line.
+---
 
-## What Changed in 1.6.0.0
+> [!IMPORTANT]
+> ### ⚙️ PRÉREQUIS & COMPATIBILITÉ
+> - **Version Jellyfin** : `10.11.0.0` à `10.11.8.0`.
+> - **Runtime** : .NET 9 requis sur le serveur Jellyfin.
+> - **Fournisseurs d'images** : TMDb, TVDB ou Fanart doivent être activés.
 
-- Default pool storage moved to the plugin data folder instead of media folders.
-- Existing `.poster_pool` directories are migrated into plugin data storage and removed after a successful migration.
-- Rotation now uses Jellyfin's `IProviderManager.SaveImage(...)` path instead of overwriting `poster.jpg` directly.
-- Remote downloads are bounded by a configurable size limit, default `25 MB`.
-- Unsafe image URLs pointing at localhost, private IP ranges, or link-local ranges are rejected by default.
-- Purge is safer: it skips symlinks/reparse points and only deletes validated pool directories.
-- Rotation and purge operations are serialized so they cannot race each other.
+---
 
-## Recommended Setup
+## 🔌 Installation (Méthode Recommandée : Dépôt Jellyfin)
 
-Use the default **Plugin data folder** storage mode. It keeps the poster pool outside your media libraries, which means Jellyfin does not need to watch thousands of extra pool files inside movie and series folders. The plugin still changes the visible poster by calling Jellyfin's image save API.
+Privilégiez l'installation via le dépôt officiel pour bénéficier des mises à jour automatiques directement depuis votre interface Jellyfin.
 
-Use **Media folders** only if you specifically want the old `.poster_pool` layout next to your media files.
+### 1. Ajouter le dépôt
+1. Dans Jellyfin : **Tableau de bord** > **Plugins** > **Dépôts**.
+2. Cliquez sur le bouton `+` (Ajouter).
+3. Remplissez les informations suivantes :
+   - **Nom** : `Poster Rotator`
+   - **URL** : `https://raw.githubusercontent.com/maelmoreau21/jellyfin-plugin-poster-rotator/refs/heads/main/manifest.json`
 
-## Installation
+### 2. Installation
+1. Allez dans l'onglet **Catalogue**.
+2. Recherchez **Poster Rotator** et installez-le.
+3. **Redémarrez Jellyfin** pour activer le plugin.
 
-Add this repository in **Dashboard -> Plugins -> Catalog**:
+---
 
-```text
-https://raw.githubusercontent.com/maelmoreau21/jellyfin-plugin-poster-rotator/refs/heads/main/manifest.json
-```
+## ⚙️ Configuration
 
-Then install **Poster Rotator**, restart Jellyfin, and open the plugin settings.
+Une fois installé, rendez-vous dans **Tableau de bord** > **Plugins** > **Poster Rotator** pour personnaliser le comportement :
 
-## Settings
+- **Pool Size** : Nombre d'affiches candidates conservées par élément.
+- **Pool Storage** : Emplacement du stockage (Dossier data du plugin recommandé).
+- **Min Hours Between Switches** : Temps d'attente minimal avant une nouvelle rotation.
+- **Sequential Rotation** : Rotation dans un ordre stable plutôt qu'aléatoire.
+- **Language Filter** : Priorise les affiches dans votre langue préférée.
 
-- **Pool Size**: number of poster candidates kept per item.
-- **Pool Storage**: plugin data folder, recommended, or media folders, legacy.
-- **Min Hours Between Switches**: cooldown before an item can rotate again.
-- **Sequential Rotation**: stable order instead of random.
-- **Lock After Fill**: stop adding new images once a pool reaches the target size.
-- **Language Filter**: prioritize preferred language and original-language posters.
-- **Min Image Width / Height**: reject low-resolution images.
-- **Max Download Size**: reject unexpectedly large remote images.
-- **Block Private Network URLs**: reject localhost/LAN/link-local image URLs.
-- **Purge All Pools**: remove plugin-data pools and legacy `.poster_pool` directories.
+> [!TIP]
+> Utilisez le mode **Plugin data folder** pour garder vos dossiers médias propres et éviter que Jellyfin ne scanne inutilement les fichiers du pool.
 
-## Build
+---
 
-Baseline compatibility build:
+## 🛠️ Installation Manuelle (Optionnelle)
 
-```powershell
-dotnet build src/Jellyfin.Plugin.PosterRotator/Jellyfin.Plugin.PosterRotator.csproj -c Release /p:JellyfinPackageVersion=10.11.0
-```
+Si vous ne pouvez pas utiliser le dépôt :
+1. Téléchargez le fichier `Jellyfin.Plugin.PosterRotator.dll` depuis les [Releases](https://github.com/maelmoreau21/jellyfin-plugin-poster-rotator/releases).
+2. Créez un dossier `PosterRotator` dans votre répertoire `plugins` Jellyfin.
+3. Copiez le fichier `.dll` dedans et redémarrez Jellyfin.
 
-Latest 10.11.x verification build:
+---
 
-```powershell
-dotnet build src/Jellyfin.Plugin.PosterRotator/Jellyfin.Plugin.PosterRotator.csproj -c Release /p:JellyfinPackageVersion=10.11.8
-```
+## 📄 Licence
 
-## Security Notes
-
-The plugin downloads only `http` and `https` image URLs from Jellyfin image providers. By default it blocks loopback, private, and link-local targets, applies a byte limit while streaming, checks image headers, and rejects unsupported image content before adding it to a pool.
+Distribué sous licence **MIT**.
