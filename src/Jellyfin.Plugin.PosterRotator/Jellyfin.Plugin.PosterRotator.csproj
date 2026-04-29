@@ -3,10 +3,11 @@
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Version>1.5.6.0</Version>
-    <AssemblyVersion>1.5.6.0</AssemblyVersion>
-    <FileVersion>1.5.6.0</FileVersion>
+    <Version>1.6.0.0</Version>
+    <AssemblyVersion>1.6.0.0</AssemblyVersion>
+    <FileVersion>1.6.0.0</FileVersion>
     <RootNamespace>Jellyfin.Plugin.PosterRotator</RootNamespace>
+    <JellyfinPackageVersion Condition="'$(JellyfinPackageVersion)' == ''">10.11.0</JellyfinPackageVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -14,10 +15,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Jellyfin.Model" Version="10.11.6" />
-    <PackageReference Include="Jellyfin.Controller" Version="10.11.6" />
-    <PackageReference Include="Jellyfin.Common" Version="10.11.6" />
-    <PackageReference Include="Jellyfin.Extensions" Version="10.11.6" />
+    <PackageReference Include="Jellyfin.Model" Version="$(JellyfinPackageVersion)" ExcludeAssets="runtime" />
+    <PackageReference Include="Jellyfin.Controller" Version="$(JellyfinPackageVersion)" ExcludeAssets="runtime" />
+    <PackageReference Include="Jellyfin.Common" Version="$(JellyfinPackageVersion)" ExcludeAssets="runtime" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 </Project>

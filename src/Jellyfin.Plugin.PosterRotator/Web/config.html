@@ -5,10 +5,25 @@
   <meta charset="utf-8" />
   <title>Poster Rotator</title>
   <style>
-    .fieldDescription {
-      font-size: 0.85em;
+    .posterRotatorDescription {
       color: #999;
+      font-size: .85em;
+      line-height: 1.35;
       margin-top: 4px;
+    }
+
+    .posterRotatorSection {
+      margin-top: 26px;
+    }
+
+    .posterRotatorRow {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .posterRotatorRow > .inputContainer {
+      flex: 1 1 220px;
     }
 
     .checkboxContainer-withDescription {
@@ -23,186 +38,201 @@
 
 <body>
   <div id="PosterRotatorConfigPage" data-role="page" class="page type-interior pluginConfigurationPage"
-    data-require="emby-input,emby-button,emby-checkbox">
+    data-require="emby-input,emby-button,emby-checkbox,emby-select">
 
     <div data-role="content">
       <div class="content-primary">
         <form id="PosterRotatorConfigForm">
 
-          <!-- SECTION: Bibliothèques -->
-          <h2>Bibliothèques à affecter</h2>
+          <div class="posterRotatorSection">
+            <h2>Bibliotheques a affecter</h2>
+            <div id="LibraryRulesContainer" style="margin-top:12px; margin-bottom:14px;"></div>
 
-          <!-- Container pour les règles de librairie (rempli par le JS) -->
-          <div id="LibraryRulesContainer" style="margin-top:12px; margin-bottom:14px;"></div>
-
-          <!-- SECTION: Paramètres de rotation -->
-          <h2>Paramètres de rotation</h2>
-
-          <div class="inputContainer">
-            <label class="inputLabel inputLabelUnfocused" for="PoolSize">Taille du pool (affiches par film)</label>
-            <input id="PoolSize" type="number" min="1" max="20" is="emby-input" value="5" />
-            <div class="fieldDescription">Nombre d'affiches à conserver par film</div>
-          </div>
-
-          <div class="inputContainer">
-            <label class="inputLabel inputLabelUnfocused" for="MinHoursBetweenSwitches">Heures minimum entre les
-              changements</label>
-            <input id="MinHoursBetweenSwitches" type="number" min="1" is="emby-input" value="24" />
-            <div class="fieldDescription">Durée minimale avant de changer l'affiche (en heures)</div>
-          </div>
-
-          <div class="checkboxContainer checkboxContainer-withDescription">
-            <label class="emby-checkbox-label">
-              <input id="SequentialRotation" type="checkbox" is="emby-checkbox" />
-              <span>Rotation séquentielle</span>
-            </label>
-            <div class="fieldDescription">Si décoché: rotation aléatoire</div>
-          </div>
-
-          <div class="checkboxContainer checkboxContainer-withDescription">
-            <label class="emby-checkbox-label">
-              <input id="LockImagesAfterFill" type="checkbox" is="emby-checkbox" />
-              <span>Verrouiller après remplissage du pool</span>
-            </label>
-            <div class="fieldDescription">Empêche les mises à jour de métadonnées de modifier le pool</div>
-          </div>
-
-          <div class="checkboxContainer checkboxContainer-withDescription">
-            <label class="emby-checkbox-label">
-              <input id="EnableSeasonPosters" type="checkbox" is="emby-checkbox" />
-              <span>Inclure les saisons</span>
-            </label>
-            <div class="fieldDescription">Ajoute les affiches des saisons à la rotation (désactivé par défaut)</div>
-          </div>
-
-          <div class="checkboxContainer checkboxContainer-withDescription">
-            <label class="emby-checkbox-label">
-              <input id="EnableEpisodePosters" type="checkbox" is="emby-checkbox" />
-              <span>Inclure les épisodes</span>
-            </label>
-            <div class="fieldDescription">Ajoute les miniatures des épisodes à la rotation (désactivé par défaut)</div>
-          </div>
-
-          <div class="checkboxContainer checkboxContainer-withDescription" style="margin-bottom:14px;">
-            <label class="emby-checkbox-label">
-              <input id="TriggerLibraryScanAfterRotation" type="checkbox" is="emby-checkbox" />
-              <span>Déclencher un scan de la bibliothèque après rotation</span>
-            </label>
-            <div class="fieldDescription">Optionnel et coûteux : force un scan pour que Jellyfin réindexe les images
-              (activé par défaut)</div>
-          </div>
-
-          <!-- SECTION: Paramètres avancés -->
-          <h2>Paramètres avancés</h2>
-
-          <div class="inputContainer">
-            <label class="inputLabel inputLabelUnfocused" for="ExtraPosterPatterns">Motifs supplémentaires (séparés par
-              virgule)</label>
-            <input id="ExtraPosterPatterns" type="text" is="emby-input" placeholder="folder.jpg, alt-*.png" />
-          </div>
-
-          <div style="display: flex; gap: 16px;">
-            <div class="inputContainer" style="flex: 1;">
-              <label class="inputLabel inputLabelUnfocused" for="MinImageWidth">Largeur minimale (px)</label>
-              <input id="MinImageWidth" type="number" min="0" max="4000" is="emby-input" value="500" />
-              <div class="fieldDescription">Images plus étroites seront rejetées (0 = pas de filtre)</div>
-            </div>
-            <div class="inputContainer" style="flex: 1;">
-              <label class="inputLabel inputLabelUnfocused" for="MinImageHeight">Hauteur minimale (px)</label>
-              <input id="MinImageHeight" type="number" min="0" max="4000" is="emby-input" value="750" />
-              <div class="fieldDescription">Images plus courtes seront rejetées (0 = pas de filtre)</div>
+            <div class="inputContainer">
+              <label class="inputLabel inputLabelUnfocused" for="ManualLibraryRoots">Racines manuelles</label>
+              <textarea id="ManualLibraryRoots" is="emby-input" rows="4"
+                placeholder="/media/Films&#10;/media/Series"></textarea>
+              <div class="posterRotatorDescription">Optionnel. Une racine par ligne. Si rempli, ce champ remplace la selection automatique.</div>
             </div>
           </div>
 
-          <div class="checkboxContainer checkboxContainer-withDescription">
-            <label class="emby-checkbox-label">
-              <input id="EnableDuplicateDetection" type="checkbox" is="emby-checkbox" />
-              <span>Détection des doublons visuels</span>
-            </label>
-            <div class="fieldDescription">Utilise un hash perceptuel pour rejeter les images quasi-identiques lors du
-              téléchargement</div>
+          <div class="posterRotatorSection">
+            <h2>Stockage et performance</h2>
+
+            <div class="inputContainer">
+              <label class="selectLabel" for="PoolStorageMode">Stockage des pools</label>
+              <select id="PoolStorageMode" is="emby-select">
+                <option value="0">Dossier du plugin, recommande</option>
+                <option value="1">Dossiers medias, mode historique</option>
+              </select>
+              <div class="posterRotatorDescription">Le dossier du plugin evite de creer des .poster_pool dans les bibliotheques et reduit le travail des watchers Jellyfin.</div>
+            </div>
+
+            <div class="posterRotatorRow">
+              <div class="inputContainer">
+                <label class="inputLabel inputLabelUnfocused" for="PoolSize">Taille du pool</label>
+                <input id="PoolSize" type="number" min="1" max="50" is="emby-input" value="5" />
+                <div class="posterRotatorDescription">Nombre d'affiches conservees par element.</div>
+              </div>
+
+              <div class="inputContainer">
+                <label class="inputLabel inputLabelUnfocused" for="MinHoursBetweenSwitches">Heures minimum entre changements</label>
+                <input id="MinHoursBetweenSwitches" type="number" min="1" is="emby-input" value="24" />
+                <div class="posterRotatorDescription">Cooldown avant de changer l'affiche du meme element.</div>
+              </div>
+            </div>
+
+            <div class="checkboxContainer checkboxContainer-withDescription">
+              <label class="emby-checkbox-label">
+                <input id="SequentialRotation" type="checkbox" is="emby-checkbox" />
+                <span>Rotation sequentielle</span>
+              </label>
+              <div class="posterRotatorDescription">Sinon, une affiche non-originale est choisie au hasard.</div>
+            </div>
+
+            <div class="checkboxContainer checkboxContainer-withDescription">
+              <label class="emby-checkbox-label">
+                <input id="LockImagesAfterFill" type="checkbox" is="emby-checkbox" />
+                <span>Verrouiller apres remplissage du pool</span>
+              </label>
+              <div class="posterRotatorDescription">Une fois le pool plein, le plugin ne telecharge plus de nouvelles affiches pour cet element.</div>
+            </div>
           </div>
 
-          <!-- SECTION: Gestion des pools -->
-          <h2>Gestion des pools</h2>
+          <div class="posterRotatorSection">
+            <h2>Types de medias</h2>
 
-          <div class="checkboxContainer checkboxContainer-withDescription">
-            <label class="emby-checkbox-label">
-              <input id="AutoCleanupOrphanedPools" type="checkbox" is="emby-checkbox" />
-              <span>Nettoyage automatique des pools orphelins</span>
-            </label>
-            <div class="fieldDescription">Supprime automatiquement les pools dont le média a été supprimé</div>
+            <div class="checkboxContainer checkboxContainer-withDescription">
+              <label class="emby-checkbox-label">
+                <input id="EnableSeasonPosters" type="checkbox" is="emby-checkbox" />
+                <span>Inclure les saisons</span>
+              </label>
+            </div>
+
+            <div class="checkboxContainer checkboxContainer-withDescription">
+              <label class="emby-checkbox-label">
+                <input id="EnableEpisodePosters" type="checkbox" is="emby-checkbox" />
+                <span>Inclure les episodes</span>
+              </label>
+              <div class="posterRotatorDescription">Les episodes peuvent representer beaucoup plus d'items a traiter.</div>
+            </div>
           </div>
 
-          <div class="inputContainer">
-            <label class="inputLabel inputLabelUnfocused" for="CleanupIntervalDays">Intervalle de nettoyage
-              (jours)</label>
-            <input id="CleanupIntervalDays" type="number" min="1" max="30" is="emby-input" value="7" />
-            <div class="fieldDescription">Nombre de jours entre chaque nettoyage automatique</div>
+          <div class="posterRotatorSection">
+            <h2>Securite des telechargements</h2>
+
+            <div class="posterRotatorRow">
+              <div class="inputContainer">
+                <label class="inputLabel inputLabelUnfocused" for="MaxDownloadMegabytes">Taille max par image (MB)</label>
+                <input id="MaxDownloadMegabytes" type="number" min="1" max="200" is="emby-input" value="25" />
+              </div>
+
+              <div class="inputContainer">
+                <label class="inputLabel inputLabelUnfocused" for="ExtraPosterPatterns">Motifs supplementaires</label>
+                <input id="ExtraPosterPatterns" type="text" is="emby-input" placeholder="folder.jpg, alt-*.png" />
+              </div>
+            </div>
+
+            <div class="checkboxContainer checkboxContainer-withDescription">
+              <label class="emby-checkbox-label">
+                <input id="BlockPrivateNetworkImageUrls" type="checkbox" is="emby-checkbox" checked />
+                <span>Bloquer localhost et reseaux prives</span>
+              </label>
+              <div class="posterRotatorDescription">Protege le serveur contre les URLs d'images pointant vers le LAN ou la machine locale.</div>
+            </div>
           </div>
 
-          <div style="margin-top: 16px;">
-            <button id="PurgeAllPoolsBtn" type="button" class="raised button-cancel emby-button"
-              style="display: inline-block; padding: 12px 24px;">
-              🗑 Supprimer tous les pools
-            </button>
-            <div class="fieldDescription">Supprime tous les dossiers .poster_pool de toutes les bibliothèques. Cette
-              action est irréversible.</div>
-            <div id="PurgeResult" style="display:none; margin-top: 8px; color: #4caf50; font-weight: bold;"></div>
+          <div class="posterRotatorSection">
+            <h2>Qualite d'image</h2>
+
+            <div class="posterRotatorRow">
+              <div class="inputContainer">
+                <label class="inputLabel inputLabelUnfocused" for="MinImageWidth">Largeur minimale (px)</label>
+                <input id="MinImageWidth" type="number" min="0" max="4000" is="emby-input" value="500" />
+              </div>
+
+              <div class="inputContainer">
+                <label class="inputLabel inputLabelUnfocused" for="MinImageHeight">Hauteur minimale (px)</label>
+                <input id="MinImageHeight" type="number" min="0" max="4000" is="emby-input" value="750" />
+              </div>
+            </div>
+
+            <div class="checkboxContainer checkboxContainer-withDescription">
+              <label class="emby-checkbox-label">
+                <input id="EnableDuplicateDetection" type="checkbox" is="emby-checkbox" />
+                <span>Detection des doublons visuels</span>
+              </label>
+            </div>
           </div>
 
-          <!-- SECTION: Préférences de langue -->
-          <h2>Préférences de langue des affiches</h2>
+          <div class="posterRotatorSection">
+            <h2>Gestion des pools</h2>
 
-          <div class="checkboxContainer checkboxContainer-withDescription">
-            <label class="emby-checkbox-label">
-              <input id="EnableLanguageFilter" type="checkbox" is="emby-checkbox" />
-              <span>Activer le filtrage par langue</span>
-            </label>
-            <div class="fieldDescription">Permet de contrôler le nombre d'affiches par langue dans le pool</div>
+            <div class="checkboxContainer checkboxContainer-withDescription">
+              <label class="emby-checkbox-label">
+                <input id="AutoCleanupOrphanedPools" type="checkbox" is="emby-checkbox" />
+                <span>Nettoyage automatique des pools orphelins</span>
+              </label>
+            </div>
+
+            <div class="inputContainer">
+              <label class="inputLabel inputLabelUnfocused" for="CleanupIntervalDays">Intervalle de nettoyage (jours)</label>
+              <input id="CleanupIntervalDays" type="number" min="1" max="30" is="emby-input" value="7" />
+            </div>
+
+            <div style="margin-top:16px;">
+              <button id="PurgeAllPoolsBtn" type="button" class="raised button-cancel emby-button"
+                style="display:inline-block; padding:12px 24px;">
+                Supprimer tous les pools
+              </button>
+              <div class="posterRotatorDescription">Supprime les pools du dossier plugin et les anciens dossiers .poster_pool des bibliotheques.</div>
+              <div id="PurgeResult" class="posterRotatorDescription" style="display:none; color:#4caf50; font-weight:bold;"></div>
+            </div>
           </div>
 
-          <div class="inputContainer">
-            <label class="inputLabel inputLabelUnfocused" for="PreferredLanguage">Langue préférée (code ISO)</label>
-            <input id="PreferredLanguage" type="text" is="emby-input" value="fr" placeholder="fr, en, de, es..." />
-            <div class="fieldDescription">Code de langue pour les affiches prioritaires (ex: fr pour français)</div>
+          <div class="posterRotatorSection">
+            <h2>Langues des affiches</h2>
+
+            <div class="checkboxContainer checkboxContainer-withDescription">
+              <label class="emby-checkbox-label">
+                <input id="EnableLanguageFilter" type="checkbox" is="emby-checkbox" />
+                <span>Activer le filtrage par langue</span>
+              </label>
+            </div>
+
+            <div class="posterRotatorRow">
+              <div class="inputContainer">
+                <label class="inputLabel inputLabelUnfocused" for="PreferredLanguage">Langue preferee</label>
+                <input id="PreferredLanguage" type="text" is="emby-input" value="fr" placeholder="fr, en, de, es" />
+              </div>
+
+              <div class="inputContainer">
+                <label class="inputLabel inputLabelUnfocused" for="MaxPreferredLanguageImages">Max langue preferee</label>
+                <input id="MaxPreferredLanguageImages" type="number" min="0" max="10" is="emby-input" value="2" />
+              </div>
+            </div>
+
+            <div class="checkboxContainer checkboxContainer-withDescription">
+              <label class="emby-checkbox-label">
+                <input id="UseOriginalLanguageAsFallback" type="checkbox" is="emby-checkbox" checked />
+                <span>Utiliser la langue originale en fallback</span>
+              </label>
+            </div>
+
+            <div class="inputContainer">
+              <label class="inputLabel inputLabelUnfocused" for="FallbackLanguage">Langue de fallback</label>
+              <input id="FallbackLanguage" type="text" is="emby-input" value="en" placeholder="en, ja, ko" />
+            </div>
+
+            <div class="checkboxContainer checkboxContainer-withDescription">
+              <label class="emby-checkbox-label">
+                <input id="IncludeUnknownLanguage" type="checkbox" is="emby-checkbox" checked />
+                <span>Inclure les images sans langue definie</span>
+              </label>
+            </div>
           </div>
 
-          <div class="inputContainer">
-            <label class="inputLabel inputLabelUnfocused" for="MaxPreferredLanguageImages">Nombre max d'images dans la
-              langue preferee</label>
-            <input id="MaxPreferredLanguageImages" type="number" min="0" max="10" is="emby-input" value="2" />
-            <div class="fieldDescription">Ex: 2 = maximum 2 affiches francaises, le reste sera en VO</div>
-          </div>
-
-          <div class="checkboxContainer checkboxContainer-withDescription">
-            <label class="emby-checkbox-label">
-              <input id="UseOriginalLanguageAsFallback" type="checkbox" is="emby-checkbox" checked />
-              <span>Utiliser la langue originale du media (vraie VO)</span>
-            </label>
-            <div class="fieldDescription">Detecte automatiquement la langue originale (ex: japonais pour les animes,
-              coreen pour les K-dramas). Si desactive, utilise la langue de fallback ci-dessous.</div>
-          </div>
-
-          <div class="inputContainer">
-            <label class="inputLabel inputLabelUnfocused" for="FallbackLanguage">Langue de fallback (si auto-detection
-              echoue)</label>
-            <input id="FallbackLanguage" type="text" is="emby-input" value="en"
-              placeholder="en, de, es, ja, ko... (vide = toutes)" />
-            <div class="fieldDescription">Utilise seulement si "Utiliser la langue originale" est desactive ou si la
-              detection echoue.</div>
-          </div>
-
-          <div class="checkboxContainer checkboxContainer-withDescription">
-            <label class="emby-checkbox-label">
-              <input id="IncludeUnknownLanguage" type="checkbox" is="emby-checkbox" checked />
-              <span>Inclure les images sans langue definie</span>
-            </label>
-            <div class="fieldDescription">Inclut les affiches dont la langue n'est pas specifiee par le provider</div>
-          </div>
-
-          <!-- BOUTON SAVE -->
-          <div style="margin-top: 30px;">
+          <div style="margin-top:30px;">
             <button is="emby-button" type="submit" class="raised button-submit block emby-button">
               <span>Enregistrer</span>
             </button>
@@ -216,6 +246,24 @@
         var pluginId = '7f6eea8b-0e9c-4cbd-9d2a-31f9a37ce2b7';
 
         function byId(id) { return document.getElementById(id); }
+        function intValue(id, fallback, min, max) {
+          var value = parseInt((byId(id) && byId(id).value) || fallback, 10);
+          if (isNaN(value)) value = fallback;
+          if (typeof min === 'number' && value < min) value = min;
+          if (typeof max === 'number' && value > max) value = max;
+          return value;
+        }
+        function boolValue(id, fallback) {
+          var el = byId(id);
+          return el ? !!el.checked : !!fallback;
+        }
+        function textValue(id, fallback) {
+          var el = byId(id);
+          return ((el && el.value) || fallback || '').trim();
+        }
+        function storageModeValue(value) {
+          return value === 1 || value === '1' || value === 'MediaFolders' ? 1 : 0;
+        }
 
         function createLibraryCheckbox(rule) {
           var div = document.createElement('div');
@@ -237,13 +285,46 @@
           label.appendChild(checkbox);
           label.appendChild(span);
           div.appendChild(label);
-
           return div;
         }
 
         function addLibraryCheckboxToContainer(name, checked) {
-          var rule = { Name: name, Enabled: !!checked };
-          return createLibraryCheckbox(rule);
+          return createLibraryCheckbox({ Name: name, Enabled: !!checked });
+        }
+
+        function loadLibrariesIfEmpty(cfg) {
+          var container = byId('LibraryRulesContainer');
+          if (!container) return;
+
+          var existing = cfg.LibraryRules || [];
+          if (existing.length > 0) {
+            container.innerHTML = '';
+            existing.forEach(function (rule) {
+              container.appendChild(addLibraryCheckboxToContainer(rule.Name, !!rule.Enabled));
+            });
+            return;
+          }
+
+          ApiClient.get('/Library/VirtualFolders')
+            .then(function (res) {
+              return typeof res.json === 'function' ? res.json() : res;
+            })
+            .then(function (res) {
+              var folders = Array.isArray(res) ? res : (res.Items || []);
+              container.innerHTML = '';
+              if (!folders.length) {
+                container.innerHTML = '<div class="posterRotatorDescription">Aucune bibliotheque detectee.</div>';
+                return;
+              }
+
+              folders.forEach(function (folder) {
+                var name = folder.Name || folder.DisplayName || (folder.Path ? folder.Path.split(/[\\/]/).pop() : 'Unknown');
+                container.appendChild(addLibraryCheckboxToContainer(name, true));
+              });
+            })
+            .catch(function () {
+              container.innerHTML = '<div class="posterRotatorDescription" style="color:#c00">Impossible de charger les bibliotheques.</div>';
+            });
         }
 
         function load() {
@@ -251,119 +332,35 @@
           ApiClient.getPluginConfiguration(pluginId)
             .then(function (cfg) {
               cfg = cfg || {};
-              if (byId('PoolSize')) byId('PoolSize').value = (cfg.PoolSize ?? 5);
-              if (byId('MinHoursBetweenSwitches')) byId('MinHoursBetweenSwitches').value = (cfg.MinHoursBetweenSwitches ?? 24);
-              if (byId('SequentialRotation')) byId('SequentialRotation').checked = !!cfg.SequentialRotation;
-              if (byId('LockImagesAfterFill')) byId('LockImagesAfterFill').checked = !!cfg.LockImagesAfterFill;
-              if (byId('TriggerLibraryScanAfterRotation')) byId('TriggerLibraryScanAfterRotation').checked = (cfg.TriggerLibraryScanAfterRotation === undefined ? true : !!cfg.TriggerLibraryScanAfterRotation);
 
-              if (byId('EnableSeasonPosters')) byId('EnableSeasonPosters').checked = !!cfg.EnableSeasonPosters;
-              if (byId('EnableEpisodePosters')) byId('EnableEpisodePosters').checked = !!cfg.EnableEpisodePosters;
+              byId('PoolStorageMode').value = String(storageModeValue(cfg.PoolStorageMode));
+              byId('PoolSize').value = cfg.PoolSize ?? 5;
+              byId('MinHoursBetweenSwitches').value = cfg.MinHoursBetweenSwitches ?? 24;
+              byId('SequentialRotation').checked = !!cfg.SequentialRotation;
+              byId('LockImagesAfterFill').checked = !!cfg.LockImagesAfterFill;
+              byId('EnableSeasonPosters').checked = !!cfg.EnableSeasonPosters;
+              byId('EnableEpisodePosters').checked = !!cfg.EnableEpisodePosters;
+              byId('AutoCleanupOrphanedPools').checked = !!cfg.AutoCleanupOrphanedPools;
+              byId('CleanupIntervalDays').value = cfg.CleanupIntervalDays ?? 7;
+              byId('MinImageWidth').value = cfg.MinImageWidth ?? 500;
+              byId('MinImageHeight').value = cfg.MinImageHeight ?? 750;
+              byId('MaxDownloadMegabytes').value = cfg.MaxDownloadMegabytes ?? 25;
+              byId('BlockPrivateNetworkImageUrls').checked = cfg.BlockPrivateNetworkImageUrls === undefined ? true : !!cfg.BlockPrivateNetworkImageUrls;
+              byId('EnableDuplicateDetection').checked = cfg.EnableDuplicateDetection === undefined ? true : !!cfg.EnableDuplicateDetection;
+              byId('EnableLanguageFilter').checked = !!cfg.EnableLanguageFilter;
+              byId('PreferredLanguage').value = cfg.PreferredLanguage ?? 'fr';
+              byId('MaxPreferredLanguageImages').value = cfg.MaxPreferredLanguageImages ?? 2;
+              byId('UseOriginalLanguageAsFallback').checked = cfg.UseOriginalLanguageAsFallback === undefined ? true : !!cfg.UseOriginalLanguageAsFallback;
+              byId('FallbackLanguage').value = cfg.FallbackLanguage ?? 'en';
+              byId('IncludeUnknownLanguage').checked = cfg.IncludeUnknownLanguage === undefined ? true : !!cfg.IncludeUnknownLanguage;
+              byId('ExtraPosterPatterns').value = Array.isArray(cfg.ExtraPosterPatterns) ? cfg.ExtraPosterPatterns.join(', ') : '';
+              byId('ManualLibraryRoots').value = Array.isArray(cfg.ManualLibraryRoots) ? cfg.ManualLibraryRoots.join('\n') : '';
 
-              // Pool management options
-              if (byId('AutoCleanupOrphanedPools')) byId('AutoCleanupOrphanedPools').checked = !!cfg.AutoCleanupOrphanedPools;
-              if (byId('CleanupIntervalDays')) byId('CleanupIntervalDays').value = (cfg.CleanupIntervalDays ?? 7);
-
-              // Image quality
-              if (byId('MinImageWidth')) byId('MinImageWidth').value = (cfg.MinImageWidth ?? 500);
-              if (byId('MinImageHeight')) byId('MinImageHeight').value = (cfg.MinImageHeight ?? 750);
-              if (byId('EnableDuplicateDetection')) byId('EnableDuplicateDetection').checked = !!cfg.EnableDuplicateDetection;
-
-              // Language preferences
-              if (byId('EnableLanguageFilter')) byId('EnableLanguageFilter').checked = !!cfg.EnableLanguageFilter;
-              if (byId('PreferredLanguage')) byId('PreferredLanguage').value = (cfg.PreferredLanguage ?? 'fr');
-              if (byId('MaxPreferredLanguageImages')) byId('MaxPreferredLanguageImages').value = (cfg.MaxPreferredLanguageImages ?? 2);
-              if (byId('UseOriginalLanguageAsFallback')) byId('UseOriginalLanguageAsFallback').checked = (cfg.UseOriginalLanguageAsFallback === undefined ? true : !!cfg.UseOriginalLanguageAsFallback);
-              if (byId('FallbackLanguage')) byId('FallbackLanguage').value = (cfg.FallbackLanguage ?? 'en');
-              if (byId('IncludeUnknownLanguage')) byId('IncludeUnknownLanguage').checked = (cfg.IncludeUnknownLanguage === undefined ? true : !!cfg.IncludeUnknownLanguage);
-
-              // ExtraPosterPatterns may be stored as an array; guard accordingly
-              try {
-                var extraArr = Array.isArray(cfg.ExtraPosterPatterns) ? cfg.ExtraPosterPatterns : (cfg.ExtraPosterPatterns ? cfg.ExtraPosterPatterns : []);
-                if (byId('ExtraPosterPatterns')) byId('ExtraPosterPatterns').value = (extraArr || []).join(', ');
-              } catch (e) {
-                if (byId('ExtraPosterPatterns')) byId('ExtraPosterPatterns').value = '';
-              }
-
-              // Load libraries from saved configuration: show LibraryRules and manual roots
-              console.log('PosterRotator: saved LibraryRules from server:', cfg.LibraryRules);
-              var container = byId('LibraryRulesContainer');
-              if (container) {
-                container.innerHTML = '';
-                var existing = (cfg.LibraryRules || []);
-                if (existing.length > 0) {
-                  existing.forEach(function (rule) {
-                    container.appendChild(addLibraryCheckboxToContainer(rule.Name, !!rule.Enabled));
-                  });
-                }
-              }
-              // --- auto-fill LibraryRules from server if none saved (improved with debug) ---
-              (function fillLibrariesIfEmpty() {
-                var container = byId('LibraryRulesContainer');
-                if (!container) {
-                  console.warn('PosterRotator: #LibraryRulesContainer introuvable dans le DOM.');
-                  return;
-                }
-
-                var existing = (cfg.LibraryRules || []);
-                if (existing.length > 0) {
-                  console.log('PosterRotator: LibraryRules déjà présentes dans cfg, on ne remplace pas.');
-                  return; // on garde ce qui est sauvegardé
-                }
-
-                console.log('PosterRotator: tentative de récupération des VirtualFolders du serveur...');
-
-                function getVirtualFolders() {
-                  if (typeof ApiClient !== 'undefined' && ApiClient.get) {
-                    // 🔧 Correction : on lit le JSON de la réponse
-                    return ApiClient.get('/Library/VirtualFolders').then(r => r.json());
-                  }
-                  // fallback direct
-                  return fetch('/Library/VirtualFolders', { credentials: 'same-origin' })
-                    .then(function (r) {
-                      if (!r.ok) throw new Error('HTTP ' + r.status);
-                      return r.json();
-                    });
-                }
-
-                getVirtualFolders()
-                  .then(function (res) {
-                    console.log('PosterRotator: réponse VirtualFolders reçue :', res);
-                    var folders = Array.isArray(res) ? res : (res.Items || []);
-                    if (!folders || folders.length === 0) {
-                      container.innerHTML = '<div class="fieldDescription">Aucune bibliothèque détectée. (réponse vide)</div>';
-                      return;
-                    }
-
-                    container.innerHTML = '';
-                    folders.forEach(function (f) {
-                      var name = f.Name || f.DisplayName || (f.Path ? f.Path.split(/[\\/]/).pop() : 'Unknown');
-                      container.appendChild(addLibraryCheckboxToContainer(name, true));
-                    });
-
-                    console.log('PosterRotator: bibliothèques ajoutées au DOM:', folders.map(function (f) { return f.Name || f.DisplayName; }));
-                  })
-                  .catch(function (err) {
-                    console.error('PosterRotator: erreur chargement bibliothèques:', err);
-                    // Afficher plus de détails si possible
-                    if (err && err.status) {
-                      container.innerHTML = '<div class="fieldDescription" style="color:#c00">Impossible de charger les bibliothèques (HTTP ' + err.status + ')</div>';
-                    } else {
-                      container.innerHTML = '<div class="fieldDescription" style="color:#c00">Impossible de charger les bibliothèques (voir console pour détails)</div>';
-                    }
-                  });
-              })();
-
-              // Fill manual roots textarea
-              try {
-                var rootsText = '';
-                if (Array.isArray(cfg.ManualLibraryRoots)) rootsText = cfg.ManualLibraryRoots.join('\n');
-                if (byId('ManualLibraryRoots')) byId('ManualLibraryRoots').value = rootsText;
-              } catch (e) { console.error(e); }
+              loadLibrariesIfEmpty(cfg);
             })
             .catch(function (err) {
               console.error('PosterRotator load error:', err);
-              alert('Erreur lors du chargement de la configuration. Voir la console.');
+              alert('Erreur lors du chargement de la configuration.');
             })
             .finally(function () { Dashboard.hideLoadingMsg(); });
         }
@@ -376,83 +373,50 @@
             .then(function (cfg) {
               cfg = cfg || {};
 
-              // Lecture et validation du PoolSize
-              var rawValue = byId('PoolSize')?.value;
-              console.log('[PosterRotator] PoolSize input value:', rawValue);
+              cfg.PoolStorageMode = storageModeValue(byId('PoolStorageMode').value);
+              cfg.PoolSize = intValue('PoolSize', 5, 1, 50);
+              cfg.MinHoursBetweenSwitches = intValue('MinHoursBetweenSwitches', 24, 1);
+              cfg.SequentialRotation = boolValue('SequentialRotation', false);
+              cfg.LockImagesAfterFill = boolValue('LockImagesAfterFill', false);
+              cfg.EnableSeasonPosters = boolValue('EnableSeasonPosters', false);
+              cfg.EnableEpisodePosters = boolValue('EnableEpisodePosters', false);
+              cfg.AutoCleanupOrphanedPools = boolValue('AutoCleanupOrphanedPools', false);
+              cfg.CleanupIntervalDays = intValue('CleanupIntervalDays', 7, 1, 30);
+              cfg.MinImageWidth = intValue('MinImageWidth', 500, 0, 4000);
+              cfg.MinImageHeight = intValue('MinImageHeight', 750, 0, 4000);
+              cfg.MaxDownloadMegabytes = intValue('MaxDownloadMegabytes', 25, 1, 200);
+              cfg.BlockPrivateNetworkImageUrls = boolValue('BlockPrivateNetworkImageUrls', true);
+              cfg.EnableDuplicateDetection = boolValue('EnableDuplicateDetection', true);
+              cfg.EnableLanguageFilter = boolValue('EnableLanguageFilter', false);
+              cfg.PreferredLanguage = textValue('PreferredLanguage', 'fr');
+              cfg.MaxPreferredLanguageImages = intValue('MaxPreferredLanguageImages', 2, 0, 10);
+              cfg.UseOriginalLanguageAsFallback = boolValue('UseOriginalLanguageAsFallback', true);
+              cfg.FallbackLanguage = textValue('FallbackLanguage', 'en');
+              cfg.IncludeUnknownLanguage = boolValue('IncludeUnknownLanguage', true);
+              cfg.ExtraPosterPatterns = textValue('ExtraPosterPatterns', '')
+                .split(',')
+                .map(function (value) { return value.trim(); })
+                .filter(Boolean);
+              cfg.ManualLibraryRoots = (byId('ManualLibraryRoots').value || '')
+                .split(/\r?\n/)
+                .map(function (value) { return value.trim(); })
+                .filter(Boolean);
 
-              var n = parseInt(rawValue, 10);
-
-              if (isNaN(n) || n < 1) {
-                alert("Valeur de PoolSize invalide. Entrez un nombre supérieur ou égal à 1.");
-                Dashboard.hideLoadingMsg();
-                return; // stop la sauvegarde
-              }
-
-              cfg.PoolSize = n;
-
-              // Vérification avant envoi
-              console.log('[PosterRotator] PoolSize enregistré dans cfg:', cfg.PoolSize);
-
-
-              var h = parseInt((byId('MinHoursBetweenSwitches')?.value || '24'), 10);
-              cfg.MinHoursBetweenSwitches = (isNaN(h) || h < 1) ? 24 : h;
-
-              // Booleans
-              cfg.SequentialRotation = !!(byId('SequentialRotation') && byId('SequentialRotation').checked);
-              cfg.LockImagesAfterFill = !!(byId('LockImagesAfterFill') && byId('LockImagesAfterFill').checked);
-              cfg.TriggerLibraryScanAfterRotation = !!(byId('TriggerLibraryScanAfterRotation') && byId('TriggerLibraryScanAfterRotation').checked);
-              cfg.EnableSeasonPosters = !!(byId('EnableSeasonPosters') && byId('EnableSeasonPosters').checked);
-              cfg.EnableEpisodePosters = !!(byId('EnableEpisodePosters') && byId('EnableEpisodePosters').checked);
-
-              // Pool management options
-              cfg.AutoCleanupOrphanedPools = !!(byId('AutoCleanupOrphanedPools') && byId('AutoCleanupOrphanedPools').checked);
-              var cleanupDays = parseInt((byId('CleanupIntervalDays')?.value || '7'), 10);
-              cfg.CleanupIntervalDays = (isNaN(cleanupDays) || cleanupDays < 1) ? 7 : cleanupDays;
-
-              // Image quality
-              var minW = parseInt((byId('MinImageWidth')?.value || '500'), 10);
-              cfg.MinImageWidth = (isNaN(minW) || minW < 0) ? 500 : minW;
-              var minH = parseInt((byId('MinImageHeight')?.value || '750'), 10);
-              cfg.MinImageHeight = (isNaN(minH) || minH < 0) ? 750 : minH;
-              cfg.EnableDuplicateDetection = !!(byId('EnableDuplicateDetection') && byId('EnableDuplicateDetection').checked);
-
-              // Language preferences
-              cfg.EnableLanguageFilter = !!(byId('EnableLanguageFilter') && byId('EnableLanguageFilter').checked);
-              cfg.PreferredLanguage = (byId('PreferredLanguage')?.value || 'fr').trim();
-              var maxPrefLang = parseInt((byId('MaxPreferredLanguageImages')?.value || '2'), 10);
-              cfg.MaxPreferredLanguageImages = (isNaN(maxPrefLang) || maxPrefLang < 0) ? 2 : maxPrefLang;
-              cfg.UseOriginalLanguageAsFallback = !!(byId('UseOriginalLanguageAsFallback') && byId('UseOriginalLanguageAsFallback').checked);
-              cfg.FallbackLanguage = (byId('FallbackLanguage')?.value || '').trim();
-              cfg.IncludeUnknownLanguage = !!(byId('IncludeUnknownLanguage') && byId('IncludeUnknownLanguage').checked);
-
-              // Patterns
-              var extra = (byId('ExtraPosterPatterns')?.value || '');
-              cfg.ExtraPosterPatterns = extra.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
-
-              // Libraries (saved rules)
-              var libraryCheckboxes = document.querySelectorAll('#LibraryRulesContainer input[type="checkbox"]');
               cfg.LibraryRules = [];
-              libraryCheckboxes.forEach(function (cb) {
-                var name = cb.dataset.libraryName || (cb.parentElement ? (cb.parentElement.querySelector('span')?.textContent) : null) || 'Unknown';
+              document.querySelectorAll('#LibraryRulesContainer input[type="checkbox"]').forEach(function (checkbox) {
+                var label = checkbox.parentElement ? checkbox.parentElement.querySelector('span') : null;
                 cfg.LibraryRules.push({
-                  Name: name,
-                  Enabled: !!cb.checked
+                  Name: checkbox.dataset.libraryName || (label ? label.textContent : 'Unknown'),
+                  Enabled: !!checkbox.checked
                 });
               });
 
-              // Manual library roots (one per line)
-              try {
-                var rootsVal = (byId('ManualLibraryRoots')?.value || '').split(/\r?\n/).map(function (s) { return s.trim(); }).filter(Boolean);
-                cfg.ManualLibraryRoots = rootsVal;
-              } catch (e) { cfg.ManualLibraryRoots = []; }
-
-              console.log('[PosterRotator] Configuration envoyée au serveur:', JSON.stringify(cfg, null, 2));
               return ApiClient.updatePluginConfiguration(pluginId, cfg);
             })
             .then(function (result) { Dashboard.processPluginConfigurationUpdateResult(result); })
             .catch(function (err) {
               console.error('PosterRotator save error:', err);
-              alert('Erreur lors de la sauvegarde. Voir la console.');
+              alert('Erreur lors de la sauvegarde.');
             })
             .finally(function () { Dashboard.hideLoadingMsg(); });
 
@@ -461,40 +425,40 @@
 
         var root = byId('PosterRotatorConfigPage');
         var form = byId('PosterRotatorConfigForm');
-
         if (root) {
           root.addEventListener('pageshow', load);
           root.addEventListener('viewshow', load);
         }
-        if (form) {
-          form.addEventListener('submit', save);
-        }
+        if (form) form.addEventListener('submit', save);
 
-        // Purge button handler
         var purgeBtn = byId('PurgeAllPoolsBtn');
         if (purgeBtn) {
           purgeBtn.addEventListener('click', function () {
-            if (!confirm('⚠️ Êtes-vous sûr ? Cela supprimera TOUS les dossiers .poster_pool de toutes vos bibliothèques. Cette action est irréversible.')) return;
+            if (!confirm('Supprimer tous les pools du plugin et les anciens .poster_pool ? Cette action est irreversible.')) return;
+
             purgeBtn.disabled = true;
-            purgeBtn.textContent = '⏳ Suppression en cours...';
+            purgeBtn.textContent = 'Suppression en cours...';
             var resultDiv = byId('PurgeResult');
+
             ApiClient.ajax({
               type: 'POST',
               url: ApiClient.getUrl('PosterRotator/PurgeAllPools'),
               dataType: 'json'
             }).then(function (data) {
               purgeBtn.disabled = false;
-              purgeBtn.textContent = '🗑 Supprimer tous les pools';
+              purgeBtn.textContent = 'Supprimer tous les pools';
               if (resultDiv) {
                 resultDiv.style.display = 'block';
-                resultDiv.textContent = '✅ ' + (data.DeletedCount || 0) + ' pool(s) supprimé(s).';
-                setTimeout(function () { resultDiv.style.display = 'none'; }, 5000);
+                resultDiv.textContent = (data.DeletedCount || 0) + ' pool(s) supprime(s), '
+                  + (data.SkippedCount || 0) + ' ignore(s), '
+                  + (data.FailedCount || 0) + ' echec(s).';
+                setTimeout(function () { resultDiv.style.display = 'none'; }, 7000);
               }
             }).catch(function (err) {
               purgeBtn.disabled = false;
-              purgeBtn.textContent = '🗑 Supprimer tous les pools';
+              purgeBtn.textContent = 'Supprimer tous les pools';
               console.error('PosterRotator purge error:', err);
-              alert('Erreur lors de la suppression. Voir la console.');
+              alert('Erreur lors de la suppression.');
             });
           });
         }

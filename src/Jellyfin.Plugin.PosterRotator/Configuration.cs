@@ -9,6 +9,12 @@ public class LibraryRule
     public bool Enabled { get; set; } = true;
 }
 
+public enum PoolStorageMode
+{
+    PluginData = 0,
+    MediaFolders = 1
+}
+
 public class Configuration : BasePluginConfiguration
 {
     // Backwards-compatible simple list of library names (older versions)
@@ -20,13 +26,13 @@ public class Configuration : BasePluginConfiguration
     public int PoolSize { get; set; } = 5;
     public bool SequentialRotation { get; set; } = false;
     public bool LockImagesAfterFill { get; set; } = false;
+    public PoolStorageMode PoolStorageMode { get; set; } = PoolStorageMode.PluginData;
     public List<string> ExtraPosterPatterns { get; set; } = new();
     public int MinHoursBetweenSwitches { get; set; } = 23;
     public bool EnableSeasonPosters { get; set; } = false;
     public bool EnableEpisodePosters { get; set; } = false;
-    // If true, the plugin will attempt to trigger a library scan after rotating posters.
-    // This is a heavy operation; default is true (will attempt to refresh libraries after rotation).
-    public bool TriggerLibraryScanAfterRotation { get; set; } = true;
+    // Legacy compatibility setting. The current rotation path uses Jellyfin SaveImage instead of a full scan.
+    public bool TriggerLibraryScanAfterRotation { get; set; } = false;
     // Optional list of library root paths to process. When filled, overrides auto detection.
     public List<string> ManualLibraryRoots { get; set; } = new();
 
@@ -87,6 +93,16 @@ public class Configuration : BasePluginConfiguration
     /// Hauteur minimale des images téléchargées (en pixels). Images plus petites sont rejetées.
     /// </summary>
     public int MinImageHeight { get; set; } = 750;
+
+    /// <summary>
+    /// Maximum remote image download size in megabytes.
+    /// </summary>
+    public int MaxDownloadMegabytes { get; set; } = 25;
+
+    /// <summary>
+    /// Reject remote image URLs pointing to localhost, private, or link-local networks.
+    /// </summary>
+    public bool BlockPrivateNetworkImageUrls { get; set; } = true;
 
     /// <summary>
     /// Activer la détection de doublons visuels lors du téléchargement.

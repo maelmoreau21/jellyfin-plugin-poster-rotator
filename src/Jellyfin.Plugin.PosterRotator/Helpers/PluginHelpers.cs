@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Text.Json;
 using System.Threading;
@@ -22,6 +23,9 @@ public static class PluginHelpers
     /// Supported image file extensions.
     /// </summary>
     public static readonly string[] ImageExtensions = { ".jpg", ".jpeg", ".png", ".webp", ".gif" };
+
+    private static readonly StringComparison PathComparison =
+        OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
 
     /// <summary>
     /// Guess file extension from a URL. Returns null if unknown.
@@ -42,7 +46,7 @@ public static class PluginHelpers
     /// Guess file extension from a MIME type. Returns null if unknown.
     /// </summary>
     public static string? GuessExtFromMime(string? mime) =>
-        mime switch
+        mime?.ToLowerInvariant() switch
         {
             "image/png" => ".png",
             "image/webp" => ".webp",
@@ -50,6 +54,213 @@ public static class PluginHelpers
             "image/gif" => ".gif",
             _ => null
         };
+
+    public static bool IsSupportedImageExtension(string path)
+    {
+        var ext = Path.GetExtension(path);
+        return ImageExtensions.Any(e => e.Equals(ext, StringComparison.OrdinalIgnoreCase));
+    }
+
+    public static bool TryGetImageFormat(string filePath, out string extension, out string mimeType)
+    {
+        extension = string.Empty;
+        mimeType = string.Empty;
+
+        try
+        {
+            using var fs = File.OpenRead(filePath);
+            return TryGetImageFormat(fs, out extension, out mimeType);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public static bool TryGetImageFormat(Stream stream, out string extension, out string mimeType)
+    {
+        extension = string.Empty;
+        mimeType = string.Empty;
+
+        Span<byte> header = stackalloc byte[32];
+        var read = stream.Read(header);
+        if (stream.CanSeek)
+            stream.Seek(0, SeekOrigin.Begin);
+
+        if (read >= 3 && header[0] == 0xFF && header[1] == 0xD8 && header[2] == 0xFF)
+        {
+            extension = ".jpg";
+            mimeType = "image/jpeg";
+            return true;
+        }
+
+        if (read >= 8
+            && header[0] == 0x89
+            && header[1] == 0x50
+            && header[2] == 0x4E
+            && header[3] == 0x47
+            && header[4] == 0x0D
+            && header[5] == 0x0A
+            && header[6] == 0x1A
+            && header[7] == 0x0A)
+        {
+            extension = ".png";
+            mimeType = "image/png";
+            return true;
+        }
+
+        if (read >= 12
+            && header[0] == 'R'
+            && header[1] == 'I'
+            && header[2] == 'F'
+            && header[3] == 'F'
+            && header[8] == 'W'
+            && header[9] == 'E'
+            && header[10] == 'B'
+            && header[11] == 'P')
+        {
+            extension = ".webp";
+            mimeType = "image/webp";
+            return true;
+        }
+
+        if (read >= 6
+            && header[0] == 'G'
+            && header[1] == 'I'
+            && header[2] == 'F'
+            && header[3] == '8'
+            && (header[4] == '7' || header[4] == '9')
+            && header[5] == 'a')
+        {
+            extension = ".gif";
+            mimeType = "image/gif";
+            return true;
+        }
+
+        return false;
+    }
+
+    public static bool IsPathInsideOrEqual(string path, string root)
+    {
+        if (string.IsNullOrWhiteSpace(path) || string.IsNullOrWhiteSpace(root))
+            return false;
+
+        try
+        {
+            var fullPath = EnsureTrailingSeparator(Path.GetFullPath(path));
+            var fullRoot = EnsureTrailingSeparator(Path.GetFullPath(root));
+            return fullPath.Equals(fullRoot, PathComparison)
+                || fullPath.StartsWith(fullRoot, PathComparison);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public static bool IsSafePoolDirectory(string poolDir, string root)
+    {
+        try
+        {
+            var info = new DirectoryInfo(poolDir);
+            if (!info.Exists)
+                return false;
+
+            if (!".poster_pool".Equals(info.Name, StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            if ((info.Attributes & FileAttributes.ReparsePoint) != 0)
+                return false;
+
+            return IsPathInsideOrEqual(info.FullName, root);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public static bool IsAllowedRemoteImageUri(Uri uri, bool blockPrivateNetwork)
+    {
+        if (!uri.IsAbsoluteUri)
+            return false;
+
+        if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
+            return false;
+
+        if (!blockPrivateNetwork)
+            return true;
+
+        if (uri.IsLoopback)
+            return false;
+
+        if ("localhost".Equals(uri.Host, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        if (IPAddress.TryParse(uri.Host, out var address))
+            return !IsPrivateOrLocalAddress(address);
+
+        return true;
+    }
+
+    public static bool IsPrivateOrLocalAddress(IPAddress address)
+    {
+        if (IPAddress.IsLoopback(address))
+            return true;
+
+        if (address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6)
+        {
+            if (address.IsIPv6LinkLocal || address.IsIPv6SiteLocal || address.IsIPv6Multicast)
+                return true;
+
+            var bytes = address.GetAddressBytes();
+            return (bytes[0] & 0xFE) == 0xFC;
+        }
+
+        var octets = address.GetAddressBytes();
+        if (octets.Length != 4)
+            return true;
+
+        return octets[0] == 10
+            || octets[0] == 127
+            || (octets[0] == 172 && octets[1] >= 16 && octets[1] <= 31)
+            || (octets[0] == 192 && octets[1] == 168)
+            || (octets[0] == 169 && octets[1] == 254)
+            || octets[0] == 0;
+    }
+
+    public static async Task<long> CopyToFileWithLimitAsync(
+        Stream source,
+        string destinationPath,
+        long maxBytes,
+        CancellationToken cancellationToken)
+    {
+        await using var destination = File.Create(destinationPath);
+        var buffer = new byte[81920];
+        long total = 0;
+
+        while (true)
+        {
+            var read = await source.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken).ConfigureAwait(false);
+            if (read == 0)
+                break;
+
+            total += read;
+            if (total > maxBytes)
+                throw new InvalidDataException($"Remote image exceeds the configured {maxBytes} byte download limit.");
+
+            await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
+        }
+
+        await destination.FlushAsync(cancellationToken).ConfigureAwait(false);
+        return total;
+    }
+
+    private static string EnsureTrailingSeparator(string path)
+    {
+        var trimmed = path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        return trimmed + Path.DirectorySeparatorChar;
+    }
 
     /// <summary>
     /// Format a byte count into a human-readable string (e.g. "1.5 MB").

@@ -11,6 +11,7 @@ namespace Jellyfin.Plugin.PosterRotator
         // Jellyfin will call this at startup; register your services here
         public void RegisterServices(IServiceCollection services, IServerApplicationHost applicationHost)
         {
+            services.AddHttpClient("PosterRotator");
             services.AddSingleton<PosterRotatorService>();
         }
     }

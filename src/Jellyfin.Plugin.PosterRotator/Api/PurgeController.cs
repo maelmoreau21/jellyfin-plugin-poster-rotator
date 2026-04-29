@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using MediaBrowser.Common.Api;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Jellyfin.Plugin.PosterRotator.Api;
 
@@ -23,14 +25,9 @@ public class PurgeController : ControllerBase
     /// Delete ALL .poster_pool directories across all libraries.
     /// </summary>
     [HttpPost("PurgeAllPools")]
-    public ActionResult<PurgeResult> PurgeAllPools()
+    public async Task<ActionResult<PurgePoolsResult>> PurgeAllPools(CancellationToken cancellationToken)
     {
-        var count = _service.PurgeAllPools();
-        return Ok(new PurgeResult { DeletedCount = count });
-    }
-
-    public class PurgeResult
-    {
-        public int DeletedCount { get; set; }
+        var result = await _service.PurgeAllPoolsAsync(cancellationToken).ConfigureAwait(false);
+        return Ok(result);
     }
 }
