@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/maelmoreau21/jellyfin-plugin-poster-rotator/refs/heads/main/jellyfin-plugin-posterrotator.png",
     "versions": [
       {
+        "version": "1.7.0.0",
+        "targetAbi": "10.12.0.0",
+        "sourceUrl": "https://github.com/maelmoreau21/jellyfin-plugin-poster-rotator/releases/download/v1.7.0.0/Jellyfin.Plugin.PosterRotator-1.7.0.0.zip",
+        "checksum": "6766c8608ba4dd032975f7f5236f0486",
+        "timestamp": "2026-05-24T11:22:23Z",
+        "changelog": "Compatibility: target Jellyfin 10.12.0.0 prerelease for the 1.7 line. Pool management: adds PluginData pool diagnostics, paginated pool browsing, upload/delete image actions, immediate rotation by media or library, and selective purge. Migration: pool state now uses versioned JSON metadata under PluginData/pools while legacy mapping files are migrated and removed after successful writes. Maintenance: remote poster discovery uses Jellyfin IProviderManager.GetAvailableRemoteImages, CS0618 is blocked as an error, and explicit library scan requests use QueueLibraryScan."
+      },
+      {
         "version": "1.6.0.0",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/maelmoreau21/jellyfin-plugin-poster-rotator/releases/download/v1.6.0.0/Jellyfin.Plugin.PosterRotator-1.6.0.0.zip",

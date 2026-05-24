@@ -12,6 +12,7 @@ namespace Jellyfin.Plugin.PosterRotator
         public void RegisterServices(IServiceCollection services, IServerApplicationHost applicationHost)
         {
             services.AddHttpClient("PosterRotator");
+            services.AddSingleton<PoolStore>();
             services.AddSingleton<PosterRotatorService>();
         }
     }

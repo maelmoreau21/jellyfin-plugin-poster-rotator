@@ -33,6 +33,114 @@
     .inputContainer {
       margin-top: 12px;
     }
+
+    .posterRotatorTabs {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin: 0 0 20px;
+    }
+
+    .posterRotatorTab {
+      min-width: 130px;
+    }
+
+    .posterRotatorTab.is-active {
+      filter: brightness(1.15);
+    }
+
+    .posterRotatorTabPanel {
+      display: none;
+    }
+
+    .posterRotatorTabPanel.is-active {
+      display: block;
+    }
+
+    .posterRotatorStats {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      margin: 16px 0;
+    }
+
+    .posterRotatorStat {
+      border: 1px solid rgba(255, 255, 255, .12);
+      border-radius: 6px;
+      padding: 12px;
+    }
+
+    .posterRotatorStatValue {
+      font-size: 1.4em;
+      font-weight: 600;
+    }
+
+    .posterRotatorToolbar {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: end;
+      margin: 14px 0;
+    }
+
+    .posterRotatorToolbar > .inputContainer {
+      flex: 1 1 180px;
+      margin-top: 0;
+    }
+
+    .posterRotatorTable {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+    }
+
+    .posterRotatorTable th,
+    .posterRotatorTable td {
+      border-bottom: 1px solid rgba(255, 255, 255, .12);
+      padding: 10px 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .posterRotatorTable button {
+      white-space: nowrap;
+    }
+
+    .posterRotatorDetail {
+      border-top: 1px solid rgba(255, 255, 255, .12);
+      margin-top: 22px;
+      padding-top: 18px;
+    }
+
+    .posterRotatorThumbs {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      margin-top: 12px;
+    }
+
+    .posterRotatorThumb {
+      border: 1px solid rgba(255, 255, 255, .12);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .posterRotatorThumb img {
+      aspect-ratio: 2 / 3;
+      display: block;
+      object-fit: cover;
+      width: 100%;
+      background: rgba(255, 255, 255, .06);
+    }
+
+    .posterRotatorThumbBody {
+      padding: 8px;
+    }
+
+    .posterRotatorStatus {
+      margin-top: 12px;
+      min-height: 1.4em;
+    }
   </style>
 </head>
 
@@ -42,6 +150,104 @@
 
     <div data-role="content">
       <div class="content-primary">
+        <div class="posterRotatorTabs">
+          <button type="button" class="raised emby-button posterRotatorTab is-active" data-poster-tab="DiagnosticsTab">Diagnostic</button>
+          <button type="button" class="raised emby-button posterRotatorTab" data-poster-tab="PoolsTab">Pools</button>
+          <button type="button" class="raised emby-button posterRotatorTab" data-poster-tab="ConfigurationTab">Configuration</button>
+        </div>
+
+        <div id="DiagnosticsTab" class="posterRotatorTabPanel is-active">
+          <h2>Diagnostic</h2>
+          <div class="posterRotatorStats">
+            <div class="posterRotatorStat">
+              <div class="posterRotatorDescription">Pools</div>
+              <div id="DiagPoolCount" class="posterRotatorStatValue">-</div>
+            </div>
+            <div class="posterRotatorStat">
+              <div class="posterRotatorDescription">Taille disque</div>
+              <div id="DiagDiskSize" class="posterRotatorStatValue">-</div>
+            </div>
+            <div class="posterRotatorStat">
+              <div class="posterRotatorDescription">Orphelins estimes</div>
+              <div id="DiagOrphanCount" class="posterRotatorStatValue">-</div>
+            </div>
+          </div>
+          <button id="RefreshDiagnosticsBtn" type="button" class="raised emby-button">Actualiser</button>
+          <div class="posterRotatorRow">
+            <div style="flex:1 1 320px;">
+              <h3>Derniers medias traites</h3>
+              <div id="DiagRecentPools" class="posterRotatorDescription"></div>
+            </div>
+            <div style="flex:1 1 320px;">
+              <h3>Erreurs recentes</h3>
+              <div id="DiagRecentErrors" class="posterRotatorDescription"></div>
+            </div>
+          </div>
+        </div>
+
+        <div id="PoolsTab" class="posterRotatorTabPanel">
+          <h2>Pools PluginData</h2>
+          <div class="posterRotatorToolbar">
+            <div class="inputContainer">
+              <label class="inputLabel inputLabelUnfocused" for="PoolsSearch">Recherche</label>
+              <input id="PoolsSearch" type="text" is="emby-input" />
+            </div>
+            <div class="inputContainer">
+              <label class="inputLabel inputLabelUnfocused" for="PoolsLibrary">Bibliotheque</label>
+              <input id="PoolsLibrary" type="text" is="emby-input" />
+            </div>
+            <div class="inputContainer">
+              <label class="selectLabel" for="PoolsType">Type</label>
+              <select id="PoolsType" is="emby-select">
+                <option value="">Tous</option>
+                <option value="Movie">Films</option>
+                <option value="Series">Series</option>
+                <option value="Season">Saisons</option>
+                <option value="Episode">Episodes</option>
+                <option value="BoxSet">Collections</option>
+              </select>
+            </div>
+            <button id="RefreshPoolsBtn" type="button" class="raised emby-button">Actualiser</button>
+          </div>
+
+          <div class="posterRotatorToolbar">
+            <button id="PrevPoolsBtn" type="button" class="raised emby-button">Precedent</button>
+            <button id="NextPoolsBtn" type="button" class="raised emby-button">Suivant</button>
+            <button id="RotateLibraryBtn" type="button" class="raised emby-button">Rotation bibliotheque</button>
+            <button id="PurgeOrphansBtn" type="button" class="raised button-cancel emby-button">Purger orphelins</button>
+            <button id="PurgeLibraryBtn" type="button" class="raised button-cancel emby-button">Purger bibliotheque</button>
+            <button id="PurgeItemBtn" type="button" class="raised button-cancel emby-button">Purger media</button>
+          </div>
+
+          <table class="posterRotatorTable">
+            <thead>
+              <tr>
+                <th>Media</th>
+                <th>Type</th>
+                <th>Bibliotheque</th>
+                <th>Images</th>
+                <th>Taille</th>
+                <th>Derniere rotation</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="PoolsTableBody"></tbody>
+          </table>
+          <div id="PoolsStatus" class="posterRotatorDescription posterRotatorStatus"></div>
+
+          <div id="PoolDetail" class="posterRotatorDetail" style="display:none;">
+            <h3 id="PoolDetailTitle">Pool</h3>
+            <div class="posterRotatorToolbar">
+              <button id="RotatePoolBtn" type="button" class="raised emby-button">Rotation maintenant</button>
+              <input id="PoolUploadFile" type="file" accept=".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif" />
+              <button id="UploadPoolImageBtn" type="button" class="raised emby-button">Importer</button>
+            </div>
+            <div id="PoolDetailMeta" class="posterRotatorDescription"></div>
+            <div id="PoolImages" class="posterRotatorThumbs"></div>
+          </div>
+        </div>
+
+        <div id="ConfigurationTab" class="posterRotatorTabPanel">
         <form id="PosterRotatorConfigForm">
 
           <div class="posterRotatorSection">
@@ -166,7 +372,7 @@
           </div>
 
           <div class="posterRotatorSection">
-            <h2>Gestion des pools</h2>
+            <h2>Nettoyage automatique</h2>
 
             <div class="checkboxContainer checkboxContainer-withDescription">
               <label class="emby-checkbox-label">
@@ -178,15 +384,6 @@
             <div class="inputContainer">
               <label class="inputLabel inputLabelUnfocused" for="CleanupIntervalDays">Intervalle de nettoyage (jours)</label>
               <input id="CleanupIntervalDays" type="number" min="1" max="30" is="emby-input" value="7" />
-            </div>
-
-            <div style="margin-top:16px;">
-              <button id="PurgeAllPoolsBtn" type="button" class="raised button-cancel emby-button"
-                style="display:inline-block; padding:12px 24px;">
-                Supprimer tous les pools
-              </button>
-              <div class="posterRotatorDescription">Supprime les pools du dossier plugin et les anciens dossiers .poster_pool des bibliotheques.</div>
-              <div id="PurgeResult" class="posterRotatorDescription" style="display:none; color:#4caf50; font-weight:bold;"></div>
             </div>
           </div>
 
@@ -238,6 +435,7 @@
             </button>
           </div>
         </form>
+        </div>
       </div>
     </div>
 
@@ -263,6 +461,279 @@
         }
         function storageModeValue(value) {
           return value === 1 || value === '1' || value === 'MediaFolders' ? 1 : 0;
+        }
+        function apiGet(path) {
+          return ApiClient.get(ApiClient.getUrl(path)).then(unwrap);
+        }
+        function unwrap(res) {
+          return res && typeof res.json === 'function' ? res.json() : res;
+        }
+        function prop(obj, pascal, camel, fallback) {
+          if (!obj) return fallback;
+          if (obj[pascal] !== undefined) return obj[pascal];
+          if (obj[camel] !== undefined) return obj[camel];
+          return fallback;
+        }
+        function escapeHtml(value) {
+          return String(value == null ? '' : value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+        }
+        function formatBytes(bytes) {
+          bytes = Number(bytes || 0);
+          var units = ['B', 'KB', 'MB', 'GB', 'TB'];
+          var i = 0;
+          while (bytes >= 1024 && i < units.length - 1) {
+            bytes = bytes / 1024;
+            i++;
+          }
+          return (Math.round(bytes * 10) / 10) + ' ' + units[i];
+        }
+        function formatDate(value) {
+          if (!value) return '-';
+          var date = new Date(value);
+          return isNaN(date.getTime()) ? '-' : date.toLocaleString();
+        }
+
+        var poolsState = {
+          start: 0,
+          limit: 25,
+          total: 0,
+          selectedItemId: null
+        };
+
+        function selectTab(tabId) {
+          document.querySelectorAll('.posterRotatorTab').forEach(function (button) {
+            button.classList.toggle('is-active', button.getAttribute('data-poster-tab') === tabId);
+          });
+          document.querySelectorAll('.posterRotatorTabPanel').forEach(function (panel) {
+            panel.classList.toggle('is-active', panel.id === tabId);
+          });
+          if (tabId === 'DiagnosticsTab') loadDiagnostics();
+          if (tabId === 'PoolsTab') loadPools(false);
+        }
+
+        function renderMiniList(container, items, renderer) {
+          if (!container) return;
+          if (!items || !items.length) {
+            container.innerHTML = '<div>Aucun element.</div>';
+            return;
+          }
+          container.innerHTML = items.map(renderer).join('');
+        }
+
+        function loadDiagnostics() {
+          return apiGet('PosterRotator/Diagnostics')
+            .then(function (data) {
+              byId('DiagPoolCount').textContent = prop(data, 'PoolCount', 'poolCount', 0);
+              byId('DiagDiskSize').textContent = formatBytes(prop(data, 'TotalSizeBytes', 'totalSizeBytes', 0));
+              byId('DiagOrphanCount').textContent = prop(data, 'OrphanCount', 'orphanCount', 0);
+              renderMiniList(byId('DiagRecentPools'), prop(data, 'RecentPools', 'recentPools', []), function (entry) {
+                return '<div>' + escapeHtml(prop(entry, 'ItemName', 'itemName', '(sans nom)'))
+                  + ' - ' + formatDate(prop(entry, 'UpdatedUtc', 'updatedUtc', null)) + '</div>';
+              });
+              renderMiniList(byId('DiagRecentErrors'), prop(data, 'RecentErrors', 'recentErrors', []), function (entry) {
+                return '<div>' + escapeHtml(prop(entry, 'ItemName', 'itemName', '(sans nom)'))
+                  + ' - ' + escapeHtml(prop(entry, 'Message', 'message', '')) + '</div>';
+              });
+            })
+            .catch(function (err) {
+              console.error('PosterRotator diagnostics error:', err);
+            });
+        }
+
+        function buildPoolsUrl() {
+          var params = [];
+          var query = textValue('PoolsSearch', '');
+          var library = textValue('PoolsLibrary', '');
+          var type = byId('PoolsType') ? byId('PoolsType').value : '';
+          if (query) params.push('query=' + encodeURIComponent(query));
+          if (library) params.push('library=' + encodeURIComponent(library));
+          if (type) params.push('type=' + encodeURIComponent(type));
+          params.push('start=' + encodeURIComponent(poolsState.start));
+          params.push('limit=' + encodeURIComponent(poolsState.limit));
+          return 'PosterRotator/Pools?' + params.join('&');
+        }
+
+        function loadPools(resetStart) {
+          if (resetStart) poolsState.start = 0;
+          var status = byId('PoolsStatus');
+          if (status) status.textContent = 'Chargement...';
+          return apiGet(buildPoolsUrl())
+            .then(function (data) {
+              poolsState.total = prop(data, 'Total', 'total', 0);
+              var items = prop(data, 'Items', 'items', []);
+              var body = byId('PoolsTableBody');
+              if (!body) return;
+              if (!items.length) {
+                body.innerHTML = '<tr><td colspan="7">Aucun pool PluginData.</td></tr>';
+              } else {
+                body.innerHTML = items.map(function (entry) {
+                  var itemId = prop(entry, 'ItemId', 'itemId', '');
+                  var lastError = prop(entry, 'LastError', 'lastError', '');
+                  return '<tr>'
+                    + '<td>' + escapeHtml(prop(entry, 'ItemName', 'itemName', '(sans nom)')) + (lastError ? '<div class="posterRotatorDescription" style="color:#d66">' + escapeHtml(lastError) + '</div>' : '') + '</td>'
+                    + '<td>' + escapeHtml(prop(entry, 'ItemType', 'itemType', '-')) + '</td>'
+                    + '<td>' + escapeHtml(prop(entry, 'LibraryName', 'libraryName', '-')) + '</td>'
+                    + '<td>' + prop(entry, 'ImageCount', 'imageCount', 0) + '</td>'
+                    + '<td>' + formatBytes(prop(entry, 'SizeBytes', 'sizeBytes', 0)) + '</td>'
+                    + '<td>' + formatDate(prop(entry, 'LastRotatedUtc', 'lastRotatedUtc', null)) + '</td>'
+                    + '<td><button type="button" class="raised emby-button" data-pool-open="' + escapeHtml(itemId) + '">Ouvrir</button></td>'
+                    + '</tr>';
+                }).join('');
+              }
+              if (status) status.textContent = poolsState.total + ' pool(s), page ' + (Math.floor(poolsState.start / poolsState.limit) + 1);
+              body.querySelectorAll('[data-pool-open]').forEach(function (button) {
+                button.addEventListener('click', function () { openPool(button.getAttribute('data-pool-open')); });
+              });
+            })
+            .catch(function (err) {
+              console.error('PosterRotator pools error:', err);
+              if (status) status.textContent = 'Erreur lors du chargement des pools.';
+            });
+        }
+
+        function openPool(itemId) {
+          if (!itemId) return;
+          poolsState.selectedItemId = itemId;
+          return apiGet('PosterRotator/Pools/' + encodeURIComponent(itemId))
+            .then(function (pool) {
+              var detail = byId('PoolDetail');
+              if (detail) detail.style.display = 'block';
+              byId('PoolDetailTitle').textContent = prop(pool, 'ItemName', 'itemName', 'Pool');
+              byId('PoolDetailMeta').textContent = prop(pool, 'ImageCount', 'imageCount', 0)
+                + ' image(s), ' + formatBytes(prop(pool, 'SizeBytes', 'sizeBytes', 0))
+                + ', derniere rotation: ' + formatDate(prop(pool, 'LastRotatedUtc', 'lastRotatedUtc', null));
+              renderPoolImages(prop(pool, 'Images', 'images', []));
+            })
+            .catch(function (err) {
+              console.error('PosterRotator pool detail error:', err);
+              alert('Impossible de charger le pool.');
+            });
+        }
+
+        function renderPoolImages(images) {
+          var container = byId('PoolImages');
+          if (!container) return;
+          if (!images || !images.length) {
+            container.innerHTML = '<div class="posterRotatorDescription">Pool vide.</div>';
+            return;
+          }
+          container.innerHTML = images.map(function (image) {
+            var fileName = prop(image, 'FileName', 'fileName', '');
+            var itemId = poolsState.selectedItemId;
+            var src = ApiClient.getUrl('PosterRotator/Pools/' + encodeURIComponent(itemId) + '/Images/' + encodeURIComponent(fileName));
+            return '<div class="posterRotatorThumb">'
+              + '<img alt="" src="' + escapeHtml(src) + '" loading="lazy" />'
+              + '<div class="posterRotatorThumbBody">'
+              + '<div title="' + escapeHtml(fileName) + '">' + escapeHtml(fileName) + '</div>'
+              + '<div class="posterRotatorDescription">' + formatBytes(prop(image, 'SizeBytes', 'sizeBytes', 0)) + ' - ' + escapeHtml(prop(image, 'Language', 'language', 'unknown')) + '</div>'
+              + '<button type="button" class="raised button-cancel emby-button" data-image-delete="' + escapeHtml(fileName) + '">Supprimer</button>'
+              + '</div></div>';
+          }).join('');
+          container.querySelectorAll('[data-image-delete]').forEach(function (button) {
+            button.addEventListener('click', function () { deletePoolImage(button.getAttribute('data-image-delete')); });
+          });
+        }
+
+        function postJson(path, payload) {
+          return ApiClient.ajax({
+            type: 'POST',
+            url: ApiClient.getUrl(path),
+            contentType: 'application/json',
+            data: JSON.stringify(payload || {}),
+            dataType: 'json'
+          });
+        }
+
+        function rotateSelectedPool() {
+          if (!poolsState.selectedItemId) return;
+          postJson('PosterRotator/Pools/' + encodeURIComponent(poolsState.selectedItemId) + '/RotateNow', {})
+            .then(function () {
+              return Promise.all([openPool(poolsState.selectedItemId), loadPools(false), loadDiagnostics()]);
+            })
+            .catch(function () { alert('Rotation impossible pour ce pool.'); });
+        }
+
+        function rotateLibrary() {
+          var library = textValue('PoolsLibrary', '');
+          if (!library) {
+            alert('Renseigne une bibliotheque dans le filtre.');
+            return;
+          }
+          postJson('PosterRotator/Libraries/' + encodeURIComponent(library) + '/RotateNow', {})
+            .then(function (result) {
+              alert(prop(result, 'Message', 'message', 'Rotation terminee.'));
+              return Promise.all([loadPools(false), loadDiagnostics()]);
+            })
+            .catch(function () { alert('Rotation bibliotheque impossible.'); });
+        }
+
+        function purge(scope) {
+          var payload = { Scope: scope };
+          if (scope === 'library') {
+            payload.LibraryName = textValue('PoolsLibrary', '');
+            if (!payload.LibraryName) {
+              alert('Renseigne une bibliotheque dans le filtre.');
+              return;
+            }
+          }
+          if (scope === 'item') {
+            payload.ItemId = poolsState.selectedItemId;
+            if (!payload.ItemId) {
+              alert('Ouvre un pool avant de purger un media.');
+              return;
+            }
+          }
+          if (!confirm('Confirmer la purge ' + scope + ' ?')) return;
+          postJson('PosterRotator/Purge', payload)
+            .then(function (result) {
+              alert((prop(result, 'DeletedCount', 'deletedCount', 0)) + ' pool(s) supprime(s).');
+              byId('PoolDetail').style.display = 'none';
+              poolsState.selectedItemId = null;
+              return Promise.all([loadPools(true), loadDiagnostics()]);
+            })
+            .catch(function () { alert('Purge impossible.'); });
+        }
+
+        function uploadPoolImage() {
+          if (!poolsState.selectedItemId) return;
+          var fileInput = byId('PoolUploadFile');
+          if (!fileInput || !fileInput.files || !fileInput.files.length) {
+            alert('Choisis une image.');
+            return;
+          }
+          var form = new FormData();
+          form.append('file', fileInput.files[0]);
+          ApiClient.ajax({
+            type: 'POST',
+            url: ApiClient.getUrl('PosterRotator/Pools/' + encodeURIComponent(poolsState.selectedItemId) + '/Images'),
+            data: form,
+            processData: false,
+            contentType: false,
+            dataType: 'json'
+          }).then(function () {
+            fileInput.value = '';
+            return Promise.all([openPool(poolsState.selectedItemId), loadPools(false), loadDiagnostics()]);
+          }).catch(function () {
+            alert('Import refuse.');
+          });
+        }
+
+        function deletePoolImage(fileName) {
+          if (!poolsState.selectedItemId || !fileName) return;
+          if (!confirm('Supprimer cette image du pool ?')) return;
+          ApiClient.ajax({
+            type: 'DELETE',
+            url: ApiClient.getUrl('PosterRotator/Pools/' + encodeURIComponent(poolsState.selectedItemId) + '/Images/' + encodeURIComponent(fileName)),
+            dataType: 'json'
+          }).then(function () {
+            return Promise.all([openPool(poolsState.selectedItemId), loadPools(false), loadDiagnostics()]);
+          }).catch(function () {
+            alert('Suppression impossible.');
+          });
         }
 
         function createLibraryCheckbox(rule) {
@@ -357,6 +828,7 @@
               byId('ManualLibraryRoots').value = Array.isArray(cfg.ManualLibraryRoots) ? cfg.ManualLibraryRoots.join('\n') : '';
 
               loadLibrariesIfEmpty(cfg);
+              loadDiagnostics();
             })
             .catch(function (err) {
               console.error('PosterRotator load error:', err);
@@ -430,38 +902,43 @@
           root.addEventListener('viewshow', load);
         }
         if (form) form.addEventListener('submit', save);
-
-        var purgeBtn = byId('PurgeAllPoolsBtn');
-        if (purgeBtn) {
-          purgeBtn.addEventListener('click', function () {
-            if (!confirm('Supprimer tous les pools du plugin et les anciens .poster_pool ? Cette action est irreversible.')) return;
-
-            purgeBtn.disabled = true;
-            purgeBtn.textContent = 'Suppression en cours...';
-            var resultDiv = byId('PurgeResult');
-
-            ApiClient.ajax({
-              type: 'POST',
-              url: ApiClient.getUrl('PosterRotator/PurgeAllPools'),
-              dataType: 'json'
-            }).then(function (data) {
-              purgeBtn.disabled = false;
-              purgeBtn.textContent = 'Supprimer tous les pools';
-              if (resultDiv) {
-                resultDiv.style.display = 'block';
-                resultDiv.textContent = (data.DeletedCount || 0) + ' pool(s) supprime(s), '
-                  + (data.SkippedCount || 0) + ' ignore(s), '
-                  + (data.FailedCount || 0) + ' echec(s).';
-                setTimeout(function () { resultDiv.style.display = 'none'; }, 7000);
-              }
-            }).catch(function (err) {
-              purgeBtn.disabled = false;
-              purgeBtn.textContent = 'Supprimer tous les pools';
-              console.error('PosterRotator purge error:', err);
-              alert('Erreur lors de la suppression.');
-            });
-          });
-        }
+        document.querySelectorAll('.posterRotatorTab').forEach(function (button) {
+          button.addEventListener('click', function () { selectTab(button.getAttribute('data-poster-tab')); });
+        });
+        var refreshDiagnosticsBtn = byId('RefreshDiagnosticsBtn');
+        if (refreshDiagnosticsBtn) refreshDiagnosticsBtn.addEventListener('click', loadDiagnostics);
+        var refreshPoolsBtn = byId('RefreshPoolsBtn');
+        if (refreshPoolsBtn) refreshPoolsBtn.addEventListener('click', function () { loadPools(true); });
+        var search = byId('PoolsSearch');
+        if (search) search.addEventListener('change', function () { loadPools(true); });
+        var libraryFilter = byId('PoolsLibrary');
+        if (libraryFilter) libraryFilter.addEventListener('change', function () { loadPools(true); });
+        var typeFilter = byId('PoolsType');
+        if (typeFilter) typeFilter.addEventListener('change', function () { loadPools(true); });
+        var prevPoolsBtn = byId('PrevPoolsBtn');
+        if (prevPoolsBtn) prevPoolsBtn.addEventListener('click', function () {
+          poolsState.start = Math.max(0, poolsState.start - poolsState.limit);
+          loadPools(false);
+        });
+        var nextPoolsBtn = byId('NextPoolsBtn');
+        if (nextPoolsBtn) nextPoolsBtn.addEventListener('click', function () {
+          if (poolsState.start + poolsState.limit < poolsState.total) {
+            poolsState.start += poolsState.limit;
+            loadPools(false);
+          }
+        });
+        var rotatePoolBtn = byId('RotatePoolBtn');
+        if (rotatePoolBtn) rotatePoolBtn.addEventListener('click', rotateSelectedPool);
+        var uploadPoolImageBtn = byId('UploadPoolImageBtn');
+        if (uploadPoolImageBtn) uploadPoolImageBtn.addEventListener('click', uploadPoolImage);
+        var rotateLibraryBtn = byId('RotateLibraryBtn');
+        if (rotateLibraryBtn) rotateLibraryBtn.addEventListener('click', rotateLibrary);
+        var purgeOrphansBtn = byId('PurgeOrphansBtn');
+        if (purgeOrphansBtn) purgeOrphansBtn.addEventListener('click', function () { purge('orphans'); });
+        var purgeLibraryBtn = byId('PurgeLibraryBtn');
+        if (purgeLibraryBtn) purgeLibraryBtn.addEventListener('click', function () { purge('library'); });
+        var purgeItemBtn = byId('PurgeItemBtn');
+        if (purgeItemBtn) purgeItemBtn.addEventListener('click', function () { purge('item'); });
       })();
     </script>
   </div>

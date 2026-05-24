@@ -3,11 +3,12 @@
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Version>1.6.0.0</Version>
-    <AssemblyVersion>1.6.0.0</AssemblyVersion>
-    <FileVersion>1.6.0.0</FileVersion>
+    <Version>1.7.0.0</Version>
+    <AssemblyVersion>1.7.0.0</AssemblyVersion>
+    <FileVersion>1.7.0.0</FileVersion>
     <RootNamespace>Jellyfin.Plugin.PosterRotator</RootNamespace>
-    <JellyfinPackageVersion Condition="'$(JellyfinPackageVersion)' == ''">10.11.0</JellyfinPackageVersion>
+    <JellyfinPackageVersion Condition="'$(JellyfinPackageVersion)' == ''">10.12.0-20260330054505</JellyfinPackageVersion>
+    <WarningsAsErrors>$(WarningsAsErrors);CS0618</WarningsAsErrors>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,5 +20,11 @@
     <PackageReference Include="Jellyfin.Controller" Version="$(JellyfinPackageVersion)" ExcludeAssets="runtime" />
     <PackageReference Include="Jellyfin.Common" Version="$(JellyfinPackageVersion)" ExcludeAssets="runtime" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>Jellyfin.Plugin.PosterRotator.Tests</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 </Project>

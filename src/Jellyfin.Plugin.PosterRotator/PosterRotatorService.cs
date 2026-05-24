@@ -26,17 +26,20 @@ public class PosterRotatorService
     private readonly ILibraryManager _library;
     private readonly IProviderManager _providerManager;
     private readonly IHttpClientFactory _httpFactory;
+    private readonly PoolStore _poolStore;
     private readonly ILogger<PosterRotatorService> _log;
 
     public PosterRotatorService(
         ILibraryManager library,
         IProviderManager providerManager,
         IHttpClientFactory httpFactory,
+        PoolStore poolStore,
         ILogger<PosterRotatorService> log)
     {
         _library = library;
         _providerManager = providerManager;
         _httpFactory = httpFactory;
+        _poolStore = poolStore;
         _log = log;
     }
 
@@ -91,8 +94,6 @@ public class PosterRotatorService
             .SelectMany(kv => kv.Value)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
-        var rootsToNudge = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
         var configuredNames = new List<string>();
         if (cfg.LibraryRules is { Count: > 0 })
             configuredNames.AddRange(cfg.LibraryRules.Where(rule => rule.Enabled).Select(rule => rule.Name));
@@ -117,16 +118,10 @@ public class PosterRotatorService
 
             try
             {
-                var result = await ProcessItemAsync(item, cfg, ct, dirCounts).ConfigureAwait(false);
+                var result = await ProcessItemAsync(item, cfg, ct, dirCounts, libraryMap).ConfigureAwait(false);
                 if (result.Rotated)
                 {
                     rotatedCount++;
-                    if (cfg.PoolStorageMode == PoolStorageMode.MediaFolders)
-                    {
-                        var root = allLibraryRoots.FirstOrDefault(r => PluginHelpers.IsPathInsideOrEqual(item.Path ?? string.Empty, r));
-                        if (!string.IsNullOrEmpty(root))
-                            rootsToNudge.Add(root);
-                    }
                 }
 
                 topUpCount += result.TopUps;
@@ -144,8 +139,7 @@ public class PosterRotatorService
             progress?.Report(++done * 100.0 / Math.Max(1, total));
         }
 
-        foreach (var root in rootsToNudge)
-            NudgeLibraryRootLegacy(root);
+        QueueLibraryScanIfRequested(cfg, rotatedCount);
 
         sw.Stop();
         _log.LogInformation(
@@ -267,11 +261,77 @@ public class PosterRotatorService
     private static bool LooksLikePath(string entry) =>
         entry.IndexOf(':') >= 0 || entry.IndexOf('\\') >= 0 || entry.IndexOf('/') >= 0;
 
+    private PoolItemSnapshot CreateSnapshot(BaseItem item, Dictionary<string, List<string>> libraryMap)
+    {
+        return new PoolItemSnapshot(
+            item.Id,
+            item.Name ?? string.Empty,
+            item.GetType().Name,
+            ResolveLibraryName(item.Path, libraryMap),
+            item.Path);
+    }
+
+    private static string ResolveLibraryName(string? itemPath, Dictionary<string, List<string>> libraryMap)
+    {
+        if (string.IsNullOrWhiteSpace(itemPath))
+            return string.Empty;
+
+        foreach (var library in libraryMap)
+        {
+            if (library.Value.Any(root => PluginHelpers.IsPathInsideOrEqual(itemPath, root)))
+                return library.Key;
+        }
+
+        return string.Empty;
+    }
+
+    private static RotationState CreateRotationState(BaseItem item, PoolMetadata? metadata, string statePath)
+    {
+        if (metadata == null)
+            return PluginHelpers.LoadRotationState(statePath);
+
+        var key = item.Id.ToString();
+        var state = new RotationState();
+        state.LastIndexByItem[key] = metadata.LastIndex;
+        if (metadata.LastRotatedUtc.HasValue)
+            state.LastRotatedUtcByItem[key] = metadata.LastRotatedUtc.Value.ToUnixTimeSeconds();
+
+        return state;
+    }
+
+    private async Task RecordExistingImageAsync(
+        PoolItemSnapshot item,
+        string poolDir,
+        string path,
+        string source,
+        string? language,
+        CancellationToken cancellationToken)
+    {
+        if (!PluginHelpers.TryGetImageFormat(path, out _, out var mimeType))
+            return;
+
+        var (width, height) = PluginHelpers.GetImageDimensions(path);
+        var hash = ImageHash.ComputeHash(path);
+        await _poolStore.RecordImageAsync(
+            item,
+            poolDir,
+            path,
+            source,
+            language ?? "unknown",
+            sourceUrl: null,
+            mimeType,
+            width,
+            height,
+            hash,
+            cancellationToken).ConfigureAwait(false);
+    }
+
     private async Task<(bool Rotated, int TopUps)> ProcessItemAsync(
         BaseItem item,
         Configuration cfg,
         CancellationToken ct,
-        IDictionary<string, int> dirCounts)
+        IDictionary<string, int> dirCounts,
+        Dictionary<string, List<string>> libraryMap)
     {
         var itemDir = PluginHelpers.GetItemDirectory(item.Path) ?? string.Empty;
         var storageMode = ResolveStorageMode(cfg);
@@ -284,77 +344,110 @@ public class PosterRotatorService
         if (string.IsNullOrEmpty(poolDir))
             return (false, 0);
 
-        Directory.CreateDirectory(poolDir);
+        IDisposable? poolLock = null;
+        if (storageMode == PoolStorageMode.PluginData)
+            poolLock = await _poolStore.LockPoolAsync(item.Id, ct).ConfigureAwait(false);
 
-        if (storageMode == PoolStorageMode.PluginData && !string.IsNullOrEmpty(legacyPoolDir))
-            MigrateLegacyPoolIfNeeded(legacyPoolDir, poolDir);
-
-        var local = LoadLocalPoolFiles(poolDir);
-        var lockFile = Path.Combine(poolDir, "pool.lock");
-        var poolIsLocked = File.Exists(lockFile);
-        var statePath = Path.Combine(poolDir, "rotation_state.json");
-        var state = PluginHelpers.LoadRotationState(statePath);
-        var key = item.Id.ToString();
-        var now = DateTimeOffset.UtcNow;
-        var minHours = Math.Max(1, cfg.MinHoursBetweenSwitches);
-        var poolSize = Math.Clamp(cfg.PoolSize, 1, 50);
-        var haveLast = state.LastRotatedUtcByItem.TryGetValue(key, out var lastEpoch);
-        var elapsed = haveLast ? now - DateTimeOffset.FromUnixTimeSeconds(lastEpoch) : TimeSpan.MaxValue;
-        var allowTopUp = !haveLast || elapsed.TotalHours >= minHours || local.Count == 0;
-
-        if (_log.IsEnabled(LogLevel.Debug))
+        try
         {
-            _log.LogDebug(
-                "PosterRotator: \"{Item}\" pool has {Count}/{Target}. Storage:{Storage}. Locked:{Locked}. AllowTopUp:{Allow}",
-                item.Name,
-                local.Count,
-                poolSize,
-                storageMode,
-                poolIsLocked,
-                allowTopUp);
-        }
+            Directory.CreateDirectory(poolDir);
 
-        var topUpCount = 0;
-        if (!poolIsLocked && local.Count < poolSize && allowTopUp)
-        {
-            var added = await TryTopUpFromProvidersAsync(item, poolDir, poolSize - local.Count, cfg, ct).ConfigureAwait(false);
-            topUpCount = added.Count;
-            foreach (var file in added)
-                local.Add(file);
+            if (storageMode == PoolStorageMode.PluginData && !string.IsNullOrEmpty(legacyPoolDir))
+                MigrateLegacyPoolIfNeeded(legacyPoolDir, poolDir);
 
-            if (cfg.LockImagesAfterFill && local.Count >= poolSize)
+            var snapshot = CreateSnapshot(item, libraryMap);
+            PoolMetadata? metadata = null;
+            if (storageMode == PoolStorageMode.PluginData)
+                metadata = await _poolStore.EnsurePoolAsync(snapshot, poolDir, ct).ConfigureAwait(false);
+
+            var local = LoadLocalPoolFiles(poolDir);
+            var lockFile = Path.Combine(poolDir, "pool.lock");
+            var poolIsLocked = File.Exists(lockFile);
+            var statePath = Path.Combine(poolDir, "rotation_state.json");
+            var state = CreateRotationState(item, metadata, statePath);
+            var key = item.Id.ToString();
+            var now = DateTimeOffset.UtcNow;
+            var minHours = Math.Max(1, cfg.MinHoursBetweenSwitches);
+            var poolSize = Math.Clamp(cfg.PoolSize, 1, 50);
+            var haveLast = metadata?.LastRotatedUtc != null || state.LastRotatedUtcByItem.TryGetValue(key, out _);
+            var lastRotated = metadata?.LastRotatedUtc
+                ?? (state.LastRotatedUtcByItem.TryGetValue(key, out var lastEpoch)
+                    ? DateTimeOffset.FromUnixTimeSeconds(lastEpoch)
+                    : null);
+            var elapsed = lastRotated.HasValue ? now - lastRotated.Value : TimeSpan.MaxValue;
+            var allowTopUp = !haveLast || elapsed.TotalHours >= minHours || local.Count == 0;
+
+            if (_log.IsEnabled(LogLevel.Debug))
             {
-                TryWriteText(lockFile, "locked");
-                poolIsLocked = true;
-                _log.LogInformation("PosterRotator: locked pool for \"{Item}\" at size {Size}.", item.Name, local.Count);
+                _log.LogDebug(
+                    "PosterRotator: \"{Item}\" pool has {Count}/{Target}. Storage:{Storage}. Locked:{Locked}. AllowTopUp:{Allow}",
+                    item.Name,
+                    local.Count,
+                    poolSize,
+                    storageMode,
+                    poolIsLocked,
+                    allowTopUp);
             }
+
+            var topUpCount = 0;
+            if (!poolIsLocked && local.Count < poolSize && allowTopUp)
+            {
+                var added = await TryTopUpFromProvidersAsync(
+                    item,
+                    poolDir,
+                    poolSize - local.Count,
+                    cfg,
+                    ct,
+                    storageMode == PoolStorageMode.PluginData ? snapshot : null).ConfigureAwait(false);
+                topUpCount = added.Count;
+                foreach (var file in added)
+                    local.Add(file);
+
+                if (cfg.LockImagesAfterFill && local.Count >= poolSize)
+                {
+                    TryWriteText(lockFile, "locked");
+                    poolIsLocked = true;
+                    _log.LogInformation("PosterRotator: locked pool for \"{Item}\" at size {Size}.", item.Name, local.Count);
+                }
+            }
+            else if (poolIsLocked && !cfg.LockImagesAfterFill)
+            {
+                TryDeleteFile(lockFile);
+                poolIsLocked = false;
+                _log.LogInformation("PosterRotator: unlocked pool for \"{Item}\" (config changed).", item.Name);
+            }
+
+            if (local.Count == 0)
+            {
+                var primaryPath = TryCopyCurrentPrimaryToPool(item, poolDir, IsMixedFolder(item, dirCounts));
+                if (primaryPath != null)
+                {
+                    local.Add(primaryPath);
+                    if (storageMode == PoolStorageMode.PluginData)
+                        await RecordExistingImageAsync(snapshot, poolDir, primaryPath, "current-primary", null, ct).ConfigureAwait(false);
+                }
+            }
+
+            if (local.Count == 0)
+                return (false, topUpCount);
+
+            var chosen = PickNextFor(local.ToList(), item, cfg, state);
+            if (!await SavePrimaryImageAsync(item, chosen, ct).ConfigureAwait(false))
+                return (false, topUpCount);
+
+            state.LastRotatedUtcByItem[key] = now.ToUnixTimeSeconds();
+            if (storageMode == PoolStorageMode.PluginData)
+                await _poolStore.RecordRotationAsync(snapshot, poolDir, chosen, state.LastIndexByItem.GetValueOrDefault(key), now, ct).ConfigureAwait(false);
+            else
+                PluginHelpers.SaveRotationState(statePath, state);
+
+            _log.LogInformation("PosterRotator: rotated \"{Item}\" -> {Poster}", item.Name, Path.GetFileName(chosen));
+            return (true, topUpCount);
         }
-        else if (poolIsLocked && !cfg.LockImagesAfterFill)
+        finally
         {
-            TryDeleteFile(lockFile);
-            poolIsLocked = false;
-            _log.LogInformation("PosterRotator: unlocked pool for \"{Item}\" (config changed).", item.Name);
+            poolLock?.Dispose();
         }
-
-        if (local.Count == 0)
-        {
-            var primaryPath = TryCopyCurrentPrimaryToPool(item, poolDir, IsMixedFolder(item, dirCounts));
-            if (primaryPath != null)
-                local.Add(primaryPath);
-        }
-
-        if (local.Count == 0)
-            return (false, topUpCount);
-
-        var chosen = PickNextFor(local.ToList(), item, cfg, state);
-        if (!await SavePrimaryImageAsync(item, chosen, ct).ConfigureAwait(false))
-            return (false, topUpCount);
-
-        state.LastRotatedUtcByItem[key] = now.ToUnixTimeSeconds();
-        PluginHelpers.SaveRotationState(statePath, state);
-        _log.LogInformation("PosterRotator: rotated \"{Item}\" -> {Poster}", item.Name, Path.GetFileName(chosen));
-
-        return (true, topUpCount);
     }
 
     private PoolStorageMode ResolveStorageMode(Configuration cfg)
@@ -458,46 +551,35 @@ public class PosterRotatorService
         string poolDir,
         int needed,
         Configuration cfg,
-        CancellationToken ct)
+        CancellationToken ct,
+        PoolItemSnapshot? poolItem)
     {
         var added = new List<string>();
         var urlMapPath = Path.Combine(poolDir, "pool_urls.json");
-        var urlMap = PluginHelpers.LoadJsonMap(urlMapPath);
-        var knownUrls = new HashSet<string>(urlMap.Values, StringComparer.OrdinalIgnoreCase);
+        var usePoolStore = poolItem != null;
+        var urlMap = usePoolStore ? new Dictionary<string, string>() : PluginHelpers.LoadJsonMap(urlMapPath);
+        var knownUrls = usePoolStore
+            ? new HashSet<string>(await _poolStore.GetKnownSourceUrlsAsync(poolItem!, poolDir, ct).ConfigureAwait(false), StringComparer.OrdinalIgnoreCase)
+            : new HashSet<string>(urlMap.Values, StringComparer.OrdinalIgnoreCase);
+        var knownHashes = usePoolStore
+            ? new HashSet<ulong>(await _poolStore.GetImageHashesAsync(poolItem!, poolDir, ct).ConfigureAwait(false))
+            : new HashSet<ulong>(ImageHash.LoadHashes(poolDir).Values);
 
         try
         {
-            var providers = _providerManager.GetImageProviders(item, null);
-            IReadOnlyList<IRemoteImageProvider> providerList = providers
-                .OfType<IRemoteImageProvider>()
-                .Where(provider => ProviderSupportsPrimary(provider, item))
-                .OrderByDescending(provider => PreferredProviderScore(provider.GetType().Name))
-                .ToList();
-
-            foreach (var provider in providerList)
+            var query = new RemoteImageQuery(string.Empty)
             {
-                if (added.Count >= needed)
-                    break;
+                IncludeAllLanguages = true,
+                IncludeDisabledProviders = false
+            };
 
-                try
-                {
-                    var images = await PluginHelpers.RetryAsync(
-                        () => provider.GetImages(item, ct),
-                        maxRetries: 3,
-                        _log,
-                        ct).ConfigureAwait(false);
+            var images = await PluginHelpers.RetryAsync(
+                () => _providerManager.GetAvailableRemoteImages(item, query, ct),
+                maxRetries: 3,
+                _log,
+                ct).ConfigureAwait(false);
 
-                    await Harvest(images, preferPrimary: true).ConfigureAwait(false);
-                }
-                catch (OperationCanceledException) when (ct.IsCancellationRequested)
-                {
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    _log.LogDebug(ex, "PosterRotator: provider {Provider} failed for \"{Item}\"", provider.GetType().Name, item.Name);
-                }
-            }
+            await Harvest(images).ConfigureAwait(false);
 
             _log.LogInformation("PosterRotator: providers added {Count} image(s) for \"{Item}\"", added.Count, item.Name);
         }
@@ -512,12 +594,12 @@ public class PosterRotatorService
 
         return added;
 
-        async Task Harvest(IEnumerable<RemoteImageInfo>? images, bool preferPrimary)
+        async Task Harvest(IEnumerable<RemoteImageInfo>? images)
         {
             if (images == null)
                 return;
 
-            var imageList = images.ToList();
+            var imageList = OrderRemoteImagesForDownload(images).ToList();
             if (imageList.Count == 0)
                 return;
 
@@ -529,7 +611,7 @@ public class PosterRotatorService
                     : (cfg.FallbackLanguage ?? string.Empty).ToLowerInvariant();
                 var remainingPreferredSlots = Math.Max(
                     0,
-                    cfg.MaxPreferredLanguageImages - CountLanguageImagesInPool(poolDir, preferredLanguage));
+                    cfg.MaxPreferredLanguageImages - await CountLanguageImagesInPool(poolDir, preferredLanguage).ConfigureAwait(false));
 
                 var preferredImages = imageList
                     .Where(info => info.Type == ImageType.Primary)
@@ -559,17 +641,7 @@ public class PosterRotatorService
             }
             else
             {
-                var ordered = preferPrimary
-                    ? imageList.OrderByDescending(info => info.Type == ImageType.Primary).ThenBy(info => info.ProviderName).ToList()
-                    : imageList.OrderBy(info => info.ProviderName).ToList();
-
-                foreach (var info in ordered.Where(info => info.Type == ImageType.Primary))
-                {
-                    if (added.Count >= needed) return;
-                    await TryDownloadRemote(info, item, poolDir, null, knownUrls, urlMapPath).ConfigureAwait(false);
-                }
-
-                foreach (var info in ordered.Where(info => info.Type is ImageType.Thumb or ImageType.Backdrop))
+                foreach (var info in imageList.Where(info => info.Type is ImageType.Primary or ImageType.Thumb or ImageType.Backdrop))
                 {
                     if (added.Count >= needed) return;
                     await TryDownloadRemote(info, item, poolDir, null, knownUrls, urlMapPath).ConfigureAwait(false);
@@ -577,10 +649,13 @@ public class PosterRotatorService
             }
         }
 
-        int CountLanguageImagesInPool(string dir, string language)
+        async Task<int> CountLanguageImagesInPool(string dir, string language)
         {
             if (string.IsNullOrWhiteSpace(language) || !Directory.Exists(dir))
                 return 0;
+
+            if (usePoolStore)
+                return await _poolStore.CountLanguageImagesAsync(poolItem!, dir, language, ct).ConfigureAwait(false);
 
             var metaPath = Path.Combine(dir, "pool_languages.json");
             return PluginHelpers.CountInJsonMap(metaPath, kv => kv.Value.Equals(language, StringComparison.OrdinalIgnoreCase));
@@ -684,26 +759,47 @@ public class PosterRotatorService
                 var finalPath = Path.Combine(dir, baseName + extension);
                 File.Move(tmpPath, finalPath);
 
+                ulong hash = 0;
                 if (cfg.EnableDuplicateDetection)
                 {
-                    var hash = ImageHash.ComputeHash(finalPath);
+                    hash = ImageHash.ComputeHash(finalPath);
                     if (hash != 0)
                     {
-                        var existingHashes = ImageHash.LoadHashes(dir);
-                        if (ImageHash.IsDuplicate(hash, existingHashes.Values))
+                        if (ImageHash.IsDuplicate(hash, knownHashes))
                         {
                             _log.LogInformation("PosterRotator: rejected {Name} - visually duplicate", Path.GetFileName(finalPath));
                             TryDeleteFile(finalPath);
                             return;
                         }
 
-                        ImageHash.SaveHash(dir, Path.GetFileName(finalPath), hash);
+                        knownHashes.Add(hash);
+                        if (!usePoolStore)
+                            ImageHash.SaveHash(dir, Path.GetFileName(finalPath), hash);
                     }
                 }
 
                 added.Add(finalPath);
-                PluginHelpers.UpdateJsonMapFile(Path.Combine(dir, "pool_languages.json"), Path.GetFileName(finalPath), language ?? info.Language ?? "unknown");
-                PluginHelpers.UpdateJsonMapFile(urlMapPath, Path.GetFileName(finalPath), url);
+                if (usePoolStore)
+                {
+                    await _poolStore.RecordImageAsync(
+                        poolItem!,
+                        dir,
+                        finalPath,
+                        source: "remote",
+                        language ?? info.Language ?? "unknown",
+                        url,
+                        mimeType,
+                        width,
+                        height,
+                        cfg.EnableDuplicateDetection ? hash : 0,
+                        ct).ConfigureAwait(false);
+                }
+                else
+                {
+                    PluginHelpers.UpdateJsonMapFile(Path.Combine(dir, "pool_languages.json"), Path.GetFileName(finalPath), language ?? info.Language ?? "unknown");
+                    PluginHelpers.UpdateJsonMapFile(urlMapPath, Path.GetFileName(finalPath), url);
+                }
+
                 knownUrls.Add(url);
 
                 _log.LogDebug(
@@ -792,17 +888,21 @@ public class PosterRotatorService
         }
     }
 
-    private static bool ProviderSupportsPrimary(IRemoteImageProvider provider, BaseItem item)
-    {
-        try
+    internal static IReadOnlyList<RemoteImageInfo> OrderRemoteImagesForDownload(IEnumerable<RemoteImageInfo> images) =>
+        images
+            .OrderByDescending(info => PreferredProviderScore(info.ProviderName ?? string.Empty))
+            .ThenBy(info => info.ProviderName ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(info => ImageTypePriority(info.Type))
+            .ToList();
+
+    private static int ImageTypePriority(ImageType type) =>
+        type switch
         {
-            return provider.Supports(item) && provider.GetSupportedImages(item).Contains(ImageType.Primary);
-        }
-        catch
-        {
-            return false;
-        }
-    }
+            ImageType.Primary => 0,
+            ImageType.Thumb => 1,
+            ImageType.Backdrop => 2,
+            _ => 3
+        };
 
     private static long GetMaxDownloadBytes(Configuration cfg)
     {
@@ -1017,16 +1117,187 @@ public class PosterRotatorService
         }
     }
 
-    private void NudgeLibraryRootLegacy(string rootPath)
+    private void QueueLibraryScanIfRequested(Configuration cfg, int rotatedCount)
     {
+        if (!cfg.TriggerLibraryScanAfterRotation || rotatedCount <= 0)
+            return;
+
         try
         {
-            if (Directory.Exists(rootPath))
-                Directory.SetLastWriteTimeUtc(rootPath, DateTime.UtcNow);
+            _library.QueueLibraryScan();
+            _log.LogInformation("PosterRotator: queued a library scan after rotating {Count} item(s).", rotatedCount);
         }
         catch (Exception ex)
         {
-            _log.LogDebug(ex, "PosterRotator: unable to nudge legacy library root {Root}", rootPath);
+            _log.LogDebug(ex, "PosterRotator: unable to queue library scan after poster rotation.");
+        }
+    }
+
+    public Task<PoolDiagnostics> GetDiagnosticsAsync(CancellationToken cancellationToken) =>
+        _poolStore.GetDiagnosticsAsync(ItemExists, cancellationToken);
+
+    public Task<PoolListResponse> ListPoolsAsync(PoolListQuery query, CancellationToken cancellationToken) =>
+        _poolStore.ListPoolsAsync(query, cancellationToken);
+
+    public Task<PoolMetadata?> GetPoolAsync(Guid itemId, CancellationToken cancellationToken) =>
+        _poolStore.GetPoolAsync(itemId, reconcileFiles: true, cancellationToken);
+
+    public Task<PoolImageFile> GetPoolImageAsync(Guid itemId, string fileName, CancellationToken cancellationToken) =>
+        _poolStore.GetImageFileAsync(itemId, fileName, cancellationToken);
+
+    public async Task<PoolOperationResult> RotatePoolNowAsync(Guid itemId, CancellationToken cancellationToken)
+    {
+        using var poolLock = await _poolStore.LockPoolAsync(itemId, cancellationToken).ConfigureAwait(false);
+        var item = TryGetItemById(itemId);
+        if (item == null)
+        {
+            return new PoolOperationResult
+            {
+                Success = false,
+                ItemId = itemId.ToString(),
+                Message = "Media introuvable dans Jellyfin."
+            };
+        }
+
+        var poolDir = _poolStore.TryGetPoolDirectory(itemId, create: false);
+        if (poolDir == null || !Directory.Exists(poolDir))
+        {
+            return new PoolOperationResult
+            {
+                Success = false,
+                ItemId = itemId.ToString(),
+                Message = "Pool introuvable dans le dossier plugin."
+            };
+        }
+
+        var snapshot = CreateSnapshot(item, GetLibraryRootPaths());
+        var metadata = await _poolStore.EnsurePoolAsync(snapshot, poolDir, cancellationToken).ConfigureAwait(false);
+        var files = LoadLocalPoolFiles(poolDir).ToList();
+        if (files.Count == 0)
+        {
+            await _poolStore.RecordErrorAsync(itemId, "Rotation immediate impossible: pool vide.", cancellationToken).ConfigureAwait(false);
+            return new PoolOperationResult
+            {
+                Success = false,
+                ItemId = itemId.ToString(),
+                Message = "Pool vide."
+            };
+        }
+
+        var cfg = Plugin.Instance?.Configuration ?? new Configuration();
+        var state = CreateRotationState(item, metadata, Path.Combine(poolDir, "rotation_state.json"));
+        var chosen = PickNextFor(files, item, cfg, state);
+        if (!await SavePrimaryImageAsync(item, chosen, cancellationToken).ConfigureAwait(false))
+        {
+            await _poolStore.RecordErrorAsync(itemId, "Rotation immediate impossible: SaveImage a echoue.", cancellationToken).ConfigureAwait(false);
+            return new PoolOperationResult
+            {
+                Success = false,
+                ItemId = itemId.ToString(),
+                FileName = Path.GetFileName(chosen),
+                Message = "Jellyfin n'a pas accepte l'image selectionnee."
+            };
+        }
+
+        await _poolStore.RecordRotationAsync(
+            snapshot,
+            poolDir,
+            chosen,
+            state.LastIndexByItem.GetValueOrDefault(item.Id.ToString()),
+            DateTimeOffset.UtcNow,
+            cancellationToken).ConfigureAwait(false);
+
+        return new PoolOperationResult
+        {
+            Success = true,
+            ItemId = itemId.ToString(),
+            FileName = Path.GetFileName(chosen),
+            ProcessedCount = 1,
+            RotatedCount = 1,
+            Message = "Rotation effectuee."
+        };
+    }
+
+    public async Task<PoolOperationResult> RotateLibraryNowAsync(string libraryName, CancellationToken cancellationToken)
+    {
+        var processed = 0;
+        var rotated = 0;
+        var failed = 0;
+        var start = 0;
+        const int limit = 200;
+
+        while (true)
+        {
+            var list = await _poolStore.ListPoolsAsync(
+                new PoolListQuery { Library = libraryName, Start = start, Limit = limit },
+                cancellationToken).ConfigureAwait(false);
+
+            foreach (var entry in list.Items)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!Guid.TryParse(entry.ItemId, out var itemId))
+                {
+                    failed++;
+                    continue;
+                }
+
+                processed++;
+                var result = await RotatePoolNowAsync(itemId, cancellationToken).ConfigureAwait(false);
+                if (result.Success)
+                    rotated++;
+                else
+                    failed++;
+            }
+
+            start += list.Items.Count;
+            if (start >= list.Total || list.Items.Count == 0)
+                break;
+        }
+
+        return new PoolOperationResult
+        {
+            Success = failed == 0,
+            ProcessedCount = processed,
+            RotatedCount = rotated,
+            FailedCount = failed,
+            Message = $"{rotated}/{processed} pool(s) tournes."
+        };
+    }
+
+    public async Task<PoolImageMetadata> ImportPoolImageAsync(
+        Guid itemId,
+        Stream stream,
+        string fileName,
+        CancellationToken cancellationToken)
+    {
+        using var poolLock = await _poolStore.LockPoolAsync(itemId, cancellationToken).ConfigureAwait(false);
+        var item = TryGetItemById(itemId) ?? throw new FileNotFoundException("Media introuvable dans Jellyfin.");
+        var snapshot = CreateSnapshot(item, GetLibraryRootPaths());
+        var cfg = Plugin.Instance?.Configuration ?? new Configuration();
+        return await _poolStore.ImportImageAsync(snapshot, stream, fileName, cfg, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<PoolImageMetadata> DeletePoolImageAsync(Guid itemId, string fileName, CancellationToken cancellationToken)
+    {
+        using var poolLock = await _poolStore.LockPoolAsync(itemId, cancellationToken).ConfigureAwait(false);
+        return await _poolStore.DeleteImageAsync(itemId, fileName, cancellationToken).ConfigureAwait(false);
+    }
+
+    public Task<PurgePoolsResult> PurgeAsync(PoolPurgeRequest request, CancellationToken cancellationToken) =>
+        _poolStore.PurgeAsync(request, ItemExists, cancellationToken);
+
+    private bool ItemExists(Guid itemId) => TryGetItemById(itemId) != null;
+
+    private BaseItem? TryGetItemById(Guid itemId)
+    {
+        try
+        {
+            return _library.GetItemById(itemId);
+        }
+        catch (Exception ex)
+        {
+            _log.LogDebug(ex, "PosterRotator: unable to resolve item {ItemId}", itemId);
+            return null;
         }
     }
 
@@ -1065,6 +1336,8 @@ public class PosterRotatorService
 
         foreach (var poolDir in Directory.GetDirectories(poolRoot))
             TryDeleteSafeDirectory(poolDir, poolRoot, requireLegacyPoolName: false, result);
+
+        TryDeleteFile(Path.Combine(poolRoot, "index.json"));
     }
 
     private void PurgeLegacyMediaPools(PurgePoolsResult result, CancellationToken cancellationToken)

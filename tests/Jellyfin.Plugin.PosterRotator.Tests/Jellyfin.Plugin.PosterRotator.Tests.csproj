@@ -4,7 +4,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
-    <JellyfinPackageVersion Condition="'$(JellyfinPackageVersion)' == ''">10.11.0</JellyfinPackageVersion>
+    <JellyfinPackageVersion Condition="'$(JellyfinPackageVersion)' == ''">10.12.0-20260330054505</JellyfinPackageVersion>
+    <WarningsAsErrors>$(WarningsAsErrors);CS0618</WarningsAsErrors>
   </PropertyGroup>
 
   <ItemGroup>
