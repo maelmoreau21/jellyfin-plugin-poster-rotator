@@ -71,17 +71,19 @@ Les anciennes options de nettoyage automatique restent dans le modele de configu
 
 ## Interface
 
-L'interface utilise deux onglets: `Pools` et `Parametres`.
+L'interface utilise deux vrais onglets ARIA: `Pools` et `Parametres`.
 
-- recherche et filtres dans l'onglet `Pools`;
+- `Pools` est actif par defaut, avec `SettingsPanel` masque par `hidden`;
+- recherche et filtres uniquement dans l'onglet `Pools`;
 - filtre bibliotheque sous forme de menu deroulant charge depuis `/Library/VirtualFolders`;
 - statistiques compactes;
 - table paginee des pools;
 - panneau de detail avec miniatures chargees via `ApiKey`;
+- miniatures de pools normalisees en taille bornee, format affiche, avec fallback `Apercu indisponible` masque par defaut et visible seulement sur erreur de chargement;
 - suppression/import d'images;
 - action de maintenance `Reparer la liste des pools` qui appelle `POST /PosterRotator/Pools/RebuildIndex`;
-- l'onglet `Parametres` expose seulement les reglages utiles au quotidien;
-- le champ `Nombre maximum d'affiches a changer par passage` accepte `0` pour aucune limite de nombre;
+- l'onglet `Parametres` expose uniquement les reglages utiles au quotidien;
+- le champ `Nombre maximum d'affiches a changer par passage` accepte `0` pour aucune limite de nombre, avec le texte d'aide dans le meme `inputContainer` juste sous le libelle;
 - les langues exposent un ordre de fallback configurable: langue originale puis fallback, fallback puis langue originale, originale uniquement, ou fallback uniquement;
 - le dernier recours toutes langues peut etre active separement;
 - ne pas afficher `CadenceProfile`, `PoolSize`, `MinHoursBetweenSwitches`, `MaxProviderLookupsPerRun`, `MaxDownloadsPerRun`, `ProcessingBatchSize`, `AutoCleanupOrphanedPools` ou `CleanupIntervalDays`;
@@ -115,6 +117,7 @@ dotnet test .\jellyfin-plugin-poster-rotator.sln -c Release -p:JellyfinPackageVe
 ## Release
 
 1. Verifier que `Version`, `AssemblyVersion` et `FileVersion` valent `1.7.0.0`.
+   - Ne pas changer `meta.json.version`, `manifest.json.version` ni `targetAbi` pour un correctif UI de cette ligne.
 2. Compiler en `Release` contre le package Jellyfin 12 authentifie.
 3. Lancer les tests.
 4. Creer `Jellyfin.Plugin.PosterRotator-1.7.0.0.zip` avec:

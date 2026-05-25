@@ -23,6 +23,7 @@
     }
 
     .posterRotatorTabs {
+      align-items: flex-end;
       display: flex;
       gap: 0;
       flex-wrap: wrap;
@@ -44,6 +45,10 @@
       display: none;
     }
 
+    .posterRotatorPanel[hidden] {
+      display: none !important;
+    }
+
     .posterRotatorPanel.is-active {
       display: grid;
       gap: 18px;
@@ -63,6 +68,10 @@
 
     .posterRotatorStatus {
       min-height: 1.4em;
+    }
+
+    .posterRotatorFieldHelp {
+      margin: 2px 0 6px;
     }
 
     .posterRotatorGrid {
@@ -155,34 +164,52 @@
     .posterRotatorThumbs {
       display: grid;
       gap: 10px;
-      grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(112px, 132px));
+      justify-content: start;
       margin-top: 10px;
     }
 
     .posterRotatorThumb {
       border: 1px solid rgba(255, 255, 255, .12);
       border-radius: 6px;
+      max-width: 100%;
       overflow: hidden;
+      width: 132px;
     }
 
-    .posterRotatorThumb img {
+    .posterRotatorThumbImage,
+    .posterRotatorThumbError {
       aspect-ratio: 2 / 3;
-      background: rgba(255, 255, 255, .06);
-      display: block;
-      object-fit: cover;
+      height: 198px;
+      max-height: 198px;
       width: 100%;
     }
 
+    .posterRotatorThumbImage {
+      background: rgba(255, 255, 255, .06);
+      display: block !important;
+      max-width: 100%;
+      object-fit: cover;
+    }
+
+    .posterRotatorThumbImage.is-hidden {
+      display: none !important;
+    }
+
     .posterRotatorThumbError {
-      aspect-ratio: 2 / 3;
       align-items: center;
       background: rgba(255, 255, 255, .06);
+      box-sizing: border-box;
       color: #aaa;
-      display: none;
+      display: flex;
       font-size: .82em;
       justify-content: center;
       padding: 8px;
       text-align: center;
+    }
+
+    .posterRotatorThumbError[hidden] {
+      display: none !important;
     }
 
     .posterRotatorThumbBody {
@@ -228,13 +255,13 @@
             <h1 class="posterRotatorTitle">Poster Rotator</h1>
             <div id="GlobalStatus" class="posterRotatorStatus"></div>
           </div>
-          <div class="posterRotatorTabs">
-            <button type="button" class="raised emby-button posterRotatorTab is-active" data-panel="PoolsPanel">Pools</button>
-            <button type="button" class="raised emby-button posterRotatorTab" data-panel="SettingsPanel">Parametres</button>
+          <div class="posterRotatorTabs" role="tablist" aria-label="Poster Rotator">
+            <button id="PoolsTab" type="button" class="raised emby-button posterRotatorTab is-active" data-panel="PoolsPanel" role="tab" aria-selected="true" aria-controls="PoolsPanel">Pools</button>
+            <button id="SettingsTab" type="button" class="raised emby-button posterRotatorTab" data-panel="SettingsPanel" role="tab" aria-selected="false" aria-controls="SettingsPanel" tabindex="-1">Parametres</button>
           </div>
         </div>
 
-        <div id="PoolsPanel" class="posterRotatorPanel is-active">
+        <div id="PoolsPanel" class="posterRotatorPanel is-active" role="tabpanel" aria-labelledby="PoolsTab" aria-hidden="false">
           <div class="posterRotatorStats">
             <div class="posterRotatorStat">
               <div class="posterRotatorDescription">Pools</div>
@@ -341,7 +368,7 @@
           </div>
         </div>
 
-        <div id="SettingsPanel" class="posterRotatorPanel">
+        <div id="SettingsPanel" class="posterRotatorPanel" role="tabpanel" aria-labelledby="SettingsTab" aria-hidden="true" hidden>
           <form id="PosterRotatorConfigForm" class="posterRotatorBand">
             <h2 class="posterRotatorSectionTitle">Parametres</h2>
 
@@ -355,10 +382,10 @@
               </div>
               <div class="inputContainer">
                 <label class="inputLabel inputLabelUnfocused" for="MaxRotationsPerRun">Nombre maximum d'affiches a changer par passage</label>
+                <div class="posterRotatorDescription posterRotatorFieldHelp">(0 = aucune limite de nombre. Le delai interne entre deux changements reste respecte.)</div>
                 <input id="MaxRotationsPerRun" type="number" min="0" max="100000" is="emby-input" value="500" />
               </div>
             </div>
-            <div class="posterRotatorDescription">(0 = aucune limite de nombre. Le delai interne entre deux changements reste respecte.)</div>
 
             <div class="posterRotatorFormGrid">
               <div class="inputContainer">
@@ -528,10 +555,16 @@
 
         function selectPanel(panelId) {
           document.querySelectorAll('.posterRotatorTab').forEach(function (button) {
-            button.classList.toggle('is-active', button.getAttribute('data-panel') === panelId);
+            var active = button.getAttribute('data-panel') === panelId;
+            button.classList.toggle('is-active', active);
+            button.setAttribute('aria-selected', active ? 'true' : 'false');
+            button.tabIndex = active ? 0 : -1;
           });
           document.querySelectorAll('.posterRotatorPanel').forEach(function (panel) {
-            panel.classList.toggle('is-active', panel.id === panelId);
+            var active = panel.id === panelId;
+            panel.classList.toggle('is-active', active);
+            panel.hidden = !active;
+            panel.setAttribute('aria-hidden', active ? 'false' : 'true');
           });
         }
 
@@ -720,8 +753,8 @@
             var source = prop(image, 'Source', 'source', 'unknown');
             var src = poolImageUrl(fileName, image);
             return '<div class="posterRotatorThumb">'
-              + '<img alt="" src="' + escapeHtml(src) + '" loading="lazy" />'
-              + '<div class="posterRotatorThumbError">Apercu indisponible</div>'
+              + '<img class="posterRotatorThumbImage" alt="" src="' + escapeHtml(src) + '" loading="lazy" />'
+              + '<div class="posterRotatorThumbError" hidden>Apercu indisponible</div>'
               + '<div class="posterRotatorThumbBody">'
               + '<div class="posterRotatorThumbName" title="' + escapeHtml(fileName) + '">' + escapeHtml(fileName) + '</div>'
               + '<div class="posterRotatorDescription">' + formatBytes(prop(image, 'SizeBytes', 'sizeBytes', 0)) + ' - ' + escapeHtml(prop(image, 'Language', 'language', 'unknown')) + ' - ' + escapeHtml(source) + '</div>'
@@ -731,12 +764,25 @@
           container.querySelectorAll('[data-image-delete]').forEach(function (button) {
             button.addEventListener('click', function () { deletePoolImage(button.getAttribute('data-image-delete')); });
           });
-          container.querySelectorAll('img').forEach(function (img) {
-            img.addEventListener('error', function () {
-              img.style.display = 'none';
-              var fallback = img.parentElement ? img.parentElement.querySelector('.posterRotatorThumbError') : null;
-              if (fallback) fallback.style.display = 'flex';
+          container.querySelectorAll('.posterRotatorThumbImage').forEach(function (img) {
+            var fallback = img.parentElement ? img.parentElement.querySelector('.posterRotatorThumbError') : null;
+            img.addEventListener('load', function () {
+              img.classList.remove('is-hidden');
+              if (fallback) fallback.hidden = true;
             });
+            img.addEventListener('error', function () {
+              img.classList.add('is-hidden');
+              if (fallback) fallback.hidden = false;
+            });
+            if (img.complete) {
+              if (img.naturalWidth > 0) {
+                img.classList.remove('is-hidden');
+                if (fallback) fallback.hidden = true;
+              } else {
+                img.classList.add('is-hidden');
+                if (fallback) fallback.hidden = false;
+              }
+            }
           });
         }
 

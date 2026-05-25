@@ -11,6 +11,7 @@ Poster Rotator garde l'interface Jellyfin vivante en constituant un pool d'affic
 - Ligne precedente: `1.6.0.0` reste la version pour Jellyfin `10.11.x`
 
 La version `1.7.0.0` ne fait pas d'acces SQL brut. Elle passe par les services Jellyfin (`ILibraryManager`, `IProviderManager`) et stocke son etat dans le dossier data du plugin.
+Les correctifs UI et les regenerations d'archive de cette ligne doivent conserver la version `1.7.0.0`.
 
 ## Fonctionnement
 
@@ -44,17 +45,18 @@ Pour une installation manuelle par zip, l'archive `Jellyfin.Plugin.PosterRotator
 
 ## Interface
 
-L'interface admin est organisee en deux onglets simples: `Pools` pour rechercher et modifier les pools, puis `Parametres` pour regler le comportement du plugin.
+L'interface admin est organisee en deux vrais onglets separes: `Pools` s'ouvre par defaut et contient uniquement les outils de pools, puis `Parametres` contient uniquement les reglages.
 
 - statistiques et etat dans l'onglet pools;
 - recherche paginee des pools `PluginData`;
 - filtres par bibliotheque Jellyfin, type, erreur et pool vide/non vide;
-- detail du pool selectionne avec miniatures et message lisible si une image ne peut pas etre chargee;
+- detail du pool selectionne avec miniatures normalisees au format affiche, taille bornee, et message lisible seulement si une image ne peut pas etre chargee;
 - import et suppression d'affiches;
 - rotation immediate par media ou bibliotheque;
 - purge des orphelins, d'une bibliotheque ou d'un media;
 - action de maintenance **Reparer la liste des pools** pour reconstruire `pools/index.json`;
-- reglage simple du nombre maximum d'affiches changees par passage, bibliotheques, langues et securite;
+- reglage simple du nombre maximum d'affiches changees par passage, avec l'aide `0 = aucune limite...` directement sous le libelle du champ;
+- bibliotheques, langues et securite dans l'onglet `Parametres`;
 - fallback de langue configurable: langue preferee, langue originale detectee, langue fallback, images sans langue et dernier recours toutes langues.
 
 Les anciens dossiers `.poster_pool` du mode `MediaFolders` restent compatibles, mais l'edition par l'interface concerne les pools modernes sous `PluginData`.
