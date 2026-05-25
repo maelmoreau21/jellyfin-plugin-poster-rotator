@@ -22,6 +22,14 @@ public enum RotationCadenceProfile
     Visible = 2
 }
 
+public enum LanguageFallbackMode
+{
+    OriginalThenConfigured = 0,
+    ConfiguredThenOriginal = 1,
+    OriginalOnly = 2,
+    ConfiguredOnly = 3
+}
+
 public class Configuration : BasePluginConfiguration
 {
     // Backwards-compatible simple list of library names (older versions)
@@ -78,21 +86,29 @@ public class Configuration : BasePluginConfiguration
     public int MaxPreferredLanguageImages { get; set; } = 2;
 
     /// <summary>
-    /// Langue de fallback pour les autres images (code ISO ou vide pour toutes).
-    /// Ignore si UseOriginalLanguageAsFallback est active.
+    /// Langue de fallback pour les autres images (code ISO ou vide pour desactiver cette etape).
     /// </summary>
     public string FallbackLanguage { get; set; } = "en";
 
     /// <summary>
-    /// Utiliser automatiquement la langue originale du media (VO) comme fallback.
-    /// Si active, FallbackLanguage est ignore et la vraie langue originale est detectee.
+    /// Legacy compatibility setting. The UI now uses FallbackMode.
     /// </summary>
     public bool UseOriginalLanguageAsFallback { get; set; } = true;
+
+    /// <summary>
+    /// Ordre de fallback apres la langue preferee.
+    /// </summary>
+    public LanguageFallbackMode FallbackMode { get; set; } = LanguageFallbackMode.OriginalThenConfigured;
 
     /// <summary>
     /// Inclure les images sans information de langue.
     /// </summary>
     public bool IncludeUnknownLanguage { get; set; } = true;
+
+    /// <summary>
+    /// Autoriser toutes les langues si les etapes de langue n'ont pas rempli le pool.
+    /// </summary>
+    public bool AllowAnyLanguageFallback { get; set; } = true;
 
     // === Image Quality ===
 

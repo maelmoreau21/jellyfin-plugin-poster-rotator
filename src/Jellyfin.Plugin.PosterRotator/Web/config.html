@@ -24,16 +24,20 @@
 
     .posterRotatorTabs {
       display: flex;
-      gap: 8px;
+      gap: 0;
       flex-wrap: wrap;
+      border-bottom: 1px solid rgba(255, 255, 255, .18);
     }
 
     .posterRotatorTab {
+      border-bottom-left-radius: 0;
+      border-bottom-right-radius: 0;
       min-width: 130px;
     }
 
     .posterRotatorTab.is-active {
-      filter: brightness(1.15);
+      border-bottom-color: transparent;
+      filter: brightness(1.18);
     }
 
     .posterRotatorPanel {
@@ -354,7 +358,7 @@
                 <input id="MaxRotationsPerRun" type="number" min="0" max="100000" is="emby-input" value="500" />
               </div>
             </div>
-            <div class="posterRotatorDescription">0 = aucune limite de nombre. Le delai interne entre deux changements reste respecte.</div>
+            <div class="posterRotatorDescription">(0 = aucune limite de nombre. Le delai interne entre deux changements reste respecte.)</div>
 
             <div class="posterRotatorFormGrid">
               <div class="inputContainer">
@@ -391,11 +395,7 @@
 
             <div class="posterRotatorBand">
               <h3>Langues</h3>
-              <div class="posterRotatorActions">
-                <label class="emby-checkbox-label"><input id="EnableLanguageFilter" type="checkbox" is="emby-checkbox" /><span>Filtrer par langue</span></label>
-                <label class="emby-checkbox-label"><input id="UseOriginalLanguageAsFallback" type="checkbox" is="emby-checkbox" /><span>VO en fallback</span></label>
-                <label class="emby-checkbox-label"><input id="IncludeUnknownLanguage" type="checkbox" is="emby-checkbox" /><span>Langue inconnue</span></label>
-              </div>
+              <label class="emby-checkbox-label"><input id="EnableLanguageFilter" type="checkbox" is="emby-checkbox" /><span>Filtrer par langue</span></label>
               <div class="posterRotatorFormGrid">
                 <div class="inputContainer">
                   <label class="inputLabel inputLabelUnfocused" for="PreferredLanguage">Langue preferee</label>
@@ -409,6 +409,19 @@
                   <label class="inputLabel inputLabelUnfocused" for="FallbackLanguage">Langue fallback</label>
                   <input id="FallbackLanguage" type="text" is="emby-input" value="en" placeholder="en" />
                 </div>
+                <div class="inputContainer">
+                  <label class="selectLabel" for="FallbackMode">Ordre de fallback</label>
+                  <select id="FallbackMode" is="emby-select">
+                    <option value="0">Langue originale puis fallback</option>
+                    <option value="1">Fallback puis langue originale</option>
+                    <option value="2">Langue originale uniquement</option>
+                    <option value="3">Fallback uniquement</option>
+                  </select>
+                </div>
+              </div>
+              <div class="posterRotatorActions">
+                <label class="emby-checkbox-label"><input id="IncludeUnknownLanguage" type="checkbox" is="emby-checkbox" /><span>Inclure les images sans langue</span></label>
+                <label class="emby-checkbox-label"><input id="AllowAnyLanguageFallback" type="checkbox" is="emby-checkbox" /><span>Autoriser toutes les langues en dernier recours</span></label>
               </div>
             </div>
 
@@ -476,7 +489,7 @@
         function poolImageUrl(fileName, image) {
           var url = ApiClient.getUrl('PosterRotator/Pools/' + encodeURIComponent(poolsState.selectedItemId) + '/Images/' + encodeURIComponent(fileName));
           var token = apiToken();
-          if (token && url.indexOf('api_key=') < 0) url = appendQuery(url, 'api_key', token);
+          if (token && url.indexOf('ApiKey=') < 0) url = appendQuery(url, 'ApiKey', token);
           return appendQuery(url, 'v', prop(image, 'AddedUtc', 'addedUtc', Date.now()));
         }
         function formatBytes(bytes) {
@@ -849,9 +862,12 @@
               byId('EnableLanguageFilter').checked = !!cfg.EnableLanguageFilter;
               byId('PreferredLanguage').value = cfg.PreferredLanguage ?? 'fr';
               byId('MaxPreferredLanguageImages').value = cfg.MaxPreferredLanguageImages ?? 2;
-              byId('UseOriginalLanguageAsFallback').checked = cfg.UseOriginalLanguageAsFallback === undefined ? true : !!cfg.UseOriginalLanguageAsFallback;
               byId('FallbackLanguage').value = cfg.FallbackLanguage ?? 'en';
+              var fallbackMode = cfg.FallbackMode;
+              if (fallbackMode === undefined) fallbackMode = cfg.UseOriginalLanguageAsFallback === false ? 3 : 0;
+              byId('FallbackMode').value = String(fallbackMode);
               byId('IncludeUnknownLanguage').checked = cfg.IncludeUnknownLanguage === undefined ? true : !!cfg.IncludeUnknownLanguage;
+              byId('AllowAnyLanguageFallback').checked = cfg.AllowAnyLanguageFallback === undefined ? true : !!cfg.AllowAnyLanguageFallback;
               byId('ExtraPosterPatterns').value = Array.isArray(cfg.ExtraPosterPatterns) ? cfg.ExtraPosterPatterns.join(', ') : '';
               return loadLibraries(cfg);
             });
@@ -877,9 +893,10 @@
               cfg.EnableLanguageFilter = boolValue('EnableLanguageFilter', false);
               cfg.PreferredLanguage = textValue('PreferredLanguage', 'fr');
               cfg.MaxPreferredLanguageImages = intValue('MaxPreferredLanguageImages', 2, 0, 10);
-              cfg.UseOriginalLanguageAsFallback = boolValue('UseOriginalLanguageAsFallback', true);
               cfg.FallbackLanguage = textValue('FallbackLanguage', 'en');
+              cfg.FallbackMode = intValue('FallbackMode', 0, 0, 3);
               cfg.IncludeUnknownLanguage = boolValue('IncludeUnknownLanguage', true);
+              cfg.AllowAnyLanguageFallback = boolValue('AllowAnyLanguageFallback', true);
               cfg.ExtraPosterPatterns = textValue('ExtraPosterPatterns', '')
                 .split(',')
                 .map(function (value) { return value.trim(); })

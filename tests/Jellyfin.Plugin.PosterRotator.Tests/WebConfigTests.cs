@@ -11,6 +11,7 @@ public sealed class WebConfigTests
 
         Assert.Contains("data-panel=\"PoolsPanel\"", html);
         Assert.Contains("data-panel=\"SettingsPanel\"", html);
+        Assert.Contains("class=\"raised emby-button posterRotatorTab is-active\" data-panel=\"PoolsPanel\"", html);
         Assert.Contains("<select id=\"PoolsLibrary\"", html);
         Assert.DoesNotContain("<input id=\"PoolsLibrary\"", html);
     }
@@ -32,6 +33,7 @@ public sealed class WebConfigTests
 
         Assert.Contains("Nombre maximum d'affiches a changer par passage", html);
         Assert.Contains("min=\"0\"", html);
+        Assert.Contains("(0 = aucune limite de nombre. Le delai interne entre deux changements reste respecte.)", html);
         Assert.DoesNotContain("Cadence", html);
         Assert.DoesNotContain("Affiches par pool", html);
         Assert.DoesNotContain("Heures entre changements", html);
@@ -41,6 +43,9 @@ public sealed class WebConfigTests
         Assert.DoesNotContain("AutoCleanupOrphanedPools", html);
         Assert.DoesNotContain("CleanupIntervalDays", html);
         Assert.Contains("Affiches max en langue preferee par pool", html);
+        Assert.Contains("FallbackMode", html);
+        Assert.Contains("Autoriser toutes les langues en dernier recours", html);
+        Assert.DoesNotContain("VO en fallback", html);
         Assert.Contains("Reparer la liste des pools", html);
     }
 
@@ -50,6 +55,8 @@ public sealed class WebConfigTests
         var html = LoadConfigHtml();
 
         Assert.Contains("poolImageUrl(fileName, image)", html);
+        Assert.Contains("'ApiKey'", html);
+        Assert.DoesNotContain("api_key", html);
         Assert.Contains("Apercu indisponible", html);
         Assert.Contains("data-image-delete", html);
     }

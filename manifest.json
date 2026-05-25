@@ -12,9 +12,9 @@
         "version": "1.7.0.0",
         "targetAbi": "12.0.0.0",
         "sourceUrl": "https://github.com/maelmoreau21/jellyfin-plugin-poster-rotator/releases/download/v1.7.0.0/Jellyfin.Plugin.PosterRotator-1.7.0.0.zip",
-        "checksum": "89348c5f3df4659b41bcf8f838452b87",
-        "timestamp": "2026-05-25T18:03:59Z",
-        "changelog": "Compatibility: targets Jellyfin 12.0.0.0 beta while keeping plugin version 1.7.0.0. Scheduler: adds the Poster Rotator category with Rotate posters and Nettoyage pools orphelins tasks. Packaging: includes meta.json and a local plugin image for manual zip installs. Performance: processes randomized library item ids in batches, respects cooldowns, and allows MaxRotationsPerRun=0 as no per-run rotation cap. Interface: keeps two pages for pools and settings, simplifies rotation settings to one limit, adds a Jellyfin library dropdown, and improves compact pool image previews."
+        "checksum": "8f3713456d0afd8bbaca0fed2d818184",
+        "timestamp": "2026-05-25T18:47:53Z",
+        "changelog": "Compatibility: targets Jellyfin 12.0.0.0 beta while keeping plugin version 1.7.0.0. Scheduler: renames the main task to Rotate pools while keeping the stable PosterRotator.RotatePostersTask key. Packaging: includes meta.json and a local plugin image for manual zip installs. Performance: processes randomized library item ids in batches, uses selected library parent ids when available, defers pool index writes during scheduled runs, caches diagnostics briefly, respects cooldowns, and allows MaxRotationsPerRun=0 as no per-run rotation cap. Interface: keeps Pools as the default tab, fixes pool image previews with ApiKey URLs, adds a Jellyfin library dropdown, and adds configurable language fallback controls."
       },
       {
         "version": "1.6.0.0",

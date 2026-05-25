@@ -14,7 +14,7 @@ La version `1.7.0.0` ne fait pas d'acces SQL brut. Elle passe par les services J
 
 ## Fonctionnement
 
-1. La tache planifiee **Rotate posters** recupere les IDs des films, series, collections, et optionnellement saisons/episodes.
+1. La tache planifiee **Rotate pools** recupere les IDs des films, series, collections, et optionnellement saisons/episodes.
 2. Les IDs sont melanges puis traites par lots pour eviter de charger toute une bibliotheque en memoire.
 3. Les bibliotheques activees sont resolues par nom ou par racines manuelles.
 4. Chaque media utilise un pool local sous `PluginData/pools/{itemId}`.
@@ -25,7 +25,7 @@ La version `1.7.0.0` ne fait pas d'acces SQL brut. Elle passe par les services J
 
 Le planificateur Jellyfin affiche une section **Poster Rotator** avec:
 
-- **Rotate posters**: remplit les pools quand necessaire et change les affiches eligibles;
+- **Rotate pools**: remplit les pools quand necessaire et change les affiches eligibles;
 - **Nettoyage pools orphelins**: supprime les pools dont le media n'existe plus.
 
 Le seul reglage de volume expose dans l'interface est **Nombre maximum d'affiches a changer par passage**. `0` signifie aucune limite de nombre, tout en respectant le delai interne entre deux changements du meme media.
@@ -54,7 +54,8 @@ L'interface admin est organisee en deux onglets simples: `Pools` pour rechercher
 - rotation immediate par media ou bibliotheque;
 - purge des orphelins, d'une bibliotheque ou d'un media;
 - action de maintenance **Reparer la liste des pools** pour reconstruire `pools/index.json`;
-- reglage simple du nombre maximum d'affiches changees par passage, bibliotheques, langues et securite.
+- reglage simple du nombre maximum d'affiches changees par passage, bibliotheques, langues et securite;
+- fallback de langue configurable: langue preferee, langue originale detectee, langue fallback, images sans langue et dernier recours toutes langues.
 
 Les anciens dossiers `.poster_pool` du mode `MediaFolders` restent compatibles, mais l'edition par l'interface concerne les pools modernes sous `PluginData`.
 

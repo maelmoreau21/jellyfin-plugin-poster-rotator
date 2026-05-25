@@ -64,7 +64,7 @@ Toutes les routes `PosterRotator/*` doivent rester protegees par `RequiresElevat
 
 Jellyfin doit afficher une categorie `Poster Rotator` dans le planificateur:
 
-- `Rotate posters`: tache quotidienne par defaut, cle stable `PosterRotator.RotatePostersTask`;
+- `Rotate pools`: tache quotidienne par defaut, cle stable `PosterRotator.RotatePostersTask`;
 - `Nettoyage pools orphelins`: tache hebdomadaire par defaut, purge `Scope = "orphans"`.
 
 Les anciennes options de nettoyage automatique restent dans le modele de configuration pour compatibilite, mais ne doivent plus etre exposees dans l'interface.
@@ -77,11 +77,13 @@ L'interface utilise deux onglets: `Pools` et `Parametres`.
 - filtre bibliotheque sous forme de menu deroulant charge depuis `/Library/VirtualFolders`;
 - statistiques compactes;
 - table paginee des pools;
-- panneau de detail avec miniatures;
+- panneau de detail avec miniatures chargees via `ApiKey`;
 - suppression/import d'images;
 - action de maintenance `Reparer la liste des pools` qui appelle `POST /PosterRotator/Pools/RebuildIndex`;
 - l'onglet `Parametres` expose seulement les reglages utiles au quotidien;
 - le champ `Nombre maximum d'affiches a changer par passage` accepte `0` pour aucune limite de nombre;
+- les langues exposent un ordre de fallback configurable: langue originale puis fallback, fallback puis langue originale, originale uniquement, ou fallback uniquement;
+- le dernier recours toutes langues peut etre active separement;
 - ne pas afficher `CadenceProfile`, `PoolSize`, `MinHoursBetweenSwitches`, `MaxProviderLookupsPerRun`, `MaxDownloadsPerRun`, `ProcessingBatchSize`, `AutoCleanupOrphanedPools` ou `CleanupIntervalDays`;
 - ne pas afficher `ManualLibraryRoots`; vider cette liste lors de la sauvegarde depuis l'interface.
 
@@ -98,8 +100,9 @@ Cette version est publiee sur GitHub Packages Jellyfin et necessite une configur
 Commande attendue pour Jellyfin 12:
 
 ```powershell
-dotnet build .\jellyfin-plugin-poster-rotator.sln -c Release -p:JellyfinPackageVersion=12.0.0-20260523021143 -warnaserror:CS0618 --source https://api.nuget.org/v3/index.json --source https://nuget.pkg.github.com/jellyfin/index.json
-dotnet test .\jellyfin-plugin-poster-rotator.sln -c Release -p:JellyfinPackageVersion=12.0.0-20260523021143 -warnaserror:CS0618 --source https://api.nuget.org/v3/index.json --source https://nuget.pkg.github.com/jellyfin/index.json
+dotnet restore .\jellyfin-plugin-poster-rotator.sln -p:JellyfinPackageVersion=12.0.0-20260523021143 --source https://api.nuget.org/v3/index.json --source https://nuget.pkg.github.com/jellyfin/index.json
+dotnet build .\jellyfin-plugin-poster-rotator.sln -c Release --no-restore -p:JellyfinPackageVersion=12.0.0-20260523021143 -warnaserror:CS0618
+dotnet test .\jellyfin-plugin-poster-rotator.sln -c Release --no-restore -p:JellyfinPackageVersion=12.0.0-20260523021143 -warnaserror:CS0618
 ```
 
 Fallback public pour verifier le code sans acces GitHub Packages:

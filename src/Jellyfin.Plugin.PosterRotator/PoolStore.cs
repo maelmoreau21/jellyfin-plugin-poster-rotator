@@ -16,9 +16,11 @@ namespace Jellyfin.Plugin.PosterRotator;
 public sealed class PoolStore
 {
     private const int CurrentSchemaVersion = 1;
+    private const int DeferredIndexFlushThreshold = 500;
     private const string PoolRootDirectoryName = "pools";
     private const string IndexFileName = "index.json";
     private const string PoolFileName = "pool.json";
+    private static readonly TimeSpan DeferredIndexFlushInterval = TimeSpan.FromSeconds(30);
     private static readonly string[] LegacyMapFiles =
     {
         "rotation_state.json",
@@ -36,6 +38,10 @@ public sealed class PoolStore
     private readonly SemaphoreSlim _indexLock = new(1, 1);
     private readonly string? _dataFolderOverride;
     private readonly ILogger<PoolStore>? _log;
+    private PoolIndexDocument? _deferredIndex;
+    private DateTimeOffset _deferredIndexLastFlushUtc;
+    private int _deferredIndexDepth;
+    private int _deferredIndexPendingWrites;
 
     public PoolStore(ILogger<PoolStore> log)
     {
@@ -87,6 +93,27 @@ public sealed class PoolStore
             Directory.CreateDirectory(directory);
 
         return directory;
+    }
+
+    public async Task<IAsyncDisposable> BeginDeferredIndexWritesAsync(CancellationToken cancellationToken)
+    {
+        await _indexLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (_deferredIndexDepth == 0)
+            {
+                _deferredIndex = await LoadIndexAsync(cancellationToken).ConfigureAwait(false);
+                _deferredIndexPendingWrites = 0;
+                _deferredIndexLastFlushUtc = DateTimeOffset.UtcNow;
+            }
+
+            _deferredIndexDepth++;
+            return new DeferredIndexScope(this);
+        }
+        finally
+        {
+            _indexLock.Release();
+        }
     }
 
     public async Task<PoolMetadata> EnsurePoolAsync(PoolItemSnapshot item, string poolDir, CancellationToken cancellationToken)
@@ -366,6 +393,20 @@ public sealed class PoolStore
     public async Task<PoolDiagnostics> GetDiagnosticsAsync(Func<Guid, bool> itemExists, CancellationToken cancellationToken)
     {
         var index = await LoadIndexAsync(cancellationToken).ConfigureAwait(false);
+        return BuildDiagnostics(index, itemExists, cancellationToken);
+    }
+
+    public async Task<PoolDiagnostics> GetDiagnosticsAsync(IReadOnlySet<Guid> existingItemIds, CancellationToken cancellationToken)
+    {
+        var index = await LoadIndexAsync(cancellationToken).ConfigureAwait(false);
+        return BuildDiagnostics(index, itemId => existingItemIds.Contains(itemId), cancellationToken);
+    }
+
+    private static PoolDiagnostics BuildDiagnostics(
+        PoolIndexDocument index,
+        Func<Guid, bool> itemExists,
+        CancellationToken cancellationToken)
+    {
         var orphanCount = 0;
         var errors = new List<PoolErrorInfo>();
 
@@ -619,7 +660,7 @@ public sealed class PoolStore
         await _indexLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var index = await LoadIndexAsync(cancellationToken).ConfigureAwait(false);
+            var index = _deferredIndex ?? await LoadIndexAsync(cancellationToken).ConfigureAwait(false);
             var entry = CreateIndexEntry(metadata);
             var existing = index.Pools.FindIndex(pool => pool.ItemId.Equals(entry.ItemId, StringComparison.OrdinalIgnoreCase));
             if (existing >= 0)
@@ -627,7 +668,47 @@ public sealed class PoolStore
             else
                 index.Pools.Add(entry);
 
+            if (_deferredIndex != null)
+            {
+                _deferredIndexPendingWrites++;
+                var now = DateTimeOffset.UtcNow;
+                if (_deferredIndexPendingWrites >= DeferredIndexFlushThreshold
+                    || now - _deferredIndexLastFlushUtc >= DeferredIndexFlushInterval)
+                {
+                    await SaveIndexUnsafeAsync(_deferredIndex, cancellationToken).ConfigureAwait(false);
+                    _deferredIndexPendingWrites = 0;
+                    _deferredIndexLastFlushUtc = now;
+                }
+
+                return;
+            }
+
             await SaveIndexUnsafeAsync(index, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _indexLock.Release();
+        }
+    }
+
+    private async ValueTask EndDeferredIndexWritesAsync()
+    {
+        await _indexLock.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+        try
+        {
+            if (_deferredIndexDepth <= 0)
+                return;
+
+            _deferredIndexDepth--;
+            if (_deferredIndexDepth > 0)
+                return;
+
+            if (_deferredIndex != null)
+                await SaveIndexUnsafeAsync(_deferredIndex, CancellationToken.None).ConfigureAwait(false);
+
+            _deferredIndex = null;
+            _deferredIndexPendingWrites = 0;
+            _deferredIndexLastFlushUtc = default;
         }
         finally
         {
@@ -946,6 +1027,26 @@ public sealed class PoolStore
 
             _disposed = true;
             _semaphore.Release();
+        }
+    }
+
+    private sealed class DeferredIndexScope : IAsyncDisposable
+    {
+        private readonly PoolStore _store;
+        private bool _disposed;
+
+        public DeferredIndexScope(PoolStore store)
+        {
+            _store = store;
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            if (_disposed)
+                return;
+
+            _disposed = true;
+            await _store.EndDeferredIndexWritesAsync().ConfigureAwait(false);
         }
     }
 }

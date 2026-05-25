@@ -71,11 +71,12 @@ public class PurgeController : ControllerBase
         return pool == null ? NotFound() : Ok(pool);
     }
 
-    [HttpGet("Pools/{itemId:guid}/Images/{fileName}")]
+    [HttpGet("Pools/{itemId:guid}/Images/{*fileName}")]
     public async Task<IActionResult> GetPoolImage(Guid itemId, string fileName, CancellationToken cancellationToken)
     {
         try
         {
+            fileName = Uri.UnescapeDataString(fileName ?? string.Empty);
             var image = await _service.GetPoolImageAsync(itemId, fileName, cancellationToken).ConfigureAwait(false);
             Response.Headers["Cache-Control"] = "private, max-age=60";
             return File(System.IO.File.OpenRead(image.Path), image.ContentType);
@@ -130,7 +131,7 @@ public class PurgeController : ControllerBase
         }
     }
 
-    [HttpDelete("Pools/{itemId:guid}/Images/{fileName}")]
+    [HttpDelete("Pools/{itemId:guid}/Images/{*fileName}")]
     public async Task<ActionResult<PoolImageMetadata>> DeletePoolImage(
         Guid itemId,
         string fileName,
@@ -138,6 +139,7 @@ public class PurgeController : ControllerBase
     {
         try
         {
+            fileName = Uri.UnescapeDataString(fileName ?? string.Empty);
             var result = await _service.DeletePoolImageAsync(itemId, fileName, cancellationToken).ConfigureAwait(false);
             return Ok(result);
         }

@@ -18,7 +18,7 @@ public class PosterRotationTask : IScheduledTask
         _logger = logger;
     }
 
-    public string Name => "Rotate posters";
+    public string Name => "Rotate pools";
     public string Description => "Fills poster pools when needed, then rotates eligible posters from the local pools.";
     public string Category => "Poster Rotator";
     public string Key => "PosterRotator.RotatePostersTask";

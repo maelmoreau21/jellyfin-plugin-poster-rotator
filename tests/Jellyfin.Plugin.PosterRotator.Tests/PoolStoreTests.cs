@@ -173,6 +173,34 @@ public sealed class PoolStoreTests
     }
 
     [Fact]
+    public async Task DeferredIndexWrites_FlushOnlyWhenScopeCompletes()
+    {
+        var root = CreateTempRoot();
+        var itemId = Guid.NewGuid();
+
+        try
+        {
+            var store = new PoolStore(root);
+            await using (var _ = await store.BeginDeferredIndexWritesAsync(CancellationToken.None))
+            {
+                await CreatePool(store, root, itemId, "Movie", "Films");
+
+                var beforeFlush = await store.ListPoolsAsync(new PoolListQuery(), CancellationToken.None);
+                Assert.Equal(0, beforeFlush.Total);
+                Assert.False(File.Exists(Path.Combine(root, "pools", "index.json")));
+            }
+
+            var afterFlush = await store.ListPoolsAsync(new PoolListQuery(), CancellationToken.None);
+            Assert.Equal(1, afterFlush.Total);
+            Assert.Equal(itemId.ToString(), afterFlush.Items.Single().ItemId);
+        }
+        finally
+        {
+            DeleteTempRoot(root);
+        }
+    }
+
+    [Fact]
     public async Task ImportImageAsync_RejectsUnsupportedUpload()
     {
         var root = CreateTempRoot();

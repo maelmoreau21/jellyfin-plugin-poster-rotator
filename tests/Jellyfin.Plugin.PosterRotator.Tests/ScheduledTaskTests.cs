@@ -11,7 +11,7 @@ public sealed class ScheduledTaskTests
     {
         var task = new PosterRotationTask(new FakePosterRotatorService(), NullLogger<PosterRotationTask>.Instance);
 
-        Assert.Equal("Rotate posters", task.Name);
+        Assert.Equal("Rotate pools", task.Name);
         Assert.Equal("Poster Rotator", task.Category);
         Assert.Equal("PosterRotator.RotatePostersTask", task.Key);
         Assert.Contains(task.GetDefaultTriggers(), trigger => trigger.Type == TaskTriggerInfoType.DailyTrigger);

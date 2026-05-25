@@ -22,12 +22,16 @@ public class PosterRotatorService : IPosterRotatorService
 {
     private const string LegacyPoolDirectoryName = ".poster_pool";
     private const string PluginPoolDirectoryName = "pools";
+    private static readonly TimeSpan DiagnosticsCacheDuration = TimeSpan.FromSeconds(15);
     private readonly SemaphoreSlim _operationLock = new(1, 1);
+    private readonly SemaphoreSlim _diagnosticsLock = new(1, 1);
     private readonly ILibraryManager _library;
     private readonly IProviderManager _providerManager;
     private readonly IHttpClientFactory _httpFactory;
     private readonly PoolStore _poolStore;
     private readonly ILogger<PosterRotatorService> _log;
+    private PoolDiagnostics? _cachedDiagnostics;
+    private DateTimeOffset _cachedDiagnosticsUtc;
 
     public PosterRotatorService(
         ILibraryManager library,
@@ -48,6 +52,7 @@ public class PosterRotatorService : IPosterRotatorService
         await _operationLock.WaitAsync(ct).ConfigureAwait(false);
         try
         {
+            await using var indexBatch = await _poolStore.BeginDeferredIndexWritesAsync(ct).ConfigureAwait(false);
             await RunInternalAsync(cfg, progress, ct).ConfigureAwait(false);
         }
         finally
@@ -71,20 +76,6 @@ public class PosterRotatorService : IPosterRotatorService
         if (cfg.EnableSeasonPosters) kinds.Add(BaseItemKind.Season);
         if (cfg.EnableEpisodePosters) kinds.Add(BaseItemKind.Episode);
 
-        var query = new InternalItemsQuery
-        {
-            IncludeItemTypes = kinds.Distinct().ToArray(),
-            Recursive = true
-        };
-
-        var itemIds = _library.GetItemIds(query).ToArray();
-        ShuffleItemIds(itemIds);
-        if (itemIds.Length == 0)
-        {
-            _log.LogWarning("PosterRotator: no items returned by library manager; aborting run.");
-            return;
-        }
-
         var libraryMap = GetLibraryRootPaths();
         var allLibraryRoots = libraryMap
             .SelectMany(kv => kv.Value)
@@ -98,6 +89,23 @@ public class PosterRotatorService : IPosterRotatorService
 
         var selection = ResolveSelectedRoots(cfg, configuredNames, libraryMap, allLibraryRoots);
         var hasSelection = selection.Paths.Count > 0 || selection.LibraryNames.Count > 0;
+        var query = new InternalItemsQuery
+        {
+            IncludeItemTypes = kinds.Distinct().ToArray(),
+            Recursive = true
+        };
+        var topParentIds = GetSelectedLibraryTopParentIds(selection.LibraryNames);
+        if (topParentIds.Count > 0)
+            query.TopParentIds = topParentIds.ToArray();
+
+        var itemIds = _library.GetItemIds(query).ToArray();
+        ShuffleItemIds(itemIds);
+        if (itemIds.Length == 0)
+        {
+            _log.LogWarning("PosterRotator: no items returned by library manager; aborting run.");
+            return;
+        }
+
         var total = itemIds.Length;
         var done = 0;
         var batchSize = NormalizeProcessingBatchSize(cfg.ProcessingBatchSize);
@@ -277,6 +285,8 @@ public class PosterRotatorService : IPosterRotatorService
         public HashSet<string> LibraryNames { get; } = new(StringComparer.OrdinalIgnoreCase);
     }
 
+    internal sealed record RemoteImageDownloadCandidate(RemoteImageInfo Image, string? Language);
+
     internal sealed class RotationRunBudget
     {
         private readonly int _maxRotations;
@@ -341,6 +351,9 @@ public class PosterRotatorService : IPosterRotatorService
 
     internal static int NormalizeRotationRunLimit(int value, int fallback) =>
         value == 0 ? int.MaxValue : NormalizeRunLimit(value, fallback);
+
+    internal static int NormalizePreferredLanguageLimit(int value) =>
+        Math.Clamp(value < 0 ? 0 : value, 0, 50);
 
     internal static bool IsRotationDue(DateTimeOffset? lastRotatedUtc, DateTimeOffset now, int minHoursBetweenSwitches) =>
         !lastRotatedUtc.HasValue || now - lastRotatedUtc.Value >= TimeSpan.FromHours(NormalizeMinHours(minHoursBetweenSwitches));
@@ -443,17 +456,31 @@ public class PosterRotatorService : IPosterRotatorService
 
         try
         {
-            Directory.CreateDirectory(poolDir);
-
-            if (storageMode == PoolStorageMode.PluginData && !string.IsNullOrEmpty(legacyPoolDir))
-                MigrateLegacyPoolIfNeeded(legacyPoolDir, poolDir);
-
             var snapshot = CreateSnapshot(item, libraryMap);
-            PoolMetadata? metadata = null;
-            if (storageMode == PoolStorageMode.PluginData)
-                metadata = await _poolStore.EnsurePoolAsync(snapshot, poolDir, ct).ConfigureAwait(false);
+            var hasPoolDirectory = Directory.Exists(poolDir);
+            if (storageMode == PoolStorageMode.MediaFolders)
+            {
+                Directory.CreateDirectory(poolDir);
+                hasPoolDirectory = true;
+            }
 
-            var local = LoadLocalPoolFiles(poolDir);
+            if (storageMode == PoolStorageMode.PluginData
+                && !string.IsNullOrEmpty(legacyPoolDir)
+                && Directory.Exists(legacyPoolDir))
+            {
+                MigrateLegacyPoolIfNeeded(legacyPoolDir, poolDir);
+                hasPoolDirectory = Directory.Exists(poolDir);
+            }
+
+            var local = hasPoolDirectory ? LoadLocalPoolFiles(poolDir) : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            PoolMetadata? metadata = null;
+            if (storageMode == PoolStorageMode.PluginData
+                && hasPoolDirectory
+                && (local.Count > 0 || File.Exists(Path.Combine(poolDir, "pool.json"))))
+            {
+                metadata = await _poolStore.EnsurePoolAsync(snapshot, poolDir, ct).ConfigureAwait(false);
+            }
+
             var lockFile = Path.Combine(poolDir, "pool.lock");
             var poolIsLocked = File.Exists(lockFile);
             var statePath = Path.Combine(poolDir, "rotation_state.json");
@@ -486,6 +513,10 @@ public class PosterRotatorService : IPosterRotatorService
             var topUpCount = 0;
             if (!poolIsLocked && local.Count < poolSize && allowTopUp)
             {
+                var createdPoolForTopUp = !Directory.Exists(poolDir);
+                if (createdPoolForTopUp)
+                    Directory.CreateDirectory(poolDir);
+
                 var added = await TryTopUpFromProvidersAsync(
                     item,
                     poolDir,
@@ -497,6 +528,15 @@ public class PosterRotatorService : IPosterRotatorService
                 topUpCount = added.Count;
                 foreach (var file in added)
                     local.Add(file);
+
+                if (createdPoolForTopUp && added.Count == 0 && IsDirectoryEmpty(poolDir))
+                {
+                    TryDeleteDirectory(poolDir);
+                }
+                else if (metadata == null && storageMode == PoolStorageMode.PluginData && Directory.Exists(poolDir))
+                {
+                    metadata = await _poolStore.GetPoolAsync(item.Id, reconcileFiles: true, ct).ConfigureAwait(false);
+                }
 
                 if (cfg.LockImagesAfterFill && local.Count >= poolSize)
                 {
@@ -514,12 +554,20 @@ public class PosterRotatorService : IPosterRotatorService
 
             if (local.Count == 0)
             {
+                var createdPoolForPrimary = !Directory.Exists(poolDir);
+                if (createdPoolForPrimary)
+                    Directory.CreateDirectory(poolDir);
+
                 var primaryPath = TryCopyCurrentPrimaryToPool(item, poolDir, IsMixedFolder(item));
                 if (primaryPath != null)
                 {
                     local.Add(primaryPath);
                     if (storageMode == PoolStorageMode.PluginData)
                         await RecordExistingImageAsync(snapshot, poolDir, primaryPath, "current-primary", null, ct).ConfigureAwait(false);
+                }
+                else if (createdPoolForPrimary && IsDirectoryEmpty(poolDir))
+                {
+                    TryDeleteDirectory(poolDir);
                 }
             }
 
@@ -708,38 +756,20 @@ public class PosterRotatorService : IPosterRotatorService
 
             if (cfg.EnableLanguageFilter)
             {
-                var preferredLanguage = (cfg.PreferredLanguage ?? "fr").ToLowerInvariant();
-                var fallbackLanguage = cfg.UseOriginalLanguageAsFallback
-                    ? (GetOriginalLanguage(item) ?? string.Empty).ToLowerInvariant()
-                    : (cfg.FallbackLanguage ?? string.Empty).ToLowerInvariant();
+                var preferredLanguage = NormalizeLanguageCode(cfg.PreferredLanguage) ?? "fr";
                 var remainingPreferredSlots = Math.Max(
                     0,
-                    cfg.MaxPreferredLanguageImages - await CountLanguageImagesInPool(poolDir, preferredLanguage).ConfigureAwait(false));
+                    NormalizePreferredLanguageLimit(cfg.MaxPreferredLanguageImages)
+                    - await CountLanguageImagesInPool(poolDir, preferredLanguage).ConfigureAwait(false));
 
-                var preferredImages = imageList
-                    .Where(info => info.Type == ImageType.Primary)
-                    .Where(info => !string.IsNullOrEmpty(info.Language)
-                        && info.Language.Equals(preferredLanguage, StringComparison.OrdinalIgnoreCase))
-                    .ToList();
-
-                var fallbackImages = imageList
-                    .Where(info => info.Type == ImageType.Primary)
-                    .Where(info => string.IsNullOrEmpty(fallbackLanguage)
-                        || (!string.IsNullOrEmpty(info.Language) && info.Language.Equals(fallbackLanguage, StringComparison.OrdinalIgnoreCase))
-                        || (cfg.IncludeUnknownLanguage && string.IsNullOrEmpty(info.Language)))
-                    .Where(info => !preferredImages.Contains(info))
-                    .ToList();
-
-                foreach (var info in preferredImages.Take(remainingPreferredSlots))
+                foreach (var candidate in SelectRemoteImagesForLanguage(
+                    imageList,
+                    cfg,
+                    GetOriginalLanguage(item),
+                    remainingPreferredSlots))
                 {
                     if (added.Count >= needed) return;
-                    await TryDownloadRemote(info, item, poolDir, preferredLanguage, knownUrls, urlMapPath).ConfigureAwait(false);
-                }
-
-                foreach (var info in fallbackImages)
-                {
-                    if (added.Count >= needed) return;
-                    await TryDownloadRemote(info, item, poolDir, info.Language ?? "unknown", knownUrls, urlMapPath).ConfigureAwait(false);
+                    await TryDownloadRemote(candidate.Image, item, poolDir, candidate.Language, knownUrls, urlMapPath).ConfigureAwait(false);
                 }
             }
             else
@@ -994,12 +1024,130 @@ public class PosterRotatorService : IPosterRotatorService
         }
     }
 
+    internal static IReadOnlyList<RemoteImageDownloadCandidate> SelectRemoteImagesForLanguage(
+        IEnumerable<RemoteImageInfo> images,
+        Configuration cfg,
+        string? originalLanguage,
+        int remainingPreferredSlots)
+    {
+        var ordered = images.ToList();
+        var result = new List<RemoteImageDownloadCandidate>();
+        var seenUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var preferredLanguage = NormalizeLanguageCode(cfg.PreferredLanguage) ?? "fr";
+
+        void AddCandidates(IEnumerable<RemoteImageInfo> candidates, string? languageOverride, int? take = null)
+        {
+            var addedForGroup = 0;
+            foreach (var image in candidates)
+            {
+                if (take.HasValue && addedForGroup >= take.Value)
+                    return;
+
+                if (string.IsNullOrWhiteSpace(image.Url) || !seenUrls.Add(image.Url))
+                    continue;
+
+                result.Add(new RemoteImageDownloadCandidate(image, languageOverride ?? NormalizeLanguageCode(image.Language) ?? "unknown"));
+                addedForGroup++;
+            }
+        }
+
+        var primaryImages = ordered.Where(image => image.Type == ImageType.Primary).ToList();
+        if (remainingPreferredSlots > 0)
+        {
+            AddCandidates(
+                primaryImages.Where(image => LanguageEquals(image.Language, preferredLanguage)),
+                preferredLanguage,
+                remainingPreferredSlots);
+        }
+
+        foreach (var fallbackLanguage in GetFallbackLanguageOrder(cfg, originalLanguage, preferredLanguage))
+        {
+            AddCandidates(
+                primaryImages.Where(image => LanguageEquals(image.Language, fallbackLanguage)),
+                fallbackLanguage);
+        }
+
+        if (cfg.IncludeUnknownLanguage)
+        {
+            AddCandidates(
+                primaryImages.Where(image => NormalizeLanguageCode(image.Language) == null),
+                "unknown");
+        }
+
+        if (cfg.AllowAnyLanguageFallback)
+        {
+            AddCandidates(
+                ordered.Where(image => image.Type is ImageType.Primary or ImageType.Thumb or ImageType.Backdrop),
+                languageOverride: null);
+        }
+
+        return result;
+    }
+
     internal static IReadOnlyList<RemoteImageInfo> OrderRemoteImagesForDownload(IEnumerable<RemoteImageInfo> images) =>
         images
             .OrderByDescending(info => PreferredProviderScore(info.ProviderName ?? string.Empty))
             .ThenBy(info => info.ProviderName ?? string.Empty, StringComparer.OrdinalIgnoreCase)
             .ThenBy(info => ImageTypePriority(info.Type))
             .ToList();
+
+    internal static string? NormalizeLanguageCode(string? language)
+    {
+        if (string.IsNullOrWhiteSpace(language))
+            return null;
+
+        var normalized = language.Trim().Replace('_', '-').ToLowerInvariant();
+        var separator = normalized.IndexOf('-', StringComparison.Ordinal);
+        if (separator > 0)
+            normalized = normalized[..separator];
+
+        return normalized.Length is >= 2 and <= 3 ? normalized : null;
+    }
+
+    private static bool LanguageEquals(string? value, string language) =>
+        string.Equals(NormalizeLanguageCode(value), language, StringComparison.OrdinalIgnoreCase);
+
+    private static IReadOnlyList<string> GetFallbackLanguageOrder(
+        Configuration cfg,
+        string? originalLanguage,
+        string preferredLanguage)
+    {
+        var original = NormalizeLanguageCode(originalLanguage);
+        var configured = NormalizeLanguageCode(cfg.FallbackLanguage);
+        var result = new List<string>(capacity: 2);
+
+        void Add(string? language)
+        {
+            if (string.IsNullOrWhiteSpace(language)
+                || language.Equals(preferredLanguage, StringComparison.OrdinalIgnoreCase)
+                || result.Contains(language, StringComparer.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            result.Add(language);
+        }
+
+        switch (cfg.FallbackMode)
+        {
+            case LanguageFallbackMode.ConfiguredThenOriginal:
+                Add(configured);
+                Add(original);
+                break;
+            case LanguageFallbackMode.OriginalOnly:
+                Add(original);
+                break;
+            case LanguageFallbackMode.ConfiguredOnly:
+                Add(configured);
+                break;
+            default:
+                Add(original);
+                Add(configured);
+                break;
+        }
+
+        return result;
+    }
 
     private static int ImageTypePriority(ImageType type) =>
         type switch
@@ -1020,6 +1168,10 @@ public class PosterRotatorService : IPosterRotatorService
     {
         try
         {
+            var originalLanguage = NormalizeLanguageCode(TryGetStringProperty(item, "OriginalLanguage"));
+            if (!string.IsNullOrWhiteSpace(originalLanguage))
+                return originalLanguage;
+
             var originalTitle = item.OriginalTitle;
             var name = item.Name;
 
@@ -1061,7 +1213,19 @@ public class PosterRotatorService : IPosterRotatorService
             _log.LogDebug(ex, "PosterRotator: failed to detect original language for {Item}", item.Name);
         }
 
-        return "en";
+        return null;
+    }
+
+    private static string? TryGetStringProperty(object instance, string propertyName)
+    {
+        try
+        {
+            return instance.GetType().GetProperty(propertyName)?.GetValue(instance) as string;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static string? DetectLanguageFromTitle(string title)
@@ -1085,7 +1249,7 @@ public class PosterRotatorService : IPosterRotatorService
             if (c >= 0x0E00 && c <= 0x0E7F) return "th";
         }
 
-        return "en";
+        return null;
     }
 
     private static bool IsMixedFolder(BaseItem item)
@@ -1235,6 +1399,28 @@ public class PosterRotatorService : IPosterRotatorService
         }
     }
 
+    private List<Guid> GetSelectedLibraryTopParentIds(IReadOnlyCollection<string> selectedLibraryNames)
+    {
+        if (selectedLibraryNames.Count == 0)
+            return new List<Guid>();
+
+        try
+        {
+            var selected = selectedLibraryNames.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            return _library.GetVirtualFolders()
+                .Where(folder => !string.IsNullOrWhiteSpace(folder.Name) && selected.Contains(folder.Name))
+                .Select(folder => Guid.TryParse(folder.ItemId, out var id) ? id : Guid.Empty)
+                .Where(id => id != Guid.Empty)
+                .Distinct()
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            _log.LogDebug(ex, "PosterRotator: unable to resolve selected library parent ids.");
+            return new List<Guid>();
+        }
+    }
+
     private void QueueLibraryScanIfRequested(Configuration cfg, int rotatedCount)
     {
         if (!cfg.TriggerLibraryScanAfterRotation || rotatedCount <= 0)
@@ -1251,8 +1437,30 @@ public class PosterRotatorService : IPosterRotatorService
         }
     }
 
-    public Task<PoolDiagnostics> GetDiagnosticsAsync(CancellationToken cancellationToken) =>
-        _poolStore.GetDiagnosticsAsync(ItemExists, cancellationToken);
+    public async Task<PoolDiagnostics> GetDiagnosticsAsync(CancellationToken cancellationToken)
+    {
+        var now = DateTimeOffset.UtcNow;
+        if (_cachedDiagnostics != null && now - _cachedDiagnosticsUtc < DiagnosticsCacheDuration)
+            return _cachedDiagnostics;
+
+        await _diagnosticsLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            now = DateTimeOffset.UtcNow;
+            if (_cachedDiagnostics != null && now - _cachedDiagnosticsUtc < DiagnosticsCacheDuration)
+                return _cachedDiagnostics;
+
+            var existingIds = _library.GetItemIds(new InternalItemsQuery { Recursive = true }).ToHashSet();
+            var diagnostics = await _poolStore.GetDiagnosticsAsync(existingIds, cancellationToken).ConfigureAwait(false);
+            _cachedDiagnostics = diagnostics;
+            _cachedDiagnosticsUtc = now;
+            return diagnostics;
+        }
+        finally
+        {
+            _diagnosticsLock.Release();
+        }
+    }
 
     public Task<PoolListResponse> ListPoolsAsync(PoolListQuery query, CancellationToken cancellationToken) =>
         _poolStore.ListPoolsAsync(query, cancellationToken);
@@ -1607,6 +1815,30 @@ public class PosterRotatorService : IPosterRotatorService
         }
         catch
         {
+        }
+    }
+
+    private static void TryDeleteDirectory(string path)
+    {
+        try
+        {
+            if (Directory.Exists(path))
+                Directory.Delete(path, recursive: false);
+        }
+        catch
+        {
+        }
+    }
+
+    private static bool IsDirectoryEmpty(string path)
+    {
+        try
+        {
+            return Directory.Exists(path) && !Directory.EnumerateFileSystemEntries(path).Any();
+        }
+        catch
+        {
+            return false;
         }
     }
 
