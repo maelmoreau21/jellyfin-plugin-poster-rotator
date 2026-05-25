@@ -21,6 +21,7 @@ namespace Jellyfin.Plugin.PosterRotator;
 public class PosterRotatorService : IPosterRotatorService
 {
     private const string LegacyPoolDirectoryName = ".poster_pool";
+    private const int MaxRemoteImageRedirects = 5;
     private static readonly TimeSpan DiagnosticsCacheDuration = TimeSpan.FromSeconds(15);
     private readonly SemaphoreSlim _operationLock = new(1, 1);
     private readonly SemaphoreSlim _diagnosticsLock = new(1, 1);
@@ -31,6 +32,12 @@ public class PosterRotatorService : IPosterRotatorService
     private readonly ILogger<PosterRotatorService> _log;
     private PoolDiagnostics? _cachedDiagnostics;
     private DateTimeOffset _cachedDiagnosticsUtc;
+
+    private enum PoolProcessingMode
+    {
+        RotateOnly,
+        DownloadOnly
+    }
 
     public PosterRotatorService(
         ILibraryManager library,
@@ -46,13 +53,16 @@ public class PosterRotatorService : IPosterRotatorService
         _log = log;
     }
 
-    public async Task RunAsync(Configuration cfg, IProgress<double>? progress, CancellationToken ct)
+    public Task RunAsync(Configuration cfg, IProgress<double>? progress, CancellationToken ct) =>
+        RunRotationAsync(cfg, progress, ct);
+
+    public async Task RunRotationAsync(Configuration cfg, IProgress<double>? progress, CancellationToken ct)
     {
         await _operationLock.WaitAsync(ct).ConfigureAwait(false);
         try
         {
             await using var indexBatch = await _poolStore.BeginDeferredIndexWritesAsync(ct).ConfigureAwait(false);
-            await RunInternalAsync(cfg, progress, ct).ConfigureAwait(false);
+            await RunRotationInternalAsync(cfg, progress, ct).ConfigureAwait(false);
         }
         finally
         {
@@ -60,40 +70,142 @@ public class PosterRotatorService : IPosterRotatorService
         }
     }
 
-    private async Task RunInternalAsync(Configuration cfg, IProgress<double>? progress, CancellationToken ct)
+    public async Task DownloadMissingPoolsAsync(Configuration cfg, IProgress<double>? progress, CancellationToken ct)
     {
-        var sw = Stopwatch.StartNew();
-        int rotatedCount = 0, skippedCount = 0, errorCount = 0, topUpCount = 0;
-
-        var kinds = new List<BaseItemKind>
+        await _operationLock.WaitAsync(ct).ConfigureAwait(false);
+        try
         {
-            BaseItemKind.Movie,
-            BaseItemKind.Series,
-            BaseItemKind.BoxSet
-        };
+            await using var indexBatch = await _poolStore.BeginDeferredIndexWritesAsync(ct).ConfigureAwait(false);
+            await DownloadMissingPoolsInternalAsync(cfg, progress, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _operationLock.Release();
+        }
+    }
 
-        if (cfg.EnableSeasonPosters) kinds.Add(BaseItemKind.Season);
-        if (cfg.EnableEpisodePosters) kinds.Add(BaseItemKind.Episode);
-
+    private (Dictionary<string, List<string>> LibraryMap, SelectedRoots Selection, List<BaseItemKind> Kinds) ResolveRunScope(Configuration cfg)
+    {
+        var kinds = GetRotationKinds(cfg);
         var libraryMap = GetLibraryRootPaths();
         var allLibraryRoots = libraryMap
             .SelectMany(kv => kv.Value)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
-        var configuredNames = new List<string>();
-        if (cfg.LibraryRules is { Count: > 0 })
-            configuredNames.AddRange(cfg.LibraryRules.Where(rule => rule.Enabled).Select(rule => rule.Name));
-        else if (cfg.Libraries is { Count: > 0 })
-            configuredNames.AddRange(cfg.Libraries);
-
+        var configuredNames = GetConfiguredLibraryNames(cfg);
         var selection = ResolveSelectedRoots(cfg, configuredNames, libraryMap, allLibraryRoots);
-        var hasSelection = selection.Paths.Count > 0 || selection.LibraryNames.Count > 0;
+        return (libraryMap, selection, kinds);
+    }
+
+    private async Task RunRotationInternalAsync(Configuration cfg, IProgress<double>? progress, CancellationToken ct)
+    {
+        var sw = Stopwatch.StartNew();
+        int rotatedCount = 0, skippedCount = 0, errorCount = 0;
+
+        var scope = ResolveRunScope(cfg);
+        var entries = await _poolStore.GetIndexEntriesAsync(ct).ConfigureAwait(false);
+        var candidates = entries
+            .Where(entry => entry.ImageCount > 0 && PoolEntryMatchesSelection(entry, scope.Selection, scope.LibraryMap))
+            .ToList();
+        ShufflePoolEntries(candidates);
+
+        if (candidates.Count == 0)
+        {
+            _log.LogWarning("PosterRotator: no indexed pools with images found; rotation run has nothing to do.");
+            progress?.Report(100);
+            return;
+        }
+
+        var total = candidates.Count;
+        var done = 0;
+        var batchSize = NormalizeProcessingBatchSize(cfg.ProcessingBatchSize);
+        var budget = new RotationRunBudget(cfg);
+
+        foreach (var batch in candidates.Chunk(batchSize))
+        {
+            foreach (var entry in batch)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                if (!budget.HasRotationSlots)
+                {
+                    skippedCount += Math.Max(0, total - done);
+                    progress?.Report(100);
+                    break;
+                }
+
+                if (!Guid.TryParse(entry.ItemId, out var itemId))
+                {
+                    skippedCount++;
+                    progress?.Report(++done * 100.0 / Math.Max(1, total));
+                    continue;
+                }
+
+                var item = TryGetItemById(itemId);
+                if (item == null)
+                {
+                    skippedCount++;
+                    progress?.Report(++done * 100.0 / Math.Max(1, total));
+                    continue;
+                }
+
+                try
+                {
+                    var result = await ProcessItemAsync(
+                        item,
+                        cfg,
+                        ct,
+                        scope.LibraryMap,
+                        budget,
+                        PoolProcessingMode.RotateOnly,
+                        forcePluginDataStorage: true).ConfigureAwait(false);
+                    if (result.Rotated)
+                        rotatedCount++;
+                    else
+                        skippedCount++;
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    errorCount++;
+                    _log.LogWarning(ex, "PosterRotator: error rotating \"{Name}\" ({Path})", item.Name, item.Path);
+                }
+
+                progress?.Report(++done * 100.0 / Math.Max(1, total));
+            }
+
+            if (!budget.HasRotationSlots)
+                break;
+        }
+
+        QueueLibraryScanIfRequested(cfg, rotatedCount);
+
+        sw.Stop();
+        _log.LogInformation(
+            "PosterRotator: rotation complete - {Rotated}/{Total} rotated, {Skipped} skipped, {Errors} errors, took {Elapsed:0.0}s",
+            rotatedCount,
+            total,
+            skippedCount,
+            errorCount,
+            sw.Elapsed.TotalSeconds);
+    }
+
+    private async Task DownloadMissingPoolsInternalAsync(Configuration cfg, IProgress<double>? progress, CancellationToken ct)
+    {
+        var sw = Stopwatch.StartNew();
+        int processedCount = 0, skippedCount = 0, errorCount = 0, topUpCount = 0;
+
+        var scope = ResolveRunScope(cfg);
+        var hasSelection = scope.Selection.Paths.Count > 0 || scope.Selection.LibraryNames.Count > 0;
         var query = new InternalItemsQuery
         {
-            IncludeItemTypes = kinds.Distinct().ToArray(),
+            IncludeItemTypes = scope.Kinds.Distinct().ToArray(),
             Recursive = true
         };
-        var topParentIds = GetSelectedLibraryTopParentIds(selection.LibraryNames);
+        var topParentIds = GetSelectedLibraryTopParentIds(scope.Selection.LibraryNames);
         if (topParentIds.Count > 0)
             query.TopParentIds = topParentIds.ToArray();
 
@@ -108,7 +220,9 @@ public class PosterRotatorService : IPosterRotatorService
         var total = itemIds.Length;
         var done = 0;
         var batchSize = NormalizeProcessingBatchSize(cfg.ProcessingBatchSize);
+        var poolSize = NormalizePoolSize(cfg.PoolSize);
         var budget = new RotationRunBudget(cfg);
+        var indexedCounts = await GetIndexedImageCountsAsync(ct).ConfigureAwait(false);
 
         foreach (var batch in itemIds.Chunk(batchSize))
         {
@@ -116,11 +230,18 @@ public class PosterRotatorService : IPosterRotatorService
             {
                 ct.ThrowIfCancellationRequested();
 
-                if (!budget.HasWorkRemaining)
+                if (!budget.HasDownloadWorkRemaining)
                 {
                     skippedCount += Math.Max(0, total - done);
                     progress?.Report(100);
                     break;
+                }
+
+                if (indexedCounts.TryGetValue(itemId, out var indexedCount) && indexedCount >= poolSize)
+                {
+                    skippedCount++;
+                    progress?.Report(++done * 100.0 / Math.Max(1, total));
+                    continue;
                 }
 
                 var item = TryGetItemById(itemId);
@@ -131,7 +252,7 @@ public class PosterRotatorService : IPosterRotatorService
                     continue;
                 }
 
-                if (hasSelection && !MatchesSelection(item.Path ?? string.Empty, selection, libraryMap))
+                if (hasSelection && !MatchesSelection(item.Path ?? string.Empty, scope.Selection, scope.LibraryMap))
                 {
                     skippedCount++;
                     progress?.Report(++done * 100.0 / Math.Max(1, total));
@@ -140,12 +261,15 @@ public class PosterRotatorService : IPosterRotatorService
 
                 try
                 {
-                    var result = await ProcessItemAsync(item, cfg, ct, libraryMap, budget).ConfigureAwait(false);
-                    if (result.Rotated)
-                    {
-                        rotatedCount++;
-                    }
-
+                    var result = await ProcessItemAsync(
+                        item,
+                        cfg,
+                        ct,
+                        scope.LibraryMap,
+                        budget,
+                        PoolProcessingMode.DownloadOnly,
+                        forcePluginDataStorage: true).ConfigureAwait(false);
+                    processedCount++;
                     topUpCount += result.TopUps;
                 }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -155,27 +279,66 @@ public class PosterRotatorService : IPosterRotatorService
                 catch (Exception ex)
                 {
                     errorCount++;
-                    _log.LogWarning(ex, "PosterRotator: error processing \"{Name}\" ({Path})", item.Name, item.Path);
+                    _log.LogWarning(ex, "PosterRotator: error downloading pool images for \"{Name}\" ({Path})", item.Name, item.Path);
                 }
 
                 progress?.Report(++done * 100.0 / Math.Max(1, total));
             }
 
-            if (!budget.HasWorkRemaining)
+            if (!budget.HasDownloadWorkRemaining)
                 break;
         }
 
-        QueueLibraryScanIfRequested(cfg, rotatedCount);
-
         sw.Stop();
         _log.LogInformation(
-            "PosterRotator: run complete - {Rotated}/{Total} rotated, {TopUp} top-ups, {Skipped} skipped, {Errors} errors, took {Elapsed:0.0}s",
-            rotatedCount,
+            "PosterRotator: missing-pool download complete - {Processed}/{Total} processed, {TopUp} image(s) added, {Skipped} skipped, {Errors} errors, took {Elapsed:0.0}s",
+            processedCount,
             total,
             topUpCount,
             skippedCount,
             errorCount,
             sw.Elapsed.TotalSeconds);
+    }
+
+    private static List<BaseItemKind> GetRotationKinds(Configuration cfg)
+    {
+        var kinds = new List<BaseItemKind>
+        {
+            BaseItemKind.Movie,
+            BaseItemKind.Series,
+            BaseItemKind.BoxSet
+        };
+
+        if (cfg.EnableSeasonPosters) kinds.Add(BaseItemKind.Season);
+        if (cfg.EnableEpisodePosters) kinds.Add(BaseItemKind.Episode);
+        return kinds;
+    }
+
+    private static List<string> GetConfiguredLibraryNames(Configuration cfg)
+    {
+        var configuredNames = new List<string>();
+        if (cfg.LibraryRules is { Count: > 0 })
+            configuredNames.AddRange(cfg.LibraryRules.Where(rule => rule.Enabled).Select(rule => rule.Name));
+        else if (cfg.Libraries is { Count: > 0 })
+            configuredNames.AddRange(cfg.Libraries);
+
+        return configuredNames
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private async Task<Dictionary<Guid, int>> GetIndexedImageCountsAsync(CancellationToken cancellationToken)
+    {
+        var entries = await _poolStore.GetIndexEntriesAsync(cancellationToken).ConfigureAwait(false);
+        var result = new Dictionary<Guid, int>();
+        foreach (var entry in entries)
+        {
+            if (Guid.TryParse(entry.ItemId, out var itemId))
+                result[itemId] = Math.Max(result.GetValueOrDefault(itemId), entry.ImageCount);
+        }
+
+        return result;
     }
 
     private SelectedRoots ResolveSelectedRoots(
@@ -270,6 +433,29 @@ public class PosterRotatorService : IPosterRotatorService
         return false;
     }
 
+    private static bool PoolEntryMatchesSelection(
+        PoolIndexEntry entry,
+        SelectedRoots selection,
+        Dictionary<string, List<string>> libraryMap)
+    {
+        if (selection.Paths.Count == 0 && selection.LibraryNames.Count == 0)
+            return true;
+
+        if (!string.IsNullOrWhiteSpace(entry.LibraryName)
+            && selection.LibraryNames.Contains(entry.LibraryName))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(entry.ItemPath)
+            && MatchesSelection(entry.ItemPath, selection, libraryMap))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
     private static void DeduplicatePaths(List<string> paths)
     {
         if (paths.Count <= 1) return;
@@ -307,6 +493,7 @@ public class PosterRotatorService : IPosterRotatorService
         public bool HasDownloadSlots => Downloads < _maxDownloads;
         public bool HasProviderLookupSlots => ProviderLookups < _maxProviderLookups;
         public bool HasWorkRemaining => HasRotationSlots || HasProviderLookupSlots;
+        public bool HasDownloadWorkRemaining => HasDownloadSlots && HasProviderLookupSlots;
 
         public void RecordRotation()
         {
@@ -363,6 +550,15 @@ public class PosterRotatorService : IPosterRotatorService
         {
             var j = Random.Shared.Next(i + 1);
             (itemIds[i], itemIds[j]) = (itemIds[j], itemIds[i]);
+        }
+    }
+
+    private static void ShufflePoolEntries(List<PoolIndexEntry> entries)
+    {
+        for (var i = entries.Count - 1; i > 0; i--)
+        {
+            var j = Random.Shared.Next(i + 1);
+            (entries[i], entries[j]) = (entries[j], entries[i]);
         }
     }
 
@@ -436,10 +632,12 @@ public class PosterRotatorService : IPosterRotatorService
         Configuration cfg,
         CancellationToken ct,
         Dictionary<string, List<string>> libraryMap,
-        RotationRunBudget budget)
+        RotationRunBudget budget,
+        PoolProcessingMode mode,
+        bool forcePluginDataStorage = false)
     {
         var itemDir = PluginHelpers.GetItemDirectory(item.Path) ?? string.Empty;
-        var storageMode = ResolveStorageMode(cfg);
+        var storageMode = forcePluginDataStorage ? PoolStorageMode.PluginData : ResolveStorageMode(cfg);
 
         if (storageMode == PoolStorageMode.MediaFolders && (string.IsNullOrEmpty(itemDir) || !Directory.Exists(itemDir)))
             return (false, 0);
@@ -486,7 +684,7 @@ public class PosterRotatorService : IPosterRotatorService
                     ? DateTimeOffset.FromUnixTimeSeconds(lastEpoch)
                     : null);
             var rotationDue = IsRotationDue(lastRotated, now, minHours);
-            var allowTopUp = budget.HasProviderLookupSlots && (!haveLast || rotationDue || local.Count == 0);
+            var allowTopUp = mode == PoolProcessingMode.DownloadOnly && budget.HasDownloadWorkRemaining;
 
             if (_log.IsEnabled(LogLevel.Debug))
             {
@@ -505,7 +703,7 @@ public class PosterRotatorService : IPosterRotatorService
             if (!poolIsLocked && local.Count < poolSize && allowTopUp)
             {
                 var createdPoolForTopUp = !Directory.Exists(poolDir);
-                if (createdPoolForTopUp)
+                if (createdPoolForTopUp && storageMode == PoolStorageMode.MediaFolders)
                     Directory.CreateDirectory(poolDir);
 
                 var added = await TryTopUpFromProvidersAsync(
@@ -531,6 +729,7 @@ public class PosterRotatorService : IPosterRotatorService
 
                 if (cfg.LockImagesAfterFill && local.Count >= poolSize)
                 {
+                    Directory.CreateDirectory(poolDir);
                     TryWriteText(lockFile, "locked");
                     poolIsLocked = true;
                     _log.LogInformation("PosterRotator: locked pool for \"{Item}\" at size {Size}.", item.Name, local.Count);
@@ -543,24 +742,8 @@ public class PosterRotatorService : IPosterRotatorService
                 _log.LogInformation("PosterRotator: unlocked pool for \"{Item}\" (config changed).", item.Name);
             }
 
-            if (local.Count == 0)
-            {
-                var createdPoolForPrimary = !Directory.Exists(poolDir);
-                if (createdPoolForPrimary)
-                    Directory.CreateDirectory(poolDir);
-
-                var primaryPath = TryCopyCurrentPrimaryToPool(item, poolDir, IsMixedFolder(item));
-                if (primaryPath != null)
-                {
-                    local.Add(primaryPath);
-                    if (storageMode == PoolStorageMode.PluginData)
-                        await RecordExistingImageAsync(snapshot, poolDir, primaryPath, "current-primary", null, ct).ConfigureAwait(false);
-                }
-                else if (createdPoolForPrimary && IsDirectoryEmpty(poolDir))
-                {
-                    TryDeleteDirectory(poolDir);
-                }
-            }
+            if (mode == PoolProcessingMode.DownloadOnly)
+                return (false, topUpCount);
 
             if (local.Count == 0)
                 return (false, topUpCount);
@@ -635,16 +818,17 @@ public class PosterRotatorService : IPosterRotatorService
         RotationRunBudget budget)
     {
         var added = new List<string>();
-        if (needed <= 0 || !budget.TryUseProviderLookupSlot())
+        if (needed <= 0 || !budget.HasDownloadSlots || !budget.TryUseProviderLookupSlot())
             return added;
 
         var urlMapPath = Path.Combine(poolDir, "pool_urls.json");
         var usePoolStore = poolItem != null;
+        var poolExists = Directory.Exists(poolDir);
         var urlMap = usePoolStore ? new Dictionary<string, string>() : PluginHelpers.LoadJsonMap(urlMapPath);
-        var knownUrls = usePoolStore
+        var knownUrls = usePoolStore && poolExists
             ? new HashSet<string>(await _poolStore.GetKnownSourceUrlsAsync(poolItem!, poolDir, ct).ConfigureAwait(false), StringComparer.OrdinalIgnoreCase)
             : new HashSet<string>(urlMap.Values, StringComparer.OrdinalIgnoreCase);
-        var knownHashes = usePoolStore
+        var knownHashes = usePoolStore && poolExists
             ? new HashSet<ulong>(await _poolStore.GetImageHashesAsync(poolItem!, poolDir, ct).ConfigureAwait(false))
             : new HashSet<ulong>(ImageHash.LoadHashes(poolDir).Values);
 
@@ -766,14 +950,22 @@ public class PosterRotatorService : IPosterRotatorService
             var maxBytes = GetMaxDownloadBytes(cfg);
             var baseName = $"pool_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}_{Guid.NewGuid():N}";
             var tmpPath = Path.Combine(dir, baseName + ".tmp");
+            string? finalPath = null;
+            var createdDirectory = false;
 
             try
             {
+                if (!Directory.Exists(dir))
+                {
+                    Directory.CreateDirectory(dir);
+                    createdDirectory = true;
+                }
+
                 using var client = _httpFactory.CreateClient("PosterRotator");
                 using var response = await PluginHelpers.RetryAsync(
                     async () =>
                     {
-                        var resp = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+                        var resp = await SendRemoteImageRequestAsync(client, url, cfg, ct).ConfigureAwait(false);
                         if ((int)resp.StatusCode == 429 || (int)resp.StatusCode >= 500)
                         {
                             resp.Dispose();
@@ -824,7 +1016,7 @@ public class PosterRotatorService : IPosterRotatorService
                     return;
                 }
 
-                var finalPath = Path.Combine(dir, baseName + extension);
+                finalPath = Path.Combine(dir, baseName + extension);
                 File.Move(tmpPath, finalPath);
 
                 ulong hash = 0;
@@ -837,6 +1029,7 @@ public class PosterRotatorService : IPosterRotatorService
                         {
                             _log.LogInformation("PosterRotator: rejected {Name} - visually duplicate", Path.GetFileName(finalPath));
                             TryDeleteFile(finalPath);
+                            finalPath = null;
                             return;
                         }
 
@@ -846,7 +1039,6 @@ public class PosterRotatorService : IPosterRotatorService
                     }
                 }
 
-                added.Add(finalPath);
                 if (usePoolStore)
                 {
                     await _poolStore.RecordImageAsync(
@@ -868,6 +1060,7 @@ public class PosterRotatorService : IPosterRotatorService
                     PluginHelpers.UpdateJsonMapFile(urlMapPath, Path.GetFileName(finalPath), url);
                 }
 
+                added.Add(finalPath);
                 knownUrls.Add(url);
 
                 _log.LogDebug(
@@ -881,12 +1074,21 @@ public class PosterRotatorService : IPosterRotatorService
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
                 TryDeleteFile(tmpPath);
+                if (!string.IsNullOrWhiteSpace(finalPath) && !added.Contains(finalPath))
+                    TryDeleteFile(finalPath);
                 throw;
             }
             catch (Exception ex)
             {
                 _log.LogDebug(ex, "PosterRotator: download failed for {Url} ({Item})", url, mediaItem.Name);
                 TryDeleteFile(tmpPath);
+                if (!string.IsNullOrWhiteSpace(finalPath) && !added.Contains(finalPath))
+                    TryDeleteFile(finalPath);
+            }
+            finally
+            {
+                if (createdDirectory && IsDirectoryEmpty(dir))
+                    TryDeleteDirectory(dir);
             }
         }
     }
@@ -954,6 +1156,50 @@ public class PosterRotatorService : IPosterRotatorService
             _log.LogDebug(ex, "PosterRotator: DNS validation failed for {Host}", uri.Host);
             return false;
         }
+    }
+
+    private async Task<HttpResponseMessage> SendRemoteImageRequestAsync(
+        HttpClient client,
+        string initialUrl,
+        Configuration cfg,
+        CancellationToken ct)
+    {
+        var currentUrl = initialUrl;
+        for (var redirectCount = 0; redirectCount <= MaxRemoteImageRedirects; redirectCount++)
+        {
+            if (!await IsAllowedRemoteImageUrlAsync(currentUrl, cfg, ct).ConfigureAwait(false))
+                throw new InvalidOperationException("Remote image URL is not allowed.");
+
+            var response = await client.GetAsync(currentUrl, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+            if (!IsRedirectStatusCode(response.StatusCode))
+                return response;
+
+            var redirectUri = ResolveRemoteImageRedirectUri(currentUrl, response.Headers.Location);
+            response.Dispose();
+            if (redirectUri == null)
+                throw new HttpRequestException("Remote image redirect is invalid.");
+
+            currentUrl = redirectUri.AbsoluteUri;
+        }
+
+        throw new HttpRequestException("Remote image redirect limit exceeded.");
+    }
+
+    internal static bool IsRedirectStatusCode(HttpStatusCode statusCode)
+        => statusCode is HttpStatusCode.Moved
+            or HttpStatusCode.Redirect
+            or HttpStatusCode.RedirectMethod
+            or HttpStatusCode.TemporaryRedirect
+            or HttpStatusCode.PermanentRedirect;
+
+    internal static Uri? ResolveRemoteImageRedirectUri(string currentUrl, Uri? location)
+    {
+        if (location == null || !Uri.TryCreate(currentUrl, UriKind.Absolute, out var currentUri))
+            return null;
+
+        return location.IsAbsoluteUri
+            ? location
+            : new Uri(currentUri, location);
     }
 
     internal static IReadOnlyList<RemoteImageDownloadCandidate> SelectRemoteImagesForLanguage(

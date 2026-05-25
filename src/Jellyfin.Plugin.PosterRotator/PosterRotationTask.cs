@@ -19,7 +19,7 @@ public class PosterRotationTask : IScheduledTask
     }
 
     public string Name => "Rotate pools";
-    public string Description => "Fills poster pools when needed, then rotates eligible posters from the local pools.";
+    public string Description => "Rotates eligible posters from existing local pools.";
     public string Category => "Poster Rotator";
     public string Key => "PosterRotator.RotatePostersTask";
 
@@ -39,7 +39,7 @@ public class PosterRotationTask : IScheduledTask
 
         try
         {
-            await _service.RunAsync(cfg, progress, cancellationToken).ConfigureAwait(false);
+            await _service.RunRotationAsync(cfg, progress, cancellationToken).ConfigureAwait(false);
             var ended = DateTimeOffset.UtcNow;
             _logger.LogInformation("PosterRotator: scheduled task completed in {Duration}", ended - started);
         }

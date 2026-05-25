@@ -1,5 +1,6 @@
 using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Providers;
+using System.Net;
 using Xunit;
 
 namespace Jellyfin.Plugin.PosterRotator.Tests;
@@ -36,6 +37,7 @@ public class PosterRotatorServiceTests
         Assert.True(budget.TryUseProviderLookupSlot());
         Assert.False(budget.TryUseProviderLookupSlot());
         Assert.False(budget.HasWorkRemaining);
+        Assert.False(budget.HasDownloadWorkRemaining);
     }
 
     [Fact]
@@ -54,6 +56,34 @@ public class PosterRotatorServiceTests
         Assert.True(budget.HasRotationSlots);
         Assert.Equal(1000, budget.Rotations);
         Assert.Equal(int.MaxValue, PosterRotatorService.NormalizeRotationRunLimit(0, 500));
+    }
+
+    [Fact]
+    public void RotationRunBudget_StopsDownloadWorkWhenEitherBudgetIsExhausted()
+    {
+        var budget = new PosterRotatorService.RotationRunBudget(new Configuration
+        {
+            MaxRotationsPerRun = 0,
+            MaxDownloadsPerRun = 1,
+            MaxProviderLookupsPerRun = 1
+        });
+
+        Assert.True(budget.HasDownloadWorkRemaining);
+        Assert.True(budget.TryUseDownloadSlot());
+        Assert.False(budget.HasDownloadWorkRemaining);
+    }
+
+    [Fact]
+    public void RemoteImageRedirectHelpers_ResolveRelativeRedirectsAndClassify3xx()
+    {
+        var redirect = PosterRotatorService.ResolveRemoteImageRedirectUri(
+            "https://images.example.test/path/poster.jpg",
+            new Uri("../next.jpg", UriKind.Relative));
+
+        Assert.True(PosterRotatorService.IsRedirectStatusCode(HttpStatusCode.Redirect));
+        Assert.False(PosterRotatorService.IsRedirectStatusCode(HttpStatusCode.OK));
+        Assert.Equal("https://images.example.test/next.jpg", redirect?.AbsoluteUri);
+        Assert.Null(PosterRotatorService.ResolveRemoteImageRedirectUri("not a uri", new Uri("/next.jpg", UriKind.Relative)));
     }
 
     [Theory]

@@ -172,6 +172,11 @@ public class PurgeController : ControllerBase
         if (file == null || file.Length == 0)
             return BadRequest("Aucun fichier recu.");
 
+        var cfg = Plugin.Instance?.Configuration ?? new Configuration();
+        var maxUploadBytes = Math.Clamp(cfg.MaxDownloadMegabytes, 1, 200) * 1024L * 1024L;
+        if (file.Length > maxUploadBytes)
+            return BadRequest("Image trop volumineuse.");
+
         try
         {
             await using var stream = file.OpenReadStream();

@@ -23,17 +23,20 @@ La recherche UI ne doit pas scanner tous les dossiers a chaque requete. Utiliser
 
 Ne pas ajouter de `DbContext` custom ni de SQL brut pour ce stockage.
 
-## Rotation grande bibliotheque
+## Rotation et telechargement grande bibliotheque
 
-La tache planifiee doit rester adaptee aux bibliotheques de plus de 20 000 medias:
+Les taches planifiees doivent rester adaptees aux bibliotheques de plus de 20 000 medias:
 
-- recuperer les IDs avec `ILibraryManager.GetItemIds`;
-- melanger les IDs avant traitement pour repartir les changements sur de grosses bibliotheques;
+- `Download missing pools` recupere les IDs avec `ILibraryManager.GetItemIds`;
+- `Rotate pools` lit `Jellyfin.Plugin.PosterRotator.pools/index.json` et ne scanne pas toute la bibliotheque;
+- melanger les IDs ou les entrees d'index avant traitement pour repartir les changements sur de grosses bibliotheques;
 - traiter par `ProcessingBatchSize`;
 - resoudre les items au moment du traitement;
 - respecter `MinHoursBetweenSwitches` avant toute rotation;
 - plafonner chaque execution avec `MaxRotationsPerRun`, `MaxProviderLookupsPerRun` et `MaxDownloadsPerRun`;
 - interpreter `MaxRotationsPerRun = 0` comme "pas de limite de rotations", sans ignorer le cooldown;
+- ne pas telecharger ni creer de pool vide depuis `Rotate pools`;
+- ne creer `Jellyfin.Plugin.PosterRotator.pools/{itemId}` pendant `Download missing pools` que lorsqu'un fichier image valide va etre ecrit, puis supprimer le dossier s'il reste vide;
 - garder `PluginData` comme stockage recommande.
 
 Valeurs par defaut:
@@ -66,7 +69,8 @@ Toutes les routes `PosterRotator/*` doivent rester protegees par `RequiresElevat
 
 Jellyfin doit afficher une categorie `Poster Rotator` dans le planificateur:
 
-- `Rotate pools`: tache quotidienne par defaut, cle stable `PosterRotator.RotatePostersTask`;
+- `Download missing pools`: tache quotidienne par defaut a 02:00, cle stable `PosterRotator.DownloadMissingPoolsTask`;
+- `Rotate pools`: tache quotidienne par defaut a 03:00, cle stable `PosterRotator.RotatePostersTask`, rotation-only sans telechargement;
 - `Nettoyage pools orphelins`: tache hebdomadaire par defaut, purge `Scope = "orphans"`.
 
 Les anciennes options de nettoyage automatique restent dans le modele de configuration pour compatibilite, mais ne doivent plus etre exposees dans l'interface.
@@ -158,3 +162,5 @@ Get-Content .\manifest.json | ConvertFrom-Json | Out-Null
 - Les telechargements distants doivent rester bornes en taille et bloquer les URLs privees/locales par defaut.
 - L'interface ne doit editer que les pools `Jellyfin.Plugin.PosterRotator.pools`; les pools `MediaFolders` restent un mode de compatibilite.
 - Les actions upload, suppression et rotation immediate doivent utiliser un verrou par pool.
+- Les telechargements distants doivent desactiver les redirections automatiques et revalider chaque cible de redirection avant de lire la reponse.
+- Les uploads doivent rejeter `IFormFile.Length` au-dessus de `MaxDownloadMegabytes` avant `OpenReadStream`.

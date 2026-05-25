@@ -399,6 +399,12 @@ public sealed class PoolStore
         };
     }
 
+    public async Task<IReadOnlyList<PoolIndexEntry>> GetIndexEntriesAsync(CancellationToken cancellationToken)
+    {
+        var index = await LoadIndexAsync(cancellationToken).ConfigureAwait(false);
+        return index.Pools.ToList();
+    }
+
     public async Task<PoolDiagnostics> GetDiagnosticsAsync(Func<Guid, bool> itemExists, CancellationToken cancellationToken)
     {
         var index = await LoadIndexAsync(cancellationToken).ConfigureAwait(false);

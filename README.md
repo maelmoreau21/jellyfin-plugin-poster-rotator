@@ -15,18 +15,19 @@ Les correctifs UI et les regenerations d'archive de cette ligne doivent conserve
 
 ## Fonctionnement
 
-1. La tache planifiee **Rotate pools** recupere les IDs des films, series, collections, et optionnellement saisons/episodes.
+1. La tache planifiee **Download missing pools** recupere les IDs des films, series, collections, et optionnellement saisons/episodes.
 2. Les IDs sont melanges puis traites par lots pour eviter de charger toute une bibliotheque en memoire.
 3. Les bibliotheques activees sont resolues par nom ou par racines manuelles.
 4. Chaque media utilise un pool local sous `Jellyfin.Plugin.PosterRotator.pools/{itemId}`.
 5. Les affiches distantes viennent de `IProviderManager.GetAvailableRemoteImages(...)`.
 6. Les images sont validees: URL, taille, format, dimensions, langue et doublons.
-7. L'affiche est appliquee avec `IProviderManager.SaveImage(...)` seulement si le cooldown du media est expire.
+7. La tache **Rotate pools** lit `index.json` et applique uniquement des images deja presentes avec `IProviderManager.SaveImage(...)`, seulement si le cooldown du media est expire.
 8. L'etat est maintenu dans `Jellyfin.Plugin.PosterRotator.pools/index.json` et `Jellyfin.Plugin.PosterRotator.pools/{itemId}/pool.json`.
 
 Le planificateur Jellyfin affiche une section **Poster Rotator** avec:
 
-- **Rotate pools**: remplit les pools quand necessaire et change les affiches eligibles;
+- **Download missing pools**: remplit les pools manquantes ou incompletes sans changer les affiches;
+- **Rotate pools**: change les affiches eligibles depuis les pools existantes, sans telecharger;
 - **Nettoyage pools orphelins**: supprime les pools dont le media n'existe plus.
 
 Le seul reglage de volume expose dans l'interface est **Nombre maximum d'affiches a changer par passage**. `0` signifie aucune limite de nombre, tout en respectant le delai interne entre deux changements du meme media.
@@ -68,6 +69,8 @@ Les anciens dossiers `.poster_pool` du mode `MediaFolders` restent compatibles s
 - Les anciens fichiers `rotation_state.json`, `pool_urls.json`, `pool_languages.json` et `pool_hashes.json` ne sont plus migres automatiquement.
 
 La recherche des pools lit l'index existant sans scanner tous les dossiers. Si des pools ont ete ajoutes manuellement ou si l'index est absent, utilisez l'action **Reparer la liste des pools**. Les apercus de la page admin utilisent `preview=true` pour charger une image reduite, pas le fichier original en pleine resolution.
+
+Le telechargement distant suit une chaine de redirection bornee et revalide chaque cible pour eviter les redirections vers localhost, reseaux prives ou link-local quand le blocage des URLs privees est actif. Les uploads sont rejetes des l'entree API si leur taille depasse `MaxDownloadMegabytes`.
 
 ## Developpement
 
