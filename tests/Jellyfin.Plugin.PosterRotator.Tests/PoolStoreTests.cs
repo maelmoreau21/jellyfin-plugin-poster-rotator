@@ -106,6 +106,73 @@ public sealed class PoolStoreTests
     }
 
     [Fact]
+    public async Task ListPoolsAsync_FiltersErrorsAndEmptyPoolsFromIndex()
+    {
+        var root = CreateTempRoot();
+        var okId = Guid.NewGuid();
+        var emptyId = Guid.NewGuid();
+        var errorId = Guid.NewGuid();
+
+        try
+        {
+            var store = new PoolStore(root);
+            await CreatePool(store, root, okId, "Ok", "Films");
+            await CreatePool(store, root, errorId, "Broken", "Films");
+            await store.RecordErrorAsync(errorId, "Download failed.", CancellationToken.None);
+
+            var emptyDir = Path.Combine(root, "pools", emptyId.ToString("N"));
+            Directory.CreateDirectory(emptyDir);
+            await store.EnsurePoolAsync(
+                new PoolItemSnapshot(emptyId, "Empty", "Movie", "Films", null),
+                emptyDir,
+                CancellationToken.None);
+
+            var errors = await store.ListPoolsAsync(new PoolListQuery { HasErrors = true }, CancellationToken.None);
+            var empty = await store.ListPoolsAsync(new PoolListQuery { IsEmpty = true }, CancellationToken.None);
+            var filled = await store.ListPoolsAsync(new PoolListQuery { IsEmpty = false }, CancellationToken.None);
+
+            Assert.Single(errors.Items);
+            Assert.Equal(errorId.ToString(), errors.Items[0].ItemId);
+            Assert.Single(empty.Items);
+            Assert.Equal(emptyId.ToString(), empty.Items[0].ItemId);
+            Assert.Equal(2, filled.Total);
+        }
+        finally
+        {
+            DeleteTempRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task RebuildIndexAsync_RecreatesIndexWithoutListSideEffects()
+    {
+        var root = CreateTempRoot();
+        var itemId = Guid.NewGuid();
+
+        try
+        {
+            var store = new PoolStore(root);
+            await CreatePool(store, root, itemId, "Movie", "Films");
+            File.Delete(Path.Combine(root, "pools", "index.json"));
+
+            var before = await store.ListPoolsAsync(new PoolListQuery(), CancellationToken.None);
+            Assert.Equal(0, before.Total);
+
+            var rebuild = await store.RebuildIndexAsync(CancellationToken.None);
+            var after = await store.ListPoolsAsync(new PoolListQuery(), CancellationToken.None);
+
+            Assert.Equal(1, rebuild.IndexedCount);
+            Assert.Equal(1, rebuild.TotalCount);
+            Assert.Equal(1, after.Total);
+            Assert.Equal(itemId.ToString(), after.Items.Single().ItemId);
+        }
+        finally
+        {
+            DeleteTempRoot(root);
+        }
+    }
+
+    [Fact]
     public async Task ImportImageAsync_RejectsUnsupportedUpload()
     {
         var root = CreateTempRoot();

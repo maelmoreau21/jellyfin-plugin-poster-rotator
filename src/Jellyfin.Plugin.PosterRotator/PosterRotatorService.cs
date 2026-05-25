@@ -18,7 +18,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.PosterRotator;
 
-public class PosterRotatorService
+public class PosterRotatorService : IPosterRotatorService
 {
     private const string LegacyPoolDirectoryName = ".poster_pool";
     private const string PluginPoolDirectoryName = "pools";
@@ -77,17 +77,13 @@ public class PosterRotatorService
             Recursive = true
         };
 
-        var items = _library.GetItemList(query).ToList();
-        if (items.Count == 0)
+        var itemIds = _library.GetItemIds(query).ToArray();
+        ShuffleItemIds(itemIds);
+        if (itemIds.Length == 0)
         {
             _log.LogWarning("PosterRotator: no items returned by library manager; aborting run.");
             return;
         }
-
-        var dirCounts = items
-            .Select(item => Path.GetDirectoryName(item.Path ?? string.Empty) ?? string.Empty)
-            .GroupBy(path => path, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(group => group.Key, group => group.Count(), StringComparer.OrdinalIgnoreCase);
 
         var libraryMap = GetLibraryRootPaths();
         var allLibraryRoots = libraryMap
@@ -102,41 +98,64 @@ public class PosterRotatorService
 
         var selection = ResolveSelectedRoots(cfg, configuredNames, libraryMap, allLibraryRoots);
         var hasSelection = selection.Paths.Count > 0 || selection.LibraryNames.Count > 0;
-        var total = items.Count;
+        var total = itemIds.Length;
         var done = 0;
+        var batchSize = NormalizeProcessingBatchSize(cfg.ProcessingBatchSize);
+        var budget = new RotationRunBudget(cfg);
 
-        foreach (var item in items)
+        foreach (var batch in itemIds.Chunk(batchSize))
         {
-            ct.ThrowIfCancellationRequested();
-
-            if (hasSelection && !MatchesSelection(item.Path ?? string.Empty, selection, libraryMap))
+            foreach (var itemId in batch)
             {
-                skippedCount++;
-                progress?.Report(++done * 100.0 / Math.Max(1, total));
-                continue;
-            }
+                ct.ThrowIfCancellationRequested();
 
-            try
-            {
-                var result = await ProcessItemAsync(item, cfg, ct, dirCounts, libraryMap).ConfigureAwait(false);
-                if (result.Rotated)
+                if (!budget.HasWorkRemaining)
                 {
-                    rotatedCount++;
+                    skippedCount += Math.Max(0, total - done);
+                    progress?.Report(100);
+                    break;
                 }
 
-                topUpCount += result.TopUps;
-            }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                errorCount++;
-                _log.LogWarning(ex, "PosterRotator: error processing \"{Name}\" ({Path})", item.Name, item.Path);
+                var item = TryGetItemById(itemId);
+                if (item == null)
+                {
+                    skippedCount++;
+                    progress?.Report(++done * 100.0 / Math.Max(1, total));
+                    continue;
+                }
+
+                if (hasSelection && !MatchesSelection(item.Path ?? string.Empty, selection, libraryMap))
+                {
+                    skippedCount++;
+                    progress?.Report(++done * 100.0 / Math.Max(1, total));
+                    continue;
+                }
+
+                try
+                {
+                    var result = await ProcessItemAsync(item, cfg, ct, libraryMap, budget).ConfigureAwait(false);
+                    if (result.Rotated)
+                    {
+                        rotatedCount++;
+                    }
+
+                    topUpCount += result.TopUps;
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    errorCount++;
+                    _log.LogWarning(ex, "PosterRotator: error processing \"{Name}\" ({Path})", item.Name, item.Path);
+                }
+
+                progress?.Report(++done * 100.0 / Math.Max(1, total));
             }
 
-            progress?.Report(++done * 100.0 / Math.Max(1, total));
+            if (!budget.HasWorkRemaining)
+                break;
         }
 
         QueueLibraryScanIfRequested(cfg, rotatedCount);
@@ -258,8 +277,82 @@ public class PosterRotatorService
         public HashSet<string> LibraryNames { get; } = new(StringComparer.OrdinalIgnoreCase);
     }
 
+    internal sealed class RotationRunBudget
+    {
+        private readonly int _maxRotations;
+        private readonly int _maxDownloads;
+        private readonly int _maxProviderLookups;
+
+        public RotationRunBudget(Configuration cfg)
+        {
+            _maxRotations = NormalizeRotationRunLimit(cfg.MaxRotationsPerRun, 500);
+            _maxDownloads = NormalizeRunLimit(cfg.MaxDownloadsPerRun, 250);
+            _maxProviderLookups = NormalizeRunLimit(cfg.MaxProviderLookupsPerRun, 250);
+        }
+
+        public int Rotations { get; private set; }
+        public int Downloads { get; private set; }
+        public int ProviderLookups { get; private set; }
+
+        public bool HasRotationSlots => Rotations < _maxRotations;
+        public bool HasDownloadSlots => Downloads < _maxDownloads;
+        public bool HasProviderLookupSlots => ProviderLookups < _maxProviderLookups;
+        public bool HasWorkRemaining => HasRotationSlots || HasProviderLookupSlots;
+
+        public void RecordRotation()
+        {
+            if (HasRotationSlots)
+                Rotations++;
+        }
+
+        public bool TryUseDownloadSlot()
+        {
+            if (!HasDownloadSlots)
+                return false;
+
+            Downloads++;
+            return true;
+        }
+
+        public bool TryUseProviderLookupSlot()
+        {
+            if (!HasProviderLookupSlots)
+                return false;
+
+            ProviderLookups++;
+            return true;
+        }
+    }
+
     private static bool LooksLikePath(string entry) =>
         entry.IndexOf(':') >= 0 || entry.IndexOf('\\') >= 0 || entry.IndexOf('/') >= 0;
+
+    internal static int NormalizePoolSize(int value) =>
+        Math.Clamp(value <= 0 ? 4 : value, 1, 50);
+
+    internal static int NormalizeMinHours(int value) =>
+        Math.Clamp(value <= 0 ? 72 : value, 1, 24 * 365);
+
+    internal static int NormalizeProcessingBatchSize(int value) =>
+        Math.Clamp(value <= 0 ? 250 : value, 10, 5000);
+
+    internal static int NormalizeRunLimit(int value, int fallback) =>
+        Math.Clamp(value <= 0 ? fallback : value, 1, 100000);
+
+    internal static int NormalizeRotationRunLimit(int value, int fallback) =>
+        value == 0 ? int.MaxValue : NormalizeRunLimit(value, fallback);
+
+    internal static bool IsRotationDue(DateTimeOffset? lastRotatedUtc, DateTimeOffset now, int minHoursBetweenSwitches) =>
+        !lastRotatedUtc.HasValue || now - lastRotatedUtc.Value >= TimeSpan.FromHours(NormalizeMinHours(minHoursBetweenSwitches));
+
+    internal static void ShuffleItemIds(Guid[] itemIds)
+    {
+        for (var i = itemIds.Length - 1; i > 0; i--)
+        {
+            var j = Random.Shared.Next(i + 1);
+            (itemIds[i], itemIds[j]) = (itemIds[j], itemIds[i]);
+        }
+    }
 
     private PoolItemSnapshot CreateSnapshot(BaseItem item, Dictionary<string, List<string>> libraryMap)
     {
@@ -330,8 +423,8 @@ public class PosterRotatorService
         BaseItem item,
         Configuration cfg,
         CancellationToken ct,
-        IDictionary<string, int> dirCounts,
-        Dictionary<string, List<string>> libraryMap)
+        Dictionary<string, List<string>> libraryMap,
+        RotationRunBudget budget)
     {
         var itemDir = PluginHelpers.GetItemDirectory(item.Path) ?? string.Empty;
         var storageMode = ResolveStorageMode(cfg);
@@ -367,25 +460,26 @@ public class PosterRotatorService
             var state = CreateRotationState(item, metadata, statePath);
             var key = item.Id.ToString();
             var now = DateTimeOffset.UtcNow;
-            var minHours = Math.Max(1, cfg.MinHoursBetweenSwitches);
-            var poolSize = Math.Clamp(cfg.PoolSize, 1, 50);
+            var minHours = NormalizeMinHours(cfg.MinHoursBetweenSwitches);
+            var poolSize = NormalizePoolSize(cfg.PoolSize);
             var haveLast = metadata?.LastRotatedUtc != null || state.LastRotatedUtcByItem.TryGetValue(key, out _);
             var lastRotated = metadata?.LastRotatedUtc
                 ?? (state.LastRotatedUtcByItem.TryGetValue(key, out var lastEpoch)
                     ? DateTimeOffset.FromUnixTimeSeconds(lastEpoch)
                     : null);
-            var elapsed = lastRotated.HasValue ? now - lastRotated.Value : TimeSpan.MaxValue;
-            var allowTopUp = !haveLast || elapsed.TotalHours >= minHours || local.Count == 0;
+            var rotationDue = IsRotationDue(lastRotated, now, minHours);
+            var allowTopUp = budget.HasProviderLookupSlots && (!haveLast || rotationDue || local.Count == 0);
 
             if (_log.IsEnabled(LogLevel.Debug))
             {
                 _log.LogDebug(
-                    "PosterRotator: \"{Item}\" pool has {Count}/{Target}. Storage:{Storage}. Locked:{Locked}. AllowTopUp:{Allow}",
+                    "PosterRotator: \"{Item}\" pool has {Count}/{Target}. Storage:{Storage}. Locked:{Locked}. Due:{Due}. AllowTopUp:{Allow}",
                     item.Name,
                     local.Count,
                     poolSize,
                     storageMode,
                     poolIsLocked,
+                    rotationDue,
                     allowTopUp);
             }
 
@@ -398,7 +492,8 @@ public class PosterRotatorService
                     poolSize - local.Count,
                     cfg,
                     ct,
-                    storageMode == PoolStorageMode.PluginData ? snapshot : null).ConfigureAwait(false);
+                    storageMode == PoolStorageMode.PluginData ? snapshot : null,
+                    budget).ConfigureAwait(false);
                 topUpCount = added.Count;
                 foreach (var file in added)
                     local.Add(file);
@@ -419,7 +514,7 @@ public class PosterRotatorService
 
             if (local.Count == 0)
             {
-                var primaryPath = TryCopyCurrentPrimaryToPool(item, poolDir, IsMixedFolder(item, dirCounts));
+                var primaryPath = TryCopyCurrentPrimaryToPool(item, poolDir, IsMixedFolder(item));
                 if (primaryPath != null)
                 {
                     local.Add(primaryPath);
@@ -431,10 +526,14 @@ public class PosterRotatorService
             if (local.Count == 0)
                 return (false, topUpCount);
 
+            if (!rotationDue || !budget.HasRotationSlots)
+                return (false, topUpCount);
+
             var chosen = PickNextFor(local.ToList(), item, cfg, state);
             if (!await SavePrimaryImageAsync(item, chosen, ct).ConfigureAwait(false))
                 return (false, topUpCount);
 
+            budget.RecordRotation();
             state.LastRotatedUtcByItem[key] = now.ToUnixTimeSeconds();
             if (storageMode == PoolStorageMode.PluginData)
                 await _poolStore.RecordRotationAsync(snapshot, poolDir, chosen, state.LastIndexByItem.GetValueOrDefault(key), now, ct).ConfigureAwait(false);
@@ -552,9 +651,13 @@ public class PosterRotatorService
         int needed,
         Configuration cfg,
         CancellationToken ct,
-        PoolItemSnapshot? poolItem)
+        PoolItemSnapshot? poolItem,
+        RotationRunBudget budget)
     {
         var added = new List<string>();
+        if (needed <= 0 || !budget.TryUseProviderLookupSlot())
+            return added;
+
         var urlMapPath = Path.Combine(poolDir, "pool_urls.json");
         var usePoolStore = poolItem != null;
         var urlMap = usePoolStore ? new Dictionary<string, string>() : PluginHelpers.LoadJsonMap(urlMapPath);
@@ -694,6 +797,9 @@ public class PosterRotatorService
                 _log.LogWarning("PosterRotator: rejected unsafe remote image URL for {Item}: {Url}", mediaItem.Name, url);
                 return;
             }
+
+            if (!budget.TryUseDownloadSlot())
+                return;
 
             var maxBytes = GetMaxDownloadBytes(cfg);
             var baseName = $"pool_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}_{Guid.NewGuid():N}";
@@ -982,12 +1088,24 @@ public class PosterRotatorService
         return "en";
     }
 
-    private static bool IsMixedFolder(BaseItem item, IDictionary<string, int> dirCounts)
+    private static bool IsMixedFolder(BaseItem item)
     {
         var dir = Path.GetDirectoryName(item.Path ?? string.Empty) ?? string.Empty;
-        return !string.IsNullOrEmpty(dir)
-            && dirCounts.TryGetValue(dir, out var count)
-            && count > 1;
+        if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir))
+            return false;
+
+        try
+        {
+            return Directory
+                .EnumerateFiles(dir)
+                .Where(file => !PluginHelpers.IsSupportedImageExtension(file))
+                .Take(2)
+                .Count() > 1;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static IEnumerable<string> GetPoolPatterns() =>
@@ -1138,6 +1256,9 @@ public class PosterRotatorService
 
     public Task<PoolListResponse> ListPoolsAsync(PoolListQuery query, CancellationToken cancellationToken) =>
         _poolStore.ListPoolsAsync(query, cancellationToken);
+
+    public Task<PoolRebuildIndexResult> RebuildPoolIndexAsync(CancellationToken cancellationToken) =>
+        _poolStore.RebuildIndexAsync(cancellationToken);
 
     public Task<PoolMetadata?> GetPoolAsync(Guid itemId, CancellationToken cancellationToken) =>
         _poolStore.GetPoolAsync(itemId, reconcileFiles: true, cancellationToken);

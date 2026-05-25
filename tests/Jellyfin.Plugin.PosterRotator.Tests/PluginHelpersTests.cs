@@ -13,6 +13,12 @@ public class PluginHelpersTests
         var cfg = new Configuration();
 
         Assert.Equal(PoolStorageMode.PluginData, cfg.PoolStorageMode);
+        Assert.Equal(4, cfg.PoolSize);
+        Assert.Equal(72, cfg.MinHoursBetweenSwitches);
+        Assert.Equal(500, cfg.MaxRotationsPerRun);
+        Assert.Equal(250, cfg.MaxDownloadsPerRun);
+        Assert.Equal(250, cfg.MaxProviderLookupsPerRun);
+        Assert.Equal(250, cfg.ProcessingBatchSize);
         Assert.Equal(25, cfg.MaxDownloadMegabytes);
         Assert.True(cfg.BlockPrivateNetworkImageUrls);
     }

@@ -36,6 +36,8 @@ public class PurgeController : ControllerBase
         [FromQuery] string? library,
         [FromQuery] string? query,
         [FromQuery] string? type,
+        [FromQuery] bool? hasErrors,
+        [FromQuery] bool? isEmpty,
         [FromQuery] int start = 0,
         [FromQuery] int limit = 50,
         CancellationToken cancellationToken = default)
@@ -46,10 +48,19 @@ public class PurgeController : ControllerBase
                 Library = library,
                 Query = query,
                 Type = type,
+                HasErrors = hasErrors,
+                IsEmpty = isEmpty,
                 Start = start,
                 Limit = limit
             },
             cancellationToken).ConfigureAwait(false);
+        return Ok(result);
+    }
+
+    [HttpPost("Pools/RebuildIndex")]
+    public async Task<ActionResult<PoolRebuildIndexResult>> RebuildPoolIndex(CancellationToken cancellationToken)
+    {
+        var result = await _service.RebuildPoolIndexAsync(cancellationToken).ConfigureAwait(false);
         return Ok(result);
     }
 
@@ -66,7 +77,8 @@ public class PurgeController : ControllerBase
         try
         {
             var image = await _service.GetPoolImageAsync(itemId, fileName, cancellationToken).ConfigureAwait(false);
-            return PhysicalFile(image.Path, image.ContentType);
+            Response.Headers["Cache-Control"] = "private, max-age=60";
+            return File(System.IO.File.OpenRead(image.Path), image.ContentType);
         }
         catch (FileNotFoundException)
         {

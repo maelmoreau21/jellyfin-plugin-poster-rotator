@@ -9,18 +9,18 @@ namespace Jellyfin.Plugin.PosterRotator;
 
 public class PosterRotationTask : IScheduledTask
 {
-    private readonly PosterRotatorService _service;
+    private readonly IPosterRotatorService _service;
     private readonly ILogger<PosterRotationTask> _logger;
 
-    public PosterRotationTask(PosterRotatorService service, ILogger<PosterRotationTask> logger)
+    public PosterRotationTask(IPosterRotatorService service, ILogger<PosterRotationTask> logger)
     {
         _service = service;
         _logger = logger;
     }
 
-    public string Name => "Rotate Movie Posters (Pool Then Rotate)";
-    public string Description => "Fills a local poster pool per movie from metadata providers, then rotates through the pool without redownloading.";
-    public string Category => "Library";
+    public string Name => "Rotate posters";
+    public string Description => "Fills poster pools when needed, then rotates eligible posters from the local pools.";
+    public string Category => "Poster Rotator";
     public string Key => "PosterRotator.RotatePostersTask";
 
     public async Task ExecuteAsync(IProgress<double> progress, CancellationToken cancellationToken)

@@ -15,6 +15,13 @@ public enum PoolStorageMode
     MediaFolders = 1
 }
 
+public enum RotationCadenceProfile
+{
+    Balanced = 0,
+    Conservative = 1,
+    Visible = 2
+}
+
 public class Configuration : BasePluginConfiguration
 {
     // Backwards-compatible simple list of library names (older versions)
@@ -23,12 +30,17 @@ public class Configuration : BasePluginConfiguration
     // Preferred shape for the UI: list of named rules with Enabled flag
     public List<LibraryRule> LibraryRules { get; set; } = new();
 
-    public int PoolSize { get; set; } = 5;
+    public int PoolSize { get; set; } = 4;
     public bool SequentialRotation { get; set; } = false;
     public bool LockImagesAfterFill { get; set; } = false;
     public PoolStorageMode PoolStorageMode { get; set; } = PoolStorageMode.PluginData;
     public List<string> ExtraPosterPatterns { get; set; } = new();
-    public int MinHoursBetweenSwitches { get; set; } = 23;
+    public int MinHoursBetweenSwitches { get; set; } = 72;
+    public int MaxRotationsPerRun { get; set; } = 500;
+    public int MaxDownloadsPerRun { get; set; } = 250;
+    public int MaxProviderLookupsPerRun { get; set; } = 250;
+    public int ProcessingBatchSize { get; set; } = 250;
+    public RotationCadenceProfile CadenceProfile { get; set; } = RotationCadenceProfile.Balanced;
     public bool EnableSeasonPosters { get; set; } = false;
     public bool EnableEpisodePosters { get; set; } = false;
     // Legacy compatibility setting. The current rotation path uses Jellyfin SaveImage instead of a full scan.
@@ -39,7 +51,7 @@ public class Configuration : BasePluginConfiguration
     // === Pool Management Options ===
     
     /// <summary>
-    /// Si activé, les pools orphelins (médias supprimés) seront automatiquement nettoyés.
+    /// Si active, les pools orphelins (medias supprimes) seront automatiquement nettoyes.
     /// </summary>
     public bool AutoCleanupOrphanedPools { get; set; } = false;
 
@@ -56,24 +68,24 @@ public class Configuration : BasePluginConfiguration
     public bool EnableLanguageFilter { get; set; } = false;
 
     /// <summary>
-    /// Langue préférée pour les affiches (code ISO: fr, en, de, etc.).
+    /// Langue preferee pour les affiches (code ISO: fr, en, de, etc.).
     /// </summary>
     public string PreferredLanguage { get; set; } = "fr";
 
     /// <summary>
-    /// Nombre maximum d'images dans la langue préférée.
+    /// Nombre maximum d'images dans la langue preferee.
     /// </summary>
     public int MaxPreferredLanguageImages { get; set; } = 2;
 
     /// <summary>
     /// Langue de fallback pour les autres images (code ISO ou vide pour toutes).
-    /// Ignoré si UseOriginalLanguageAsFallback est activé.
+    /// Ignore si UseOriginalLanguageAsFallback est active.
     /// </summary>
     public string FallbackLanguage { get; set; } = "en";
 
     /// <summary>
-    /// Utiliser automatiquement la langue originale du média (VO) comme fallback.
-    /// Si activé, FallbackLanguage est ignoré et la vraie langue originale est détectée.
+    /// Utiliser automatiquement la langue originale du media (VO) comme fallback.
+    /// Si active, FallbackLanguage est ignore et la vraie langue originale est detectee.
     /// </summary>
     public bool UseOriginalLanguageAsFallback { get; set; } = true;
 
@@ -85,12 +97,12 @@ public class Configuration : BasePluginConfiguration
     // === Image Quality ===
 
     /// <summary>
-    /// Largeur minimale des images téléchargées (en pixels). Images plus petites sont rejetées.
+    /// Largeur minimale des images telechargees (en pixels). Images plus petites sont rejetees.
     /// </summary>
     public int MinImageWidth { get; set; } = 500;
 
     /// <summary>
-    /// Hauteur minimale des images téléchargées (en pixels). Images plus petites sont rejetées.
+    /// Hauteur minimale des images telechargees (en pixels). Images plus petites sont rejetees.
     /// </summary>
     public int MinImageHeight { get; set; } = 750;
 
@@ -105,8 +117,8 @@ public class Configuration : BasePluginConfiguration
     public bool BlockPrivateNetworkImageUrls { get; set; } = true;
 
     /// <summary>
-    /// Activer la détection de doublons visuels lors du téléchargement.
-    /// Utilise un hash perceptuel pour éviter les images quasi-identiques.
+    /// Activer la detection de doublons visuels lors du telechargement.
+    /// Utilise un hash perceptuel pour eviter les images quasi-identiques.
     /// </summary>
     public bool EnableDuplicateDetection { get; set; } = true;
 }

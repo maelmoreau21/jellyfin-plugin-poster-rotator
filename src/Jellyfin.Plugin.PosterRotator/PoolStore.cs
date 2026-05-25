@@ -323,7 +323,7 @@ public sealed class PoolStore
 
     public async Task<PoolListResponse> ListPoolsAsync(PoolListQuery query, CancellationToken cancellationToken)
     {
-        var index = await EnsureIndexAsync(cancellationToken).ConfigureAwait(false);
+        var index = await LoadIndexAsync(cancellationToken).ConfigureAwait(false);
         var items = index.Pools.AsEnumerable();
 
         if (!string.IsNullOrWhiteSpace(query.Library))
@@ -331,6 +331,12 @@ public sealed class PoolStore
 
         if (!string.IsNullOrWhiteSpace(query.Type))
             items = items.Where(entry => entry.ItemType.Equals(query.Type, StringComparison.OrdinalIgnoreCase));
+
+        if (query.HasErrors.HasValue)
+            items = items.Where(entry => entry.HasErrors == query.HasErrors.Value);
+
+        if (query.IsEmpty.HasValue)
+            items = items.Where(entry => (entry.ImageCount == 0) == query.IsEmpty.Value);
 
         if (!string.IsNullOrWhiteSpace(query.Query))
         {
@@ -359,7 +365,7 @@ public sealed class PoolStore
 
     public async Task<PoolDiagnostics> GetDiagnosticsAsync(Func<Guid, bool> itemExists, CancellationToken cancellationToken)
     {
-        var index = await EnsureIndexAsync(cancellationToken).ConfigureAwait(false);
+        var index = await LoadIndexAsync(cancellationToken).ConfigureAwait(false);
         var orphanCount = 0;
         var errors = new List<PoolErrorInfo>();
 
@@ -395,6 +401,56 @@ public sealed class PoolStore
                 .Take(10)
                 .ToList()
         };
+    }
+
+    public async Task<PoolRebuildIndexResult> RebuildIndexAsync(CancellationToken cancellationToken)
+    {
+        var result = new PoolRebuildIndexResult();
+        var root = TryGetPoolRootPath(create: false);
+        var index = new PoolIndexDocument();
+
+        if (root == null || !Directory.Exists(root))
+        {
+            await SaveIndexAsync(index, cancellationToken).ConfigureAwait(false);
+            return result;
+        }
+
+        foreach (var directory in Directory.GetDirectories(root))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!Guid.TryParseExact(Path.GetFileName(directory), "N", out var itemId))
+            {
+                result.SkippedCount++;
+                continue;
+            }
+
+            if (ContainsReparsePoint(directory))
+            {
+                result.SkippedCount++;
+                continue;
+            }
+
+            try
+            {
+                var metadata = await LoadOrCreateMetadataAsync(
+                    new PoolItemSnapshot(itemId, string.Empty, string.Empty, string.Empty, null),
+                    directory,
+                    reconcileFiles: true,
+                    cancellationToken).ConfigureAwait(false);
+                await SavePoolMetadataOnlyAsync(metadata, directory, cancellationToken).ConfigureAwait(false);
+                index.Pools.Add(CreateIndexEntry(metadata));
+                result.IndexedCount++;
+            }
+            catch (Exception ex)
+            {
+                result.FailedCount++;
+                _log?.LogWarning(ex, "PosterRotator: failed to rebuild pool index for {PoolDir}", directory);
+            }
+        }
+
+        await SaveIndexAsync(index, cancellationToken).ConfigureAwait(false);
+        result.TotalCount = index.Pools.Count;
+        return result;
     }
 
     public async Task<PurgePoolsResult> PurgeAsync(
@@ -545,12 +601,17 @@ public sealed class PoolStore
 
     private async Task SavePoolAsync(PoolMetadata metadata, string poolDir, CancellationToken cancellationToken)
     {
+        await SavePoolMetadataOnlyAsync(metadata, poolDir, cancellationToken).ConfigureAwait(false);
+        await UpsertIndexAsync(metadata, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task SavePoolMetadataOnlyAsync(PoolMetadata metadata, string poolDir, CancellationToken cancellationToken)
+    {
         metadata.SchemaVersion = CurrentSchemaVersion;
         metadata.UpdatedUtc = DateTimeOffset.UtcNow;
         Recalculate(metadata);
         await WriteJsonAtomicAsync(Path.Combine(poolDir, PoolFileName), metadata, cancellationToken).ConfigureAwait(false);
         DeleteLegacyMetadataFiles(poolDir);
-        await UpsertIndexAsync(metadata, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task UpsertIndexAsync(PoolMetadata metadata, CancellationToken cancellationToken)
@@ -962,6 +1023,8 @@ public sealed class PoolListQuery
     public string? Library { get; set; }
     public string? Query { get; set; }
     public string? Type { get; set; }
+    public bool? HasErrors { get; set; }
+    public bool? IsEmpty { get; set; }
     public int Start { get; set; }
     public int Limit { get; set; } = 50;
 }
@@ -988,6 +1051,14 @@ public sealed class PoolPurgeRequest
     public string? Scope { get; set; }
     public string? LibraryName { get; set; }
     public Guid? ItemId { get; set; }
+}
+
+public sealed class PoolRebuildIndexResult
+{
+    public int TotalCount { get; set; }
+    public int IndexedCount { get; set; }
+    public int SkippedCount { get; set; }
+    public int FailedCount { get; set; }
 }
 
 public sealed class PoolOperationResult
