@@ -5,6 +5,10 @@ using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Jellyfin.Plugin.PosterRotator.Helpers;
+using MediaBrowser.Controller.Drawing;
+using MediaBrowser.Controller.Entities;
+using MediaBrowser.Model.Entities;
 using Microsoft.AspNetCore.Http;
 
 namespace Jellyfin.Plugin.PosterRotator.Api;
@@ -18,10 +22,12 @@ namespace Jellyfin.Plugin.PosterRotator.Api;
 public class PurgeController : ControllerBase
 {
     private readonly PosterRotatorService _service;
+    private readonly IImageProcessor _imageProcessor;
 
-    public PurgeController(PosterRotatorService service)
+    public PurgeController(PosterRotatorService service, IImageProcessor imageProcessor)
     {
         _service = service;
+        _imageProcessor = imageProcessor;
     }
 
     [HttpGet("Diagnostics")]
@@ -72,14 +78,25 @@ public class PurgeController : ControllerBase
     }
 
     [HttpGet("Pools/{itemId:guid}/Images/{*fileName}")]
-    public async Task<IActionResult> GetPoolImage(Guid itemId, string fileName, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetPoolImage(
+        Guid itemId,
+        string fileName,
+        [FromQuery] bool preview = false,
+        [FromQuery] int maxWidth = 320,
+        [FromQuery] int maxHeight = 480,
+        [FromQuery] int quality = 80,
+        CancellationToken cancellationToken = default)
     {
         try
         {
             fileName = Uri.UnescapeDataString(fileName ?? string.Empty);
             var image = await _service.GetPoolImageAsync(itemId, fileName, cancellationToken).ConfigureAwait(false);
-            Response.Headers["Cache-Control"] = "private, max-age=60";
-            return File(System.IO.File.OpenRead(image.Path), image.ContentType);
+            var file = preview
+                ? await GetPreviewImageAsync(image, maxWidth, maxHeight, quality).ConfigureAwait(false)
+                : image;
+
+            Response.Headers["Cache-Control"] = preview ? "private, max-age=3600" : "private, max-age=60";
+            return File(System.IO.File.OpenRead(file.Path), file.ContentType);
         }
         catch (FileNotFoundException)
         {
@@ -89,6 +106,46 @@ public class PurgeController : ControllerBase
         {
             return BadRequest(ex.Message);
         }
+        catch (Exception) when (preview)
+        {
+            return BadRequest("Preview unavailable.");
+        }
+    }
+
+    private async Task<PoolImageFile> GetPreviewImageAsync(PoolImageFile image, int maxWidth, int maxHeight, int quality)
+    {
+        maxWidth = Math.Clamp(maxWidth <= 0 ? 320 : maxWidth, 64, 720);
+        maxHeight = Math.Clamp(maxHeight <= 0 ? 480 : maxHeight, 96, 1280);
+        quality = Math.Clamp(quality <= 0 ? 80 : quality, 40, 90);
+
+        var originalSize = PluginHelpers.GetImageDimensions(image.Path);
+        var originalTooLarge = originalSize.Width > maxWidth || originalSize.Height > maxHeight;
+        var fileInfo = new FileInfo(image.Path);
+        var processed = await _imageProcessor.ProcessImage(new ImageProcessingOptions
+        {
+            Image = new ItemImageInfo
+            {
+                Path = image.Path,
+                Type = ImageType.Primary,
+                DateModified = fileInfo.Exists ? fileInfo.LastWriteTimeUtc : DateTime.UtcNow
+            },
+            MaxWidth = maxWidth,
+            MaxHeight = maxHeight,
+            Quality = quality,
+            SupportedOutputFormats = _imageProcessor.GetSupportedImageOutputFormats()
+        }).ConfigureAwait(false);
+
+        if (string.IsNullOrWhiteSpace(processed.Path) || !System.IO.File.Exists(processed.Path))
+            throw new InvalidDataException("Preview unavailable.");
+
+        if (originalTooLarge && Path.GetFullPath(processed.Path).Equals(Path.GetFullPath(image.Path), StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("Preview unavailable.");
+
+        var previewSize = PluginHelpers.GetImageDimensions(processed.Path);
+        if (previewSize.Width > maxWidth || previewSize.Height > maxHeight)
+            throw new InvalidDataException("Preview unavailable.");
+
+        return new PoolImageFile(processed.Path, string.IsNullOrWhiteSpace(processed.MimeType) ? image.ContentType : processed.MimeType);
     }
 
     [HttpPost("Pools/{itemId:guid}/RotateNow")]

@@ -21,7 +21,6 @@ namespace Jellyfin.Plugin.PosterRotator;
 public class PosterRotatorService : IPosterRotatorService
 {
     private const string LegacyPoolDirectoryName = ".poster_pool";
-    private const string PluginPoolDirectoryName = "pools";
     private static readonly TimeSpan DiagnosticsCacheDuration = TimeSpan.FromSeconds(15);
     private readonly SemaphoreSlim _operationLock = new(1, 1);
     private readonly SemaphoreSlim _diagnosticsLock = new(1, 1);
@@ -464,14 +463,6 @@ public class PosterRotatorService : IPosterRotatorService
                 hasPoolDirectory = true;
             }
 
-            if (storageMode == PoolStorageMode.PluginData
-                && !string.IsNullOrEmpty(legacyPoolDir)
-                && Directory.Exists(legacyPoolDir))
-            {
-                MigrateLegacyPoolIfNeeded(legacyPoolDir, poolDir);
-                hasPoolDirectory = Directory.Exists(poolDir);
-            }
-
             var local = hasPoolDirectory ? LoadLocalPoolFiles(poolDir) : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             PoolMetadata? metadata = null;
             if (storageMode == PoolStorageMode.PluginData
@@ -619,7 +610,7 @@ public class PosterRotatorService : IPosterRotatorService
         if (string.IsNullOrWhiteSpace(dataFolder))
             return legacyPoolDir;
 
-        return Path.Combine(dataFolder, PluginPoolDirectoryName, item.Id.ToString("N"));
+        return _poolStore.TryGetPoolDirectory(item.Id, create: false);
     }
 
     private static HashSet<string> LoadLocalPoolFiles(string poolDir)
@@ -632,65 +623,6 @@ public class PosterRotatorService : IPosterRotatorService
         }
 
         return local;
-    }
-
-    private void MigrateLegacyPoolIfNeeded(string legacyPoolDir, string pluginPoolDir)
-    {
-        if (!Directory.Exists(legacyPoolDir))
-            return;
-
-        if (PluginHelpers.IsPathInsideOrEqual(legacyPoolDir, pluginPoolDir)
-            || PluginHelpers.IsPathInsideOrEqual(pluginPoolDir, legacyPoolDir))
-            return;
-
-        try
-        {
-            Directory.CreateDirectory(pluginPoolDir);
-            MoveDirectoryContentsSafely(legacyPoolDir, pluginPoolDir);
-            Directory.Delete(legacyPoolDir, recursive: true);
-            _log.LogInformation("PosterRotator: migrated legacy pool {LegacyPool} to plugin data.", legacyPoolDir);
-        }
-        catch (Exception ex)
-        {
-            _log.LogWarning(ex, "PosterRotator: failed to migrate legacy pool {LegacyPool}", legacyPoolDir);
-        }
-    }
-
-    private void MoveDirectoryContentsSafely(string sourceDir, string destinationDir)
-    {
-        foreach (var sourceFile in Directory.GetFiles(sourceDir))
-        {
-            var info = new FileInfo(sourceFile);
-            if ((info.Attributes & FileAttributes.ReparsePoint) != 0)
-            {
-                _log.LogWarning("PosterRotator: skipped reparse-point file during pool migration: {File}", sourceFile);
-                continue;
-            }
-
-            var destination = Path.Combine(destinationDir, info.Name);
-            if (File.Exists(destination))
-            {
-                TryDeleteFile(sourceFile);
-                continue;
-            }
-
-            File.Move(sourceFile, destination);
-        }
-
-        foreach (var sourceChild in Directory.GetDirectories(sourceDir))
-        {
-            var info = new DirectoryInfo(sourceChild);
-            if ((info.Attributes & FileAttributes.ReparsePoint) != 0)
-            {
-                _log.LogWarning("PosterRotator: skipped reparse-point directory during pool migration: {Directory}", sourceChild);
-                continue;
-            }
-
-            var destinationChild = Path.Combine(destinationDir, info.Name);
-            Directory.CreateDirectory(destinationChild);
-            MoveDirectoryContentsSafely(sourceChild, destinationChild);
-            Directory.Delete(sourceChild, recursive: false);
-        }
     }
 
     private async Task<List<string>> TryTopUpFromProvidersAsync(
@@ -1655,15 +1587,14 @@ public class PosterRotatorService : IPosterRotatorService
 
     private void PurgePluginDataPools(PurgePoolsResult result)
     {
-        var dataFolder = Plugin.Instance?.DataFolderPath;
-        if (string.IsNullOrWhiteSpace(dataFolder))
+        var poolRoot = _poolStore.TryGetPoolRootPath(create: false);
+        if (string.IsNullOrWhiteSpace(poolRoot))
             return;
 
-        var poolRoot = Path.Combine(dataFolder, PluginPoolDirectoryName);
         if (!Directory.Exists(poolRoot))
             return;
 
-        foreach (var poolDir in Directory.GetDirectories(poolRoot))
+        foreach (var poolDir in Directory.EnumerateDirectories(poolRoot))
             TryDeleteSafeDirectory(poolDir, poolRoot, requireLegacyPoolName: false, result);
 
         TryDeleteFile(Path.Combine(poolRoot, "index.json"));
@@ -1701,11 +1632,11 @@ public class PosterRotatorService : IPosterRotatorService
         {
             cancellationToken.ThrowIfCancellationRequested();
             var current = pending.Pop();
-            string[] children;
+            IEnumerable<string> children;
 
             try
             {
-                children = Directory.GetDirectories(current);
+                children = Directory.EnumerateDirectories(current);
             }
             catch (Exception ex)
             {

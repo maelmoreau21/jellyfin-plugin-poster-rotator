@@ -17,18 +17,10 @@ public sealed class PoolStore
 {
     private const int CurrentSchemaVersion = 1;
     private const int DeferredIndexFlushThreshold = 500;
-    private const string PoolRootDirectoryName = "pools";
+    internal const string PoolRootDirectoryName = "Jellyfin.Plugin.PosterRotator.pools";
     private const string IndexFileName = "index.json";
     private const string PoolFileName = "pool.json";
     private static readonly TimeSpan DeferredIndexFlushInterval = TimeSpan.FromSeconds(30);
-    private static readonly string[] LegacyMapFiles =
-    {
-        "rotation_state.json",
-        "pool_urls.json",
-        "pool_languages.json",
-        "pool_hashes.json"
-    };
-
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         WriteIndented = true
@@ -69,7 +61,12 @@ public sealed class PoolStore
         if (string.IsNullOrWhiteSpace(dataFolder))
             return null;
 
-        var root = Path.GetFullPath(Path.Combine(dataFolder, PoolRootDirectoryName));
+        var dataFolderFullPath = Path.GetFullPath(dataFolder);
+        var parent = Path.GetDirectoryName(dataFolderFullPath);
+        if (string.IsNullOrWhiteSpace(parent))
+            return null;
+
+        var root = Path.GetFullPath(Path.Combine(parent, PoolRootDirectoryName));
         if (create)
             Directory.CreateDirectory(root);
 
@@ -254,14 +251,15 @@ public sealed class PoolStore
         Configuration cfg,
         CancellationToken cancellationToken)
     {
-        var poolDir = TryGetPoolDirectory(item.ItemId, create: true)
-            ?? throw new InvalidOperationException("Plugin data folder is unavailable.");
-
-        await EnsurePoolAsync(item, poolDir, cancellationToken).ConfigureAwait(false);
-
         var originalExtension = Path.GetExtension(originalFileName);
         if (!IsSupportedExtension(originalExtension))
             throw new InvalidDataException("Unsupported image extension.");
+
+        var poolDir = TryGetPoolDirectory(item.ItemId, create: false)
+            ?? throw new InvalidOperationException("Plugin data folder is unavailable.");
+        var createdPoolDir = !Directory.Exists(poolDir);
+        if (createdPoolDir)
+            Directory.CreateDirectory(poolDir);
 
         var maxBytes = Math.Clamp(cfg.MaxDownloadMegabytes, 1, 200) * 1024L * 1024L;
         var baseName = $"upload_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}_{Guid.NewGuid():N}";
@@ -312,6 +310,8 @@ public sealed class PoolStore
         finally
         {
             TryDeleteFile(tmpPath);
+            if (createdPoolDir && IsDirectoryEmpty(poolDir))
+                TryDeleteDirectory(poolDir);
         }
     }
 
@@ -329,7 +329,16 @@ public sealed class PoolStore
         File.Delete(imagePath);
         metadata.Images.Remove(image);
         metadata.UpdatedUtc = DateTimeOffset.UtcNow;
-        await SavePoolAsync(metadata, poolDir, cancellationToken).ConfigureAwait(false);
+        if (metadata.Images.Count == 0 && !ContainsReparsePoint(poolDir))
+        {
+            Directory.Delete(poolDir, recursive: true);
+            await RemoveFromIndexAsync(metadata.ItemId, cancellationToken).ConfigureAwait(false);
+        }
+        else
+        {
+            await SavePoolAsync(metadata, poolDir, cancellationToken).ConfigureAwait(false);
+        }
+
         return image;
     }
 
@@ -451,12 +460,9 @@ public sealed class PoolStore
         var index = new PoolIndexDocument();
 
         if (root == null || !Directory.Exists(root))
-        {
-            await SaveIndexAsync(index, cancellationToken).ConfigureAwait(false);
             return result;
-        }
 
-        foreach (var directory in Directory.GetDirectories(root))
+        foreach (var directory in Directory.EnumerateDirectories(root))
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (!Guid.TryParseExact(Path.GetFileName(directory), "N", out var itemId))
@@ -478,6 +484,12 @@ public sealed class PoolStore
                     directory,
                     reconcileFiles: true,
                     cancellationToken).ConfigureAwait(false);
+                if (metadata.Images.Count == 0)
+                {
+                    result.SkippedCount++;
+                    continue;
+                }
+
                 await SavePoolMetadataOnlyAsync(metadata, directory, cancellationToken).ConfigureAwait(false);
                 index.Pools.Add(CreateIndexEntry(metadata));
                 result.IndexedCount++;
@@ -504,7 +516,7 @@ public sealed class PoolStore
         if (root == null || !Directory.Exists(root))
             return result;
 
-        var index = await EnsureIndexAsync(cancellationToken).ConfigureAwait(false);
+        var index = await LoadIndexAsync(cancellationToken).ConfigureAwait(false);
         var scope = request.Scope?.Trim().ToLowerInvariant() ?? string.Empty;
         var targets = scope switch
         {
@@ -553,46 +565,6 @@ public sealed class PoolStore
 
         await SaveIndexAsync(index, cancellationToken).ConfigureAwait(false);
         return result;
-    }
-
-    private async Task<PoolIndexDocument> EnsureIndexAsync(CancellationToken cancellationToken)
-    {
-        await _indexLock.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
-            var index = await LoadIndexAsync(cancellationToken).ConfigureAwait(false);
-            var root = TryGetPoolRootPath(create: false);
-            if (root == null || !Directory.Exists(root))
-                return index;
-
-            var changed = false;
-            foreach (var directory in Directory.GetDirectories(root))
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (!Guid.TryParseExact(Path.GetFileName(directory), "N", out var itemId))
-                    continue;
-
-                if (index.Pools.Any(entry => entry.ItemId.Equals(itemId.ToString(), StringComparison.OrdinalIgnoreCase)))
-                    continue;
-
-                var metadata = await LoadOrCreateMetadataAsync(
-                    new PoolItemSnapshot(itemId, string.Empty, string.Empty, string.Empty, null),
-                    directory,
-                    reconcileFiles: true,
-                    cancellationToken).ConfigureAwait(false);
-                index.Pools.Add(CreateIndexEntry(metadata));
-                changed = true;
-            }
-
-            if (changed)
-                await SaveIndexUnsafeAsync(index, cancellationToken).ConfigureAwait(false);
-
-            return index;
-        }
-        finally
-        {
-            _indexLock.Release();
-        }
     }
 
     private async Task<PoolIndexDocument> LoadIndexAsync(CancellationToken cancellationToken)
@@ -652,7 +624,6 @@ public sealed class PoolStore
         metadata.UpdatedUtc = DateTimeOffset.UtcNow;
         Recalculate(metadata);
         await WriteJsonAtomicAsync(Path.Combine(poolDir, PoolFileName), metadata, cancellationToken).ConfigureAwait(false);
-        DeleteLegacyMetadataFiles(poolDir);
     }
 
     private async Task UpsertIndexAsync(PoolMetadata metadata, CancellationToken cancellationToken)
@@ -680,6 +651,30 @@ public sealed class PoolStore
                     _deferredIndexLastFlushUtc = now;
                 }
 
+                return;
+            }
+
+            await SaveIndexUnsafeAsync(index, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _indexLock.Release();
+        }
+    }
+
+    private async Task RemoveFromIndexAsync(string itemId, CancellationToken cancellationToken)
+    {
+        await _indexLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var index = _deferredIndex ?? await LoadIndexAsync(cancellationToken).ConfigureAwait(false);
+            var removed = index.Pools.RemoveAll(pool => pool.ItemId.Equals(itemId, StringComparison.OrdinalIgnoreCase));
+            if (removed == 0)
+                return;
+
+            if (_deferredIndex != null)
+            {
+                _deferredIndexPendingWrites++;
                 return;
             }
 
@@ -746,7 +741,6 @@ public sealed class PoolStore
         };
 
         UpdateSnapshot(metadata, item);
-        MergeLegacyMetadata(metadata, poolDir);
 
         if (reconcileFiles)
             ReconcileFiles(metadata, poolDir);
@@ -766,55 +760,6 @@ public sealed class PoolStore
             metadata.LibraryName = item.LibraryName;
         if (!string.IsNullOrWhiteSpace(item.Path))
             metadata.ItemPath = item.Path;
-    }
-
-    private void MergeLegacyMetadata(PoolMetadata metadata, string poolDir)
-    {
-        var statePath = Path.Combine(poolDir, "rotation_state.json");
-        if (File.Exists(statePath))
-        {
-            var state = PluginHelpers.LoadRotationState(statePath);
-            if (state.LastIndexByItem.TryGetValue(metadata.ItemId, out var lastIndex))
-                metadata.LastIndex = lastIndex;
-            if (state.LastRotatedUtcByItem.TryGetValue(metadata.ItemId, out var lastRotated))
-                metadata.LastRotatedUtc = DateTimeOffset.FromUnixTimeSeconds(lastRotated);
-        }
-
-        var languages = PluginHelpers.LoadJsonMap(Path.Combine(poolDir, "pool_languages.json"));
-        var urls = PluginHelpers.LoadJsonMap(Path.Combine(poolDir, "pool_urls.json"));
-        var hashes = ImageHash.LoadHashes(poolDir);
-
-        foreach (var file in EnumeratePoolImages(poolDir))
-        {
-            var fileName = Path.GetFileName(file);
-            var image = metadata.Images.FirstOrDefault(entry => entry.FileName.Equals(fileName, StringComparison.OrdinalIgnoreCase));
-            if (image == null)
-            {
-                image = CreateImageMetadata(file, "migrated", "unknown", null, 0);
-                metadata.Images.Add(image);
-            }
-
-            if (languages.TryGetValue(fileName, out var language) && !string.IsNullOrWhiteSpace(language))
-                image.Language = language;
-            if (urls.TryGetValue(fileName, out var url) && !string.IsNullOrWhiteSpace(url))
-                image.SourceUrl = url;
-            if (hashes.TryGetValue(fileName, out var hash))
-                image.Hash = hash;
-        }
-
-    }
-
-    private void DeleteLegacyMetadataFiles(string poolDir)
-    {
-        try
-        {
-            foreach (var file in LegacyMapFiles)
-                TryDeleteFile(Path.Combine(poolDir, file));
-        }
-        catch (Exception ex)
-        {
-            _log?.LogDebug(ex, "PosterRotator: unable to remove legacy pool metadata in {PoolDir}", poolDir);
-        }
     }
 
     private static void ReconcileFiles(PoolMetadata metadata, string poolDir)
@@ -1007,6 +952,30 @@ public sealed class PoolStore
         }
         catch
         {
+        }
+    }
+
+    private static void TryDeleteDirectory(string path)
+    {
+        try
+        {
+            if (Directory.Exists(path))
+                Directory.Delete(path, recursive: false);
+        }
+        catch
+        {
+        }
+    }
+
+    private static bool IsDirectoryEmpty(string path)
+    {
+        try
+        {
+            return Directory.Exists(path) && !Directory.EnumerateFileSystemEntries(path).Any();
+        }
+        catch
+        {
+            return false;
         }
     }
 

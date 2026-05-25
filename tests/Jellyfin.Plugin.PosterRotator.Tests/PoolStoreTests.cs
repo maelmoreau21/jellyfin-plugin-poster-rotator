@@ -7,41 +7,44 @@ namespace Jellyfin.Plugin.PosterRotator.Tests;
 public sealed class PoolStoreTests
 {
     [Fact]
-    public async Task EnsurePoolAsync_MigratesLegacyMapsAndDeletesThemAfterPoolJsonIsWritten()
+    public async Task EnsurePoolAsync_IgnoresLegacyMapsAndUsesDedicatedPoolRoot()
     {
-        var root = CreateTempRoot();
+        var root = CreateTempPluginDataFolder();
         var itemId = Guid.NewGuid();
-        var poolDir = Path.Combine(root, "pools", itemId.ToString("N"));
-        Directory.CreateDirectory(poolDir);
-        var imagePath = Path.Combine(poolDir, "poster.png");
-        await File.WriteAllBytesAsync(imagePath, Png1x1);
-
-        var state = new RotationState();
-        state.LastIndexByItem[itemId.ToString()] = 4;
-        state.LastRotatedUtcByItem[itemId.ToString()] = 1_700_000_000;
-        await File.WriteAllTextAsync(Path.Combine(poolDir, "rotation_state.json"), JsonSerializer.Serialize(state));
-        await File.WriteAllTextAsync(Path.Combine(poolDir, "pool_languages.json"), JsonSerializer.Serialize(new Dictionary<string, string> { ["poster.png"] = "fr" }));
-        await File.WriteAllTextAsync(Path.Combine(poolDir, "pool_urls.json"), JsonSerializer.Serialize(new Dictionary<string, string> { ["poster.png"] = "https://example.invalid/poster.png" }));
-        await File.WriteAllTextAsync(Path.Combine(poolDir, "pool_hashes.json"), JsonSerializer.Serialize(new Dictionary<string, ulong> { ["poster.png"] = 123 }));
 
         try
         {
             var store = new PoolStore(root);
+            var poolDir = store.TryGetPoolDirectory(itemId, create: true)!;
+            var imagePath = Path.Combine(poolDir, "poster.png");
+            await File.WriteAllBytesAsync(imagePath, Png1x1);
+
+            var state = new RotationState();
+            state.LastIndexByItem[itemId.ToString()] = 4;
+            state.LastRotatedUtcByItem[itemId.ToString()] = 1_700_000_000;
+            await File.WriteAllTextAsync(Path.Combine(poolDir, "rotation_state.json"), JsonSerializer.Serialize(state));
+            await File.WriteAllTextAsync(Path.Combine(poolDir, "pool_languages.json"), JsonSerializer.Serialize(new Dictionary<string, string> { ["poster.png"] = "fr" }));
+            await File.WriteAllTextAsync(Path.Combine(poolDir, "pool_urls.json"), JsonSerializer.Serialize(new Dictionary<string, string> { ["poster.png"] = "https://example.invalid/poster.png" }));
+            await File.WriteAllTextAsync(Path.Combine(poolDir, "pool_hashes.json"), JsonSerializer.Serialize(new Dictionary<string, ulong> { ["poster.png"] = 123 }));
+
             var pool = await store.EnsurePoolAsync(
                 new PoolItemSnapshot(itemId, "Movie A", "Movie", "Films", "D:\\Media\\Movie A.mkv"),
                 poolDir,
                 CancellationToken.None);
 
+            Assert.Equal(PoolRoot(root), store.TryGetPoolRootPath(create: false));
+            Assert.EndsWith("Jellyfin.Plugin.PosterRotator.pools", PoolRoot(root));
+            Assert.True(File.Exists(Path.Combine(PoolRoot(root), "index.json")));
             Assert.True(File.Exists(Path.Combine(poolDir, "pool.json")));
-            Assert.False(File.Exists(Path.Combine(poolDir, "rotation_state.json")));
-            Assert.False(File.Exists(Path.Combine(poolDir, "pool_languages.json")));
-            Assert.False(File.Exists(Path.Combine(poolDir, "pool_urls.json")));
-            Assert.False(File.Exists(Path.Combine(poolDir, "pool_hashes.json")));
-            Assert.Equal(4, pool.LastIndex);
+            Assert.True(File.Exists(Path.Combine(poolDir, "rotation_state.json")));
+            Assert.True(File.Exists(Path.Combine(poolDir, "pool_languages.json")));
+            Assert.True(File.Exists(Path.Combine(poolDir, "pool_urls.json")));
+            Assert.True(File.Exists(Path.Combine(poolDir, "pool_hashes.json")));
+            Assert.Equal(0, pool.LastIndex);
             Assert.Single(pool.Images);
-            Assert.Equal("fr", pool.Images[0].Language);
-            Assert.Equal("https://example.invalid/poster.png", pool.Images[0].SourceUrl);
-            Assert.Equal((ulong)123, pool.Images[0].Hash);
+            Assert.Equal("unknown", pool.Images[0].Language);
+            Assert.Null(pool.Images[0].SourceUrl);
+            Assert.Equal((ulong)0, pool.Images[0].Hash);
         }
         finally
         {
@@ -52,7 +55,7 @@ public sealed class PoolStoreTests
     [Fact]
     public async Task PurgeAsync_CanDeleteOnlyOneLibrary()
     {
-        var root = CreateTempRoot();
+        var root = CreateTempPluginDataFolder();
         var filmsId = Guid.NewGuid();
         var seriesId = Guid.NewGuid();
 
@@ -68,8 +71,8 @@ public sealed class PoolStoreTests
                 CancellationToken.None);
 
             Assert.Equal(1, result.DeletedCount);
-            Assert.False(Directory.Exists(Path.Combine(root, "pools", filmsId.ToString("N"))));
-            Assert.True(Directory.Exists(Path.Combine(root, "pools", seriesId.ToString("N"))));
+            Assert.False(Directory.Exists(Path.Combine(PoolRoot(root), filmsId.ToString("N"))));
+            Assert.True(Directory.Exists(Path.Combine(PoolRoot(root), seriesId.ToString("N"))));
         }
         finally
         {
@@ -80,7 +83,7 @@ public sealed class PoolStoreTests
     [Fact]
     public async Task PurgeAsync_CanDeleteOnlyOrphans()
     {
-        var root = CreateTempRoot();
+        var root = CreateTempPluginDataFolder();
         var liveId = Guid.NewGuid();
         var orphanId = Guid.NewGuid();
 
@@ -96,8 +99,8 @@ public sealed class PoolStoreTests
                 CancellationToken.None);
 
             Assert.Equal(1, result.DeletedCount);
-            Assert.True(Directory.Exists(Path.Combine(root, "pools", liveId.ToString("N"))));
-            Assert.False(Directory.Exists(Path.Combine(root, "pools", orphanId.ToString("N"))));
+            Assert.True(Directory.Exists(Path.Combine(PoolRoot(root), liveId.ToString("N"))));
+            Assert.False(Directory.Exists(Path.Combine(PoolRoot(root), orphanId.ToString("N"))));
         }
         finally
         {
@@ -108,7 +111,7 @@ public sealed class PoolStoreTests
     [Fact]
     public async Task ListPoolsAsync_FiltersErrorsAndEmptyPoolsFromIndex()
     {
-        var root = CreateTempRoot();
+        var root = CreateTempPluginDataFolder();
         var okId = Guid.NewGuid();
         var emptyId = Guid.NewGuid();
         var errorId = Guid.NewGuid();
@@ -120,7 +123,7 @@ public sealed class PoolStoreTests
             await CreatePool(store, root, errorId, "Broken", "Films");
             await store.RecordErrorAsync(errorId, "Download failed.", CancellationToken.None);
 
-            var emptyDir = Path.Combine(root, "pools", emptyId.ToString("N"));
+            var emptyDir = Path.Combine(PoolRoot(root), emptyId.ToString("N"));
             Directory.CreateDirectory(emptyDir);
             await store.EnsurePoolAsync(
                 new PoolItemSnapshot(emptyId, "Empty", "Movie", "Films", null),
@@ -146,14 +149,14 @@ public sealed class PoolStoreTests
     [Fact]
     public async Task RebuildIndexAsync_RecreatesIndexWithoutListSideEffects()
     {
-        var root = CreateTempRoot();
+        var root = CreateTempPluginDataFolder();
         var itemId = Guid.NewGuid();
 
         try
         {
             var store = new PoolStore(root);
             await CreatePool(store, root, itemId, "Movie", "Films");
-            File.Delete(Path.Combine(root, "pools", "index.json"));
+            File.Delete(Path.Combine(PoolRoot(root), "index.json"));
 
             var before = await store.ListPoolsAsync(new PoolListQuery(), CancellationToken.None);
             Assert.Equal(0, before.Total);
@@ -173,9 +176,90 @@ public sealed class PoolStoreTests
     }
 
     [Fact]
+    public async Task RebuildIndexAsync_SkipsEmptyPoolDirectories()
+    {
+        var root = CreateTempPluginDataFolder();
+        var filledId = Guid.NewGuid();
+        var emptyId = Guid.NewGuid();
+
+        try
+        {
+            var store = new PoolStore(root);
+            await CreatePool(store, root, filledId, "Movie", "Films");
+            Directory.CreateDirectory(Path.Combine(PoolRoot(root), emptyId.ToString("N")));
+            File.Delete(Path.Combine(PoolRoot(root), "index.json"));
+
+            var rebuild = await store.RebuildIndexAsync(CancellationToken.None);
+            var after = await store.ListPoolsAsync(new PoolListQuery(), CancellationToken.None);
+
+            Assert.Equal(1, rebuild.IndexedCount);
+            Assert.Equal(1, rebuild.SkippedCount);
+            Assert.Equal(1, after.Total);
+            Assert.Equal(filledId.ToString(), after.Items.Single().ItemId);
+        }
+        finally
+        {
+            DeleteTempRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task ListPoolsAsync_UsesOnlyDedicatedIndexForLargeLibraries()
+    {
+        var root = CreateTempPluginDataFolder();
+
+        try
+        {
+            var oldRoot = Path.Combine(root, "pools");
+            Directory.CreateDirectory(oldRoot);
+            await File.WriteAllTextAsync(
+                Path.Combine(oldRoot, "index.json"),
+                JsonSerializer.Serialize(new PoolIndexDocument
+                {
+                    Pools = new List<PoolIndexEntry>
+                    {
+                        new() { ItemId = Guid.NewGuid().ToString(), ItemName = "Old", LibraryName = "Films", UpdatedUtc = DateTimeOffset.UtcNow }
+                    }
+                }));
+
+            var dedicatedRoot = PoolRoot(root);
+            Directory.CreateDirectory(dedicatedRoot);
+            var entries = Enumerable.Range(0, 20_000)
+                .Select(i => new PoolIndexEntry
+                {
+                    ItemId = Guid.NewGuid().ToString(),
+                    ItemName = $"Movie {i:D5}",
+                    ItemType = "Movie",
+                    LibraryName = i % 10 == 0 ? "Films" : "Series",
+                    ImageCount = 1,
+                    SizeBytes = 1024,
+                    UpdatedUtc = DateTimeOffset.UtcNow.AddSeconds(-i)
+                })
+                .ToList();
+            await File.WriteAllTextAsync(
+                Path.Combine(dedicatedRoot, "index.json"),
+                JsonSerializer.Serialize(new PoolIndexDocument { Pools = entries }));
+
+            var store = new PoolStore(root);
+            var page = await store.ListPoolsAsync(
+                new PoolListQuery { Library = "Films", Start = 200, Limit = 25 },
+                CancellationToken.None);
+
+            Assert.Equal(2_000, page.Total);
+            Assert.Equal(25, page.Items.Count);
+            Assert.DoesNotContain(page.Items, item => item.ItemName == "Old");
+            Assert.Single(Directory.EnumerateFileSystemEntries(dedicatedRoot));
+        }
+        finally
+        {
+            DeleteTempRoot(root);
+        }
+    }
+
+    [Fact]
     public async Task DeferredIndexWrites_FlushOnlyWhenScopeCompletes()
     {
-        var root = CreateTempRoot();
+        var root = CreateTempPluginDataFolder();
         var itemId = Guid.NewGuid();
 
         try
@@ -187,7 +271,7 @@ public sealed class PoolStoreTests
 
                 var beforeFlush = await store.ListPoolsAsync(new PoolListQuery(), CancellationToken.None);
                 Assert.Equal(0, beforeFlush.Total);
-                Assert.False(File.Exists(Path.Combine(root, "pools", "index.json")));
+                Assert.False(File.Exists(Path.Combine(PoolRoot(root), "index.json")));
             }
 
             var afterFlush = await store.ListPoolsAsync(new PoolListQuery(), CancellationToken.None);
@@ -203,7 +287,7 @@ public sealed class PoolStoreTests
     [Fact]
     public async Task ImportImageAsync_RejectsUnsupportedUpload()
     {
-        var root = CreateTempRoot();
+        var root = CreateTempPluginDataFolder();
         var itemId = Guid.NewGuid();
 
         try
@@ -216,6 +300,7 @@ public sealed class PoolStoreTests
                 "bad.txt",
                 new Configuration(),
                 CancellationToken.None));
+            Assert.False(Directory.Exists(PoolRoot(root)));
         }
         finally
         {
@@ -226,14 +311,13 @@ public sealed class PoolStoreTests
     [Fact]
     public async Task DeleteImageAsync_RemovesImageAndUpdatesIndex()
     {
-        var root = CreateTempRoot();
+        var root = CreateTempPluginDataFolder();
         var itemId = Guid.NewGuid();
 
         try
         {
             var store = new PoolStore(root);
-            var poolDir = Path.Combine(root, "pools", itemId.ToString("N"));
-            Directory.CreateDirectory(poolDir);
+            var poolDir = store.TryGetPoolDirectory(itemId, create: true)!;
             var imagePath = Path.Combine(poolDir, "poster.png");
             await File.WriteAllBytesAsync(imagePath, Png1x1);
             var snapshot = new PoolItemSnapshot(itemId, "Movie", "Movie", "Films", null);
@@ -245,7 +329,8 @@ public sealed class PoolStoreTests
 
             Assert.Equal("poster.png", deleted.FileName);
             Assert.False(File.Exists(imagePath));
-            Assert.Equal(0, list.Items.Single().ImageCount);
+            Assert.False(Directory.Exists(poolDir));
+            Assert.Equal(0, list.Total);
         }
         finally
         {
@@ -256,7 +341,7 @@ public sealed class PoolStoreTests
     [Fact]
     public async Task DeleteImageAsync_RejectsPathTraversal()
     {
-        var root = CreateTempRoot();
+        var root = CreateTempPluginDataFolder();
         var itemId = Guid.NewGuid();
 
         try
@@ -275,8 +360,7 @@ public sealed class PoolStoreTests
 
     private static async Task CreatePool(PoolStore store, string root, Guid itemId, string name, string library)
     {
-        var poolDir = Path.Combine(root, "pools", itemId.ToString("N"));
-        Directory.CreateDirectory(poolDir);
+        var poolDir = store.TryGetPoolDirectory(itemId, create: true)!;
         var imagePath = Path.Combine(poolDir, "poster.png");
         await File.WriteAllBytesAsync(imagePath, Png1x1);
         var snapshot = new PoolItemSnapshot(itemId, name, "Movie", library, null);
@@ -284,11 +368,20 @@ public sealed class PoolStoreTests
         await store.RecordImageAsync(snapshot, poolDir, imagePath, "upload", "unknown", null, "image/png", 1, 1, 1, CancellationToken.None);
     }
 
-    private static string CreateTempRoot() =>
-        Path.Combine(Path.GetTempPath(), "poster-rotator-store-" + Guid.NewGuid().ToString("N"));
-
-    private static void DeleteTempRoot(string root)
+    private static string CreateTempPluginDataFolder()
     {
+        var root = Path.Combine(Path.GetTempPath(), "poster-rotator-store-" + Guid.NewGuid().ToString("N"));
+        var pluginData = Path.Combine(root, "Jellyfin.Plugin.PosterRotator");
+        Directory.CreateDirectory(pluginData);
+        return pluginData;
+    }
+
+    private static string PoolRoot(string pluginData) =>
+        Path.Combine(Directory.GetParent(pluginData)!.FullName, PoolStore.PoolRootDirectoryName);
+
+    private static void DeleteTempRoot(string pluginData)
+    {
+        var root = Directory.GetParent(pluginData)!.FullName;
         if (Directory.Exists(root))
             Directory.Delete(root, recursive: true);
     }

@@ -164,7 +164,7 @@
     .posterRotatorThumbs {
       display: grid;
       gap: 10px;
-      grid-template-columns: repeat(auto-fill, minmax(112px, 132px));
+      grid-template-columns: repeat(auto-fill, minmax(148px, 160px));
       justify-content: start;
       margin-top: 10px;
     }
@@ -174,14 +174,14 @@
       border-radius: 6px;
       max-width: 100%;
       overflow: hidden;
-      width: 132px;
+      width: 160px;
     }
 
     .posterRotatorThumbImage,
     .posterRotatorThumbError {
       aspect-ratio: 2 / 3;
-      height: 198px;
-      max-height: 198px;
+      height: 240px;
+      max-height: 240px;
       width: 100%;
     }
 
@@ -350,7 +350,7 @@
                   <button id="RefreshAllBtn" type="button" class="raised emby-button">Actualiser</button>
                   <button id="RebuildIndexBtn" type="button" class="raised emby-button">Reparer la liste des pools</button>
                 </div>
-                <div class="posterRotatorDescription">A utiliser si des pools manquent dans la liste apres une migration ou une modification manuelle.</div>
+                <div class="posterRotatorDescription">A utiliser si des pools manquent dans la liste apres une modification manuelle.</div>
               </div>
             </div>
 
@@ -517,6 +517,10 @@
           var url = ApiClient.getUrl('PosterRotator/Pools/' + encodeURIComponent(poolsState.selectedItemId) + '/Images/' + encodeURIComponent(fileName));
           var token = apiToken();
           if (token && url.indexOf('ApiKey=') < 0) url = appendQuery(url, 'ApiKey', token);
+          url = appendQuery(url, 'preview', 'true');
+          url = appendQuery(url, 'maxWidth', '320');
+          url = appendQuery(url, 'maxHeight', '480');
+          url = appendQuery(url, 'quality', '80');
           return appendQuery(url, 'v', prop(image, 'AddedUtc', 'addedUtc', Date.now()));
         }
         function formatBytes(bytes) {

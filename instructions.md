@@ -12,13 +12,14 @@ Preparer Poster Rotator `1.7.0.0` pour Jellyfin `12.0.0.0`.
 
 ## Stockage des pools
 
-La ligne 1.7 utilise un stockage fichier structure sous `PluginData/pools`:
+La ligne 1.7 utilise un stockage fichier structure dans un dossier dedie, frere du dossier config du plugin:
 
-- `pools/index.json`: index leger pour diagnostics, recherche, pagination et actions globales.
-- `pools/{itemId}/pool.json`: metadonnees versionnees du pool, images, hashes, langues, sources, dates et erreurs recentes.
-- Les anciens fichiers `rotation_state.json`, `pool_urls.json`, `pool_languages.json` et `pool_hashes.json` sont migres puis supprimes apres ecriture reussie de `pool.json`.
+- `Jellyfin.Plugin.PosterRotator.pools/index.json`: index leger pour diagnostics, recherche, pagination et actions globales.
+- `Jellyfin.Plugin.PosterRotator.pools/{itemId}/pool.json`: metadonnees versionnees du pool, images, hashes, langues, sources, dates et erreurs recentes.
+- Les anciens pools sous `Jellyfin.Plugin.PosterRotator/pools` sont ignores et ne doivent pas etre migres.
+- Les anciens fichiers `rotation_state.json`, `pool_urls.json`, `pool_languages.json` et `pool_hashes.json` ne doivent plus etre migres automatiquement.
 
-La recherche UI ne doit pas scanner tous les dossiers a chaque requete. Utiliser l'index existant et l'action explicite `POST /PosterRotator/Pools/RebuildIndex` pour reconstruire l'index.
+La recherche UI ne doit pas scanner tous les dossiers a chaque requete. Utiliser l'index existant et l'action explicite `POST /PosterRotator/Pools/RebuildIndex` pour reconstruire l'index. Seul le rebuild explicite peut enumerer tous les dossiers de pools.
 
 Ne pas ajouter de `DbContext` custom ni de SQL brut pour ce stockage.
 
@@ -54,6 +55,7 @@ Toutes les routes `PosterRotator/*` doivent rester protegees par `RequiresElevat
 - `POST /PosterRotator/Pools/RebuildIndex`
 - `GET /PosterRotator/Pools/{itemId}`
 - `GET /PosterRotator/Pools/{itemId}/Images/{fileName}`
+- `GET /PosterRotator/Pools/{itemId}/Images/{fileName}?preview=true&maxWidth=320&maxHeight=480&quality=80`
 - `POST /PosterRotator/Pools/{itemId}/RotateNow`
 - `POST /PosterRotator/Libraries/{libraryName}/RotateNow`
 - `POST /PosterRotator/Pools/{itemId}/Images`
@@ -78,8 +80,8 @@ L'interface utilise deux vrais onglets ARIA: `Pools` et `Parametres`.
 - filtre bibliotheque sous forme de menu deroulant charge depuis `/Library/VirtualFolders`;
 - statistiques compactes;
 - table paginee des pools;
-- panneau de detail avec miniatures chargees via `ApiKey`;
-- miniatures de pools normalisees en taille bornee, format affiche, avec fallback `Apercu indisponible` masque par defaut et visible seulement sur erreur de chargement;
+- panneau de detail avec miniatures chargees via `ApiKey` et parametres `preview`;
+- miniatures de pools reduites cote serveur via `IImageProcessor.ProcessImage`, normalisees en taille bornee, format affiche, avec fallback `Apercu indisponible` masque par defaut et visible seulement sur erreur de chargement;
 - suppression/import d'images;
 - action de maintenance `Reparer la liste des pools` qui appelle `POST /PosterRotator/Pools/RebuildIndex`;
 - l'onglet `Parametres` expose uniquement les reglages utiles au quotidien;
@@ -152,7 +154,7 @@ Get-Content .\manifest.json | ConvertFrom-Json | Out-Null
 
 - Le stockage `PluginData` doit rester le mode recommande.
 - Le mode `MediaFolders` doit rester disponible uniquement pour compatibilite.
-- Les anciens dossiers `.poster_pool` doivent etre migres ou purgeables sans suivre les reparse points.
+- Les anciens dossiers `.poster_pool` restent disponibles seulement pour le mode `MediaFolders`; ne pas les migrer automatiquement vers PluginData.
 - Les telechargements distants doivent rester bornes en taille et bloquer les URLs privees/locales par defaut.
-- L'interface ne doit editer que les pools `PluginData`; les pools `MediaFolders` restent un mode de compatibilite.
+- L'interface ne doit editer que les pools `Jellyfin.Plugin.PosterRotator.pools`; les pools `MediaFolders` restent un mode de compatibilite.
 - Les actions upload, suppression et rotation immediate doivent utiliser un verrou par pool.
