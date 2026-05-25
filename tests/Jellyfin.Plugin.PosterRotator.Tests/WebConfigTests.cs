@@ -56,6 +56,13 @@ public sealed class WebConfigTests
         Assert.Contains("Autoriser toutes les langues en dernier recours", html);
         Assert.DoesNotContain("VO en fallback", html);
         Assert.Contains("Reparer la liste des pools", html);
+        Assert.Contains("Telecharger les pools manquantes maintenant", html);
+        Assert.Contains("PosterRotator/Pools/DownloadMissing", html);
+        Assert.Contains("downloadMissingPoolsNow", html);
+        Assert.Contains("Supprimer tous les pools", html);
+        Assert.Contains("PosterRotator/PurgeAllPools", html);
+        Assert.Contains("purgeAllPools", html);
+        Assert.DoesNotContain("<h3>Maintenance</h3>", html);
 
         var labelIndex = html.IndexOf("for=\"MaxRotationsPerRun\">Nombre maximum d'affiches a changer par passage", StringComparison.Ordinal);
         var helpIndex = html.IndexOf("(0 = aucune limite de nombre. Le delai interne entre deux changements reste respecte.)", StringComparison.Ordinal);
@@ -72,6 +79,9 @@ public sealed class WebConfigTests
         var html = LoadConfigHtml();
 
         Assert.Contains("poolImageUrl(fileName, image)", html);
+        Assert.Contains("poolOriginalImageUrl(fileName, image)", html);
+        Assert.Contains("data-original-src", html);
+        Assert.Contains("data-original-tried", html);
         Assert.Contains("'ApiKey'", html);
         Assert.DoesNotContain("api_key", html);
         Assert.Contains("appendQuery(url, 'preview', 'true')", html);

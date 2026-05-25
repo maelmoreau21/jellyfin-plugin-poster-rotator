@@ -70,6 +70,13 @@ public class PurgeController : ControllerBase
         return Ok(result);
     }
 
+    [HttpPost("Pools/DownloadMissing")]
+    public async Task<ActionResult<PoolDownloadResult>> DownloadMissingPools(CancellationToken cancellationToken)
+    {
+        var result = await _service.DownloadMissingPoolsNowAsync(cancellationToken).ConfigureAwait(false);
+        return Ok(result);
+    }
+
     [HttpGet("Pools/{itemId:guid}")]
     public async Task<ActionResult<PoolMetadata>> GetPool(Guid itemId, CancellationToken cancellationToken)
     {

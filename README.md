@@ -26,7 +26,7 @@ Les correctifs UI et les regenerations d'archive de cette ligne doivent conserve
 
 Le planificateur Jellyfin affiche une section **Poster Rotator** avec:
 
-- **Download missing pools**: remplit les pools manquantes ou incompletes sans changer les affiches;
+- **Download missing pools**: remplit les pools manquantes ou incompletes sans changer les affiches, en ecrivant strictement sous `Jellyfin.Plugin.PosterRotator.pools`;
 - **Rotate pools**: change les affiches eligibles depuis les pools existantes, sans telecharger;
 - **Nettoyage pools orphelins**: supprime les pools dont le media n'existe plus.
 
@@ -54,7 +54,9 @@ L'interface admin est organisee en deux vrais onglets separes: `Pools` s'ouvre p
 - detail du pool selectionne avec miniatures reduites cote serveur, normalisees au format affiche, taille bornee, et message lisible seulement si une image ne peut pas etre chargee;
 - import et suppression d'affiches;
 - rotation immediate par media ou bibliotheque;
+- telechargement manuel des pools manquantes depuis l'onglet `Pools`, avec un resume des candidats, images ajoutees et erreurs;
 - purge des orphelins, d'une bibliotheque ou d'un media;
+- suppression de tous les pools en une action admin confirmee;
 - action de maintenance **Reparer la liste des pools** pour reconstruire `Jellyfin.Plugin.PosterRotator.pools/index.json`;
 - reglage simple du nombre maximum d'affiches changees par passage, avec l'aide `0 = aucune limite...` directement sous le libelle du champ;
 - bibliotheques, langues et securite dans l'onglet `Parametres`;
@@ -68,7 +70,7 @@ Les anciens dossiers `.poster_pool` du mode `MediaFolders` restent compatibles s
 - `Jellyfin.Plugin.PosterRotator.pools/{itemId}/pool.json`: metadonnees du pool, images, hashes, langues, sources, dates et erreurs recentes.
 - Les anciens fichiers `rotation_state.json`, `pool_urls.json`, `pool_languages.json` et `pool_hashes.json` ne sont plus migres automatiquement.
 
-La recherche des pools lit l'index existant sans scanner tous les dossiers. Si des pools ont ete ajoutes manuellement ou si l'index est absent, utilisez l'action **Reparer la liste des pools**. Les apercus de la page admin utilisent `preview=true` pour charger une image reduite, pas le fichier original en pleine resolution.
+La recherche des pools lit l'index existant sans scanner tous les dossiers. Si des pools ont ete ajoutes manuellement ou si l'index est absent, utilisez l'action **Reparer la liste des pools**. Si des medias n'ont pas encore de pool, utilisez **Telecharger les pools manquantes maintenant** ou la tache planifiee **Download missing pools**. Les apercus de la page admin utilisent `preview=true` pour charger une image reduite; si Jellyfin ne peut pas generer cette miniature, l'interface retente l'image originale tout en la gardant bornee a la taille de la carte.
 
 Le telechargement distant suit une chaine de redirection bornee et revalide chaque cible pour eviter les redirections vers localhost, reseaux prives ou link-local quand le blocage des URLs privees est actif. Les uploads sont rejetes des l'entree API si leur taille depasse `MaxDownloadMegabytes`.
 

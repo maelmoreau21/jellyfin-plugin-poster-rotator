@@ -320,7 +320,11 @@
               <div class="posterRotatorActions">
                 <button id="PrevPoolsBtn" type="button" class="raised emby-button">Precedent</button>
                 <button id="NextPoolsBtn" type="button" class="raised emby-button">Suivant</button>
+                <button id="RefreshAllBtn" type="button" class="raised emby-button">Actualiser</button>
+                <button id="DownloadMissingPoolsBtn" type="button" class="raised emby-button">Telecharger les pools manquantes maintenant</button>
+                <button id="RebuildIndexBtn" type="button" class="raised emby-button">Reparer la liste des pools</button>
                 <button id="RotateLibraryBtn" type="button" class="raised emby-button">Rotation bibliotheque</button>
+                <button id="PurgeAllPoolsBtn" type="button" class="raised button-cancel emby-button">Supprimer tous les pools</button>
                 <button id="PurgeOrphansBtn" type="button" class="raised button-cancel emby-button">Purger orphelins</button>
                 <button id="PurgeLibraryBtn" type="button" class="raised button-cancel emby-button">Purger bibliotheque</button>
                 <button id="PurgeItemBtn" type="button" class="raised button-cancel emby-button">Purger media</button>
@@ -343,15 +347,6 @@
                 </table>
               </div>
               <div id="PoolsStatus" class="posterRotatorStatus"></div>
-
-              <div class="posterRotatorBand">
-                <h3>Maintenance</h3>
-                <div class="posterRotatorActions">
-                  <button id="RefreshAllBtn" type="button" class="raised emby-button">Actualiser</button>
-                  <button id="RebuildIndexBtn" type="button" class="raised emby-button">Reparer la liste des pools</button>
-                </div>
-                <div class="posterRotatorDescription">A utiliser si des pools manquent dans la liste apres une modification manuelle.</div>
-              </div>
             </div>
 
             <div id="PoolDetail" class="posterRotatorDetail" style="display:none;">
@@ -513,15 +508,22 @@
           if (ApiClient.accessToken && typeof ApiClient.accessToken === 'function') return ApiClient.accessToken();
           return '';
         }
-        function poolImageUrl(fileName, image) {
+        function poolImageBaseUrl(fileName) {
           var url = ApiClient.getUrl('PosterRotator/Pools/' + encodeURIComponent(poolsState.selectedItemId) + '/Images/' + encodeURIComponent(fileName));
           var token = apiToken();
           if (token && url.indexOf('ApiKey=') < 0) url = appendQuery(url, 'ApiKey', token);
+          return url;
+        }
+        function poolImageUrl(fileName, image) {
+          var url = poolImageBaseUrl(fileName);
           url = appendQuery(url, 'preview', 'true');
           url = appendQuery(url, 'maxWidth', '320');
           url = appendQuery(url, 'maxHeight', '480');
           url = appendQuery(url, 'quality', '80');
           return appendQuery(url, 'v', prop(image, 'AddedUtc', 'addedUtc', Date.now()));
+        }
+        function poolOriginalImageUrl(fileName, image) {
+          return appendQuery(poolImageBaseUrl(fileName), 'v', prop(image, 'AddedUtc', 'addedUtc', Date.now()));
         }
         function formatBytes(bytes) {
           bytes = Number(bytes || 0);
@@ -756,8 +758,9 @@
             var fileName = prop(image, 'FileName', 'fileName', '');
             var source = prop(image, 'Source', 'source', 'unknown');
             var src = poolImageUrl(fileName, image);
+            var originalSrc = poolOriginalImageUrl(fileName, image);
             return '<div class="posterRotatorThumb">'
-              + '<img class="posterRotatorThumbImage" alt="" src="' + escapeHtml(src) + '" loading="lazy" />'
+              + '<img class="posterRotatorThumbImage" alt="" src="' + escapeHtml(src) + '" data-original-src="' + escapeHtml(originalSrc) + '" loading="lazy" />'
               + '<div class="posterRotatorThumbError" hidden>Apercu indisponible</div>'
               + '<div class="posterRotatorThumbBody">'
               + '<div class="posterRotatorThumbName" title="' + escapeHtml(fileName) + '">' + escapeHtml(fileName) + '</div>'
@@ -775,6 +778,12 @@
               if (fallback) fallback.hidden = true;
             });
             img.addEventListener('error', function () {
+              var originalSrc = img.getAttribute('data-original-src');
+              if (originalSrc && img.getAttribute('data-original-tried') !== '1') {
+                img.setAttribute('data-original-tried', '1');
+                img.src = originalSrc;
+                return;
+              }
               img.classList.add('is-hidden');
               if (fallback) fallback.hidden = false;
             });
@@ -894,6 +903,34 @@
             });
         }
 
+        function downloadMissingPoolsNow() {
+          setGlobalStatus('Telechargement des pools manquantes...');
+          postJson('PosterRotator/Pools/DownloadMissing', {})
+            .then(function (result) {
+              setGlobalStatus(prop(result, 'Message', 'message', 'Telechargement termine.'));
+              return refreshAll(true);
+            })
+            .catch(function () {
+              setGlobalStatus('Telechargement des pools manquantes impossible.');
+            });
+        }
+
+        function purgeAllPools() {
+          if (!confirm('Supprimer tous les pools PluginData et les anciens pools dossiers medias ?')) return;
+          setGlobalStatus('Suppression de tous les pools...');
+          postJson('PosterRotator/PurgeAllPools', {})
+            .then(function (result) {
+              setGlobalStatus(prop(result, 'DeletedCount', 'deletedCount', 0) + ' pool(s) supprime(s).');
+              var detail = byId('PoolDetail');
+              if (detail) detail.style.display = 'none';
+              poolsState.selectedItemId = null;
+              return refreshAll(true);
+            })
+            .catch(function () {
+              setGlobalStatus('Suppression de tous les pools impossible.');
+            });
+        }
+
         function loadConfig() {
           return ApiClient.getPluginConfiguration(pluginId)
             .then(function (cfg) {
@@ -991,6 +1028,10 @@
           if (refreshAllBtn) refreshAllBtn.addEventListener('click', function () { refreshAll(false); });
           var rebuildIndexBtn = byId('RebuildIndexBtn');
           if (rebuildIndexBtn) rebuildIndexBtn.addEventListener('click', rebuildIndex);
+          var downloadMissingPoolsBtn = byId('DownloadMissingPoolsBtn');
+          if (downloadMissingPoolsBtn) downloadMissingPoolsBtn.addEventListener('click', downloadMissingPoolsNow);
+          var purgeAllPoolsBtn = byId('PurgeAllPoolsBtn');
+          if (purgeAllPoolsBtn) purgeAllPoolsBtn.addEventListener('click', purgeAllPools);
           var search = byId('PoolsSearch');
           if (search) search.addEventListener('input', debouncePools);
           ['PoolsLibrary', 'PoolsType', 'PoolsState'].forEach(function (id) {

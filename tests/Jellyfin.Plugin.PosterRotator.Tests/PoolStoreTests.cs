@@ -358,6 +358,53 @@ public sealed class PoolStoreTests
         }
     }
 
+    [Fact]
+    public async Task CreatePoolDirectoryForWrite_UsesDedicatedRootAndIndexesDownloadedImage()
+    {
+        var root = CreateTempPluginDataFolder();
+        var itemId = Guid.NewGuid();
+
+        try
+        {
+            var oldRoot = Path.Combine(root, "pools");
+            Directory.CreateDirectory(oldRoot);
+
+            var store = new PoolStore(root);
+            var poolDir = store.TryCreatePoolDirectoryForWrite(itemId)!;
+            var imagePath = Path.Combine(poolDir, "downloaded.png");
+            await File.WriteAllBytesAsync(imagePath, Png1x1);
+            var snapshot = new PoolItemSnapshot(itemId, "Downloaded", "Movie", "Films", null);
+
+            await store.RecordImageAsync(
+                snapshot,
+                poolDir,
+                imagePath,
+                "remote",
+                "fr",
+                "https://image.tmdb.org/t/p/original/poster.png",
+                "image/png",
+                1,
+                1,
+                42,
+                CancellationToken.None);
+
+            var dedicatedRoot = PoolRoot(root);
+            Assert.Equal(Path.Combine(dedicatedRoot, itemId.ToString("N")), poolDir);
+            Assert.True(File.Exists(Path.Combine(dedicatedRoot, "index.json")));
+            Assert.True(File.Exists(Path.Combine(poolDir, "pool.json")));
+            Assert.False(Directory.Exists(Path.Combine(oldRoot, itemId.ToString("N"))));
+
+            var list = await store.ListPoolsAsync(new PoolListQuery(), CancellationToken.None);
+            var entry = Assert.Single(list.Items);
+            Assert.Equal(itemId.ToString(), entry.ItemId);
+            Assert.Equal(1, entry.ImageCount);
+        }
+        finally
+        {
+            DeleteTempRoot(root);
+        }
+    }
+
     private static async Task CreatePool(PoolStore store, string root, Guid itemId, string name, string library)
     {
         var poolDir = store.TryGetPoolDirectory(itemId, create: true)!;

@@ -36,7 +36,8 @@ Les taches planifiees doivent rester adaptees aux bibliotheques de plus de 20 00
 - plafonner chaque execution avec `MaxRotationsPerRun`, `MaxProviderLookupsPerRun` et `MaxDownloadsPerRun`;
 - interpreter `MaxRotationsPerRun = 0` comme "pas de limite de rotations", sans ignorer le cooldown;
 - ne pas telecharger ni creer de pool vide depuis `Rotate pools`;
-- ne creer `Jellyfin.Plugin.PosterRotator.pools/{itemId}` pendant `Download missing pools` que lorsqu'un fichier image valide va etre ecrit, puis supprimer le dossier s'il reste vide;
+- ne creer `Jellyfin.Plugin.PosterRotator.pools/{itemId}` pendant `Download missing pools` que via `PoolStore`, lorsqu'un fichier image valide va etre ecrit, puis supprimer le dossier s'il reste vide;
+- ne jamais retomber vers `.poster_pool` ou le dossier du media quand `Download missing pools` force le stockage `PluginData`;
 - garder `PluginData` comme stockage recommande.
 
 Valeurs par defaut:
@@ -56,6 +57,7 @@ Toutes les routes `PosterRotator/*` doivent rester protegees par `RequiresElevat
 - `GET /PosterRotator/Diagnostics`
 - `GET /PosterRotator/Pools?library=&query=&type=&hasErrors=&isEmpty=&start=&limit=`
 - `POST /PosterRotator/Pools/RebuildIndex`
+- `POST /PosterRotator/Pools/DownloadMissing`
 - `GET /PosterRotator/Pools/{itemId}`
 - `GET /PosterRotator/Pools/{itemId}/Images/{fileName}`
 - `GET /PosterRotator/Pools/{itemId}/Images/{fileName}?preview=true&maxWidth=320&maxHeight=480&quality=80`
@@ -86,8 +88,11 @@ L'interface utilise deux vrais onglets ARIA: `Pools` et `Parametres`.
 - table paginee des pools;
 - panneau de detail avec miniatures chargees via `ApiKey` et parametres `preview`;
 - miniatures de pools reduites cote serveur via `IImageProcessor.ProcessImage`, normalisees en taille bornee, format affiche, avec fallback `Apercu indisponible` masque par defaut et visible seulement sur erreur de chargement;
+- si la preview serveur echoue, l'image retente une fois la route originale, toujours bornee par CSS, avant d'afficher `Apercu indisponible`;
 - suppression/import d'images;
 - action de maintenance `Reparer la liste des pools` qui appelle `POST /PosterRotator/Pools/RebuildIndex`;
+- action de maintenance `Telecharger les pools manquantes maintenant` qui appelle `POST /PosterRotator/Pools/DownloadMissing` et retourne un resume;
+- action `Supprimer tous les pools` qui appelle `POST /PosterRotator/PurgeAllPools` apres confirmation;
 - l'onglet `Parametres` expose uniquement les reglages utiles au quotidien;
 - le champ `Nombre maximum d'affiches a changer par passage` accepte `0` pour aucune limite de nombre, avec le texte d'aide dans le meme `inputContainer` juste sous le libelle;
 - les langues exposent un ordre de fallback configurable: langue originale puis fallback, fallback puis langue originale, originale uniquement, ou fallback uniquement;

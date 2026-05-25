@@ -92,6 +92,29 @@ public sealed class PoolStore
         return directory;
     }
 
+    public string? TryCreatePoolDirectoryForWrite(Guid itemId)
+    {
+        var root = TryGetPoolRootPath(create: true);
+        if (root == null || IsReparsePoint(root))
+            return null;
+
+        var directory = Path.GetFullPath(Path.Combine(root, itemId.ToString("N")));
+        if (!PluginHelpers.IsPathInsideOrEqual(directory, root))
+            return null;
+
+        if (Directory.Exists(directory))
+        {
+            if (IsReparsePoint(directory))
+                return null;
+        }
+        else
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        return directory;
+    }
+
     public async Task<IAsyncDisposable> BeginDeferredIndexWritesAsync(CancellationToken cancellationToken)
     {
         await _indexLock.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -1146,4 +1169,17 @@ public sealed class PoolOperationResult
     public int ProcessedCount { get; set; }
     public int RotatedCount { get; set; }
     public int FailedCount { get; set; }
+}
+
+public sealed class PoolDownloadResult
+{
+    public int CandidateCount { get; set; }
+    public int ProcessedCount { get; set; }
+    public int SkippedCount { get; set; }
+    public int CompletedPoolCount { get; set; }
+    public int ImagesAdded { get; set; }
+    public int ErrorCount { get; set; }
+    public int ProviderLookups { get; set; }
+    public int DownloadAttempts { get; set; }
+    public string Message { get; set; } = string.Empty;
 }
