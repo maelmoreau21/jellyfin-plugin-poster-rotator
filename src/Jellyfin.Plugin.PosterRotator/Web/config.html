@@ -75,9 +75,10 @@
     }
 
     .posterRotatorGrid {
+      align-items: start;
       display: grid;
-      gap: 16px;
-      grid-template-columns: minmax(0, 1.4fr) minmax(300px, .8fr);
+      gap: 14px;
+      grid-template-columns: minmax(330px, .95fr) minmax(360px, 1.05fr);
     }
 
     .posterRotatorStats {
@@ -137,9 +138,37 @@
     .posterRotatorTable th,
     .posterRotatorTable td {
       border-bottom: 1px solid rgba(255, 255, 255, .12);
-      padding: 9px 7px;
+      padding: 8px 7px;
       text-align: left;
       vertical-align: top;
+    }
+
+    .posterRotatorMediaName {
+      font-weight: 600;
+      line-height: 1.25;
+    }
+
+    .posterRotatorSubtle {
+      color: #aaa;
+      font-size: .8em;
+      line-height: 1.25;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .posterRotatorPill {
+      border: 1px solid rgba(255, 255, 255, .16);
+      border-radius: 999px;
+      display: inline-block;
+      font-size: .78em;
+      line-height: 1.2;
+      max-width: 100%;
+      overflow: hidden;
+      padding: 3px 7px;
+      text-overflow: ellipsis;
+      vertical-align: middle;
+      white-space: nowrap;
     }
 
     .posterRotatorTable tr.is-selected td {
@@ -154,7 +183,7 @@
     .posterRotatorDetail {
       border: 1px solid rgba(255, 255, 255, .12);
       border-radius: 6px;
-      padding: 12px;
+      padding: 10px;
     }
 
     .posterRotatorDetail h3 {
@@ -163,8 +192,8 @@
 
     .posterRotatorThumbs {
       display: grid;
-      gap: 8px;
-      grid-template-columns: repeat(auto-fill, minmax(108px, 120px));
+      gap: 6px;
+      grid-template-columns: repeat(auto-fill, minmax(96px, 104px));
       justify-content: start;
       margin-top: 10px;
     }
@@ -173,21 +202,27 @@
       border: 1px solid rgba(255, 255, 255, .12);
       border-radius: 6px;
       box-sizing: border-box;
-      max-width: 120px !important;
+      max-width: 104px !important;
       overflow: hidden;
-      width: 120px !important;
+      position: relative;
+      width: 104px !important;
+    }
+
+    .posterRotatorThumb.is-current {
+      border-color: rgba(0, 164, 220, .95);
+      box-shadow: 0 0 0 1px rgba(0, 164, 220, .35);
     }
 
     .posterRotatorThumbImage,
     .posterRotatorThumbError {
       aspect-ratio: 2 / 3;
       box-sizing: border-box;
-      height: 180px !important;
-      max-height: 180px !important;
-      max-width: 120px !important;
-      min-height: 180px !important;
-      min-width: 120px !important;
-      width: 120px !important;
+      height: 156px !important;
+      max-height: 156px !important;
+      max-width: 104px !important;
+      min-height: 156px !important;
+      min-width: 104px !important;
+      width: 104px !important;
     }
 
     .posterRotatorThumbImage {
@@ -217,13 +252,31 @@
     }
 
     .posterRotatorThumbBody {
-      padding: 7px;
+      padding: 6px;
     }
 
     .posterRotatorThumbName {
+      display: -webkit-box;
+      line-height: 1.18;
+      max-height: 3.55em;
       overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      overflow-wrap: anywhere;
+      white-space: normal;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 3;
+    }
+
+    .posterRotatorCurrentBadge {
+      background: rgba(0, 164, 220, .95);
+      border-radius: 999px;
+      color: #fff;
+      font-size: .72em;
+      font-weight: 600;
+      left: 5px;
+      line-height: 1;
+      padding: 4px 6px;
+      position: absolute;
+      top: 5px;
     }
 
     .posterRotatorSectionTitle {
@@ -703,10 +756,16 @@
                   var itemId = prop(entry, 'ItemId', 'itemId', '');
                   var lastError = prop(entry, 'LastError', 'lastError', '');
                   var selected = itemId && itemId === poolsState.selectedItemId ? ' class="is-selected"' : '';
+                  var itemName = prop(entry, 'ItemName', 'itemName', '(sans nom)');
+                  var itemPath = prop(entry, 'ItemPath', 'itemPath', '');
+                  var itemType = prop(entry, 'ItemType', 'itemType', '-');
+                  var libraryName = prop(entry, 'LibraryName', 'libraryName', '-');
                   return '<tr' + selected + '>'
-                    + '<td>' + escapeHtml(prop(entry, 'ItemName', 'itemName', '(sans nom)')) + (lastError ? '<div class="posterRotatorDescription" style="color:#d66">' + escapeHtml(lastError) + '</div>' : '') + '</td>'
-                    + '<td>' + escapeHtml(prop(entry, 'ItemType', 'itemType', '-')) + '</td>'
-                    + '<td>' + escapeHtml(prop(entry, 'LibraryName', 'libraryName', '-')) + '</td>'
+                    + '<td><div class="posterRotatorMediaName">' + escapeHtml(itemName) + '</div>'
+                    + (itemPath ? '<div class="posterRotatorSubtle" title="' + escapeHtml(itemPath) + '">' + escapeHtml(itemPath) + '</div>' : '<div class="posterRotatorSubtle">' + escapeHtml(itemId) + '</div>')
+                    + (lastError ? '<div class="posterRotatorDescription" style="color:#d66">' + escapeHtml(lastError) + '</div>' : '') + '</td>'
+                    + '<td><span class="posterRotatorPill">' + escapeHtml(itemType) + '</span></td>'
+                    + '<td><span class="posterRotatorPill">' + escapeHtml(libraryName) + '</span></td>'
                     + '<td>' + prop(entry, 'ImageCount', 'imageCount', 0) + '</td>'
                     + '<td>' + formatBytes(prop(entry, 'SizeBytes', 'sizeBytes', 0)) + '</td>'
                     + '<td>' + formatDate(prop(entry, 'LastRotatedUtc', 'lastRotatedUtc', null)) + '</td>'
@@ -737,9 +796,16 @@
               var detail = byId('PoolDetail');
               if (detail) detail.style.display = 'block';
               setText('PoolDetailTitle', prop(pool, 'ItemName', 'itemName', 'Pool'));
+              var current = prop(pool, 'CurrentPoster', 'currentPoster', {});
+              var currentFile = prop(current, 'FileName', 'fileName', '');
+              var currentMethod = prop(current, 'MatchMethod', 'matchMethod', 'none');
+              var currentText = currentFile
+                ? ', actuelle: ' + currentFile + ' (' + currentMethod + ')'
+                : ', actuelle: non detectee';
               setText('PoolDetailMeta', prop(pool, 'ImageCount', 'imageCount', 0)
                 + ' image(s), ' + formatBytes(prop(pool, 'SizeBytes', 'sizeBytes', 0))
-                + ', rotation: ' + formatDate(prop(pool, 'LastRotatedUtc', 'lastRotatedUtc', null)));
+                + ', rotation: ' + formatDate(prop(pool, 'LastRotatedUtc', 'lastRotatedUtc', null))
+                + currentText);
               renderPoolImages(prop(pool, 'Images', 'images', []));
               return loadPools(false);
             })
@@ -761,8 +827,10 @@
             var source = prop(image, 'Source', 'source', 'unknown');
             var src = poolImageUrl(fileName, image);
             var originalSrc = poolOriginalImageUrl(fileName, image);
-            return '<div class="posterRotatorThumb">'
-              + '<img class="posterRotatorThumbImage" alt="" src="' + escapeHtml(src) + '" data-original-src="' + escapeHtml(originalSrc) + '" width="120" height="180" loading="lazy" />'
+            var isCurrent = !!prop(image, 'IsCurrent', 'isCurrent', false);
+            return '<div class="posterRotatorThumb' + (isCurrent ? ' is-current' : '') + '">'
+              + (isCurrent ? '<div class="posterRotatorCurrentBadge">Actuelle</div>' : '')
+              + '<img class="posterRotatorThumbImage" alt="" src="' + escapeHtml(src) + '" data-original-src="' + escapeHtml(originalSrc) + '" width="104" height="156" loading="lazy" />'
               + '<div class="posterRotatorThumbError" hidden>Apercu indisponible</div>'
               + '<div class="posterRotatorThumbBody">'
               + '<div class="posterRotatorThumbName" title="' + escapeHtml(fileName) + '">' + escapeHtml(fileName) + '</div>'

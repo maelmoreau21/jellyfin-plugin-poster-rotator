@@ -25,7 +25,7 @@ Ne pas ajouter de `DbContext` custom ni de SQL brut pour ce stockage.
 
 ## Rotation et telechargement grande bibliotheque
 
-Les taches planifiees doivent rester adaptees aux bibliotheques de plus de 20 000 medias:
+Les taches planifiees doivent rester adaptees aux bibliotheques de plus de 200 000 medias:
 
 - `Download missing pools` recupere les IDs avec `ILibraryManager.GetItemIds`;
 - `Rotate pools` lit `Jellyfin.Plugin.PosterRotator.pools/index.json` et ne scanne pas toute la bibliotheque;
@@ -50,6 +50,8 @@ Valeurs par defaut:
 - `ProcessingBatchSize`: `250`
 - `CadenceProfile`: `Balanced`
 
+La detection de doublons doit utiliser un hash calcule apres normalisation par `IImageProcessor` quand ce service Jellyfin est disponible, avec fallback vers le hash fichier leger. Les anciens hashes restent acceptes, mais les nouveaux telechargements et imports doivent privilegier le hash normalise.
+
 ## API admin
 
 Toutes les routes `PosterRotator/*` doivent rester protegees par `RequiresElevation`.
@@ -66,6 +68,16 @@ Toutes les routes `PosterRotator/*` doivent rester protegees par `RequiresElevat
 - `POST /PosterRotator/Pools/{itemId}/Images`
 - `DELETE /PosterRotator/Pools/{itemId}/Images/{fileName}`
 - `POST /PosterRotator/Purge`
+
+La reponse `GET /PosterRotator/Pools/{itemId}` expose aussi l'affiche courante:
+
+- `CurrentPoster.PrimaryImageFound`
+- `CurrentPoster.Matched`
+- `CurrentPoster.FileName`
+- `CurrentPoster.MatchMethod`
+- `Images[].IsCurrent`
+
+La detection tente d'abord le hash de l'image primaire Jellyfin actuelle, puis retombe sur la derniere image appliquee (`LastAppliedUtc`) si aucun hash ne correspond.
 
 ## Taches planifiees
 
@@ -86,10 +98,13 @@ L'interface utilise deux vrais onglets ARIA: `Pools` et `Parametres`.
 - filtre bibliotheque sous forme de menu deroulant charge depuis `/Library/VirtualFolders`;
 - statistiques compactes;
 - table paginee des pools;
+- table de resultats dense, avec nom, chemin ou ID, et badges type/bibliotheque lisibles;
 - panneau de detail avec miniatures chargees via `ApiKey` et parametres `preview`;
 - miniatures de pools reduites cote serveur via `IImageProcessor.ProcessImage`, normalisees en taille bornee, format affiche, avec fallback `Apercu indisponible` masque par defaut et visible seulement sur erreur de chargement;
 - si la preview serveur echoue, l'image retente une fois la route originale, toujours bornee par CSS et attributs `width`/`height`, avant d'afficher `Apercu indisponible`;
-- les cartes d'images doivent rester petites, environ `120x180`, pour voir plusieurs affiches a l'ecran;
+- les cartes d'images doivent rester petites, environ `104x156`, pour voir plusieurs affiches a l'ecran;
+- le nom de fichier des affiches doit pouvoir passer sur 2 ou 3 lignes avec `overflow-wrap:anywhere`;
+- l'affiche courante doit afficher un badge `Actuelle`;
 - suppression/import d'images;
 - action de maintenance `Reparer la liste des pools` qui appelle `POST /PosterRotator/Pools/RebuildIndex`;
 - action `Supprimer tous les pools` qui appelle `POST /PosterRotator/PurgeAllPools` apres confirmation;

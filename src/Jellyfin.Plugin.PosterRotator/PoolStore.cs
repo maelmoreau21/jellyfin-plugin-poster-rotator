@@ -9,6 +9,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.PosterRotator.Helpers;
+using MediaBrowser.Controller.Drawing;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.PosterRotator;
@@ -29,15 +30,20 @@ public sealed class PoolStore
     private readonly ConcurrentDictionary<Guid, SemaphoreSlim> _poolLocks = new();
     private readonly SemaphoreSlim _indexLock = new(1, 1);
     private readonly string? _dataFolderOverride;
+    private readonly IImageProcessor? _imageProcessor;
     private readonly ILogger<PoolStore>? _log;
     private PoolIndexDocument? _deferredIndex;
+    private PoolIndexDocument? _cachedIndex;
+    private string? _cachedIndexPath;
+    private DateTime _cachedIndexLastWriteUtc;
     private DateTimeOffset _deferredIndexLastFlushUtc;
     private int _deferredIndexDepth;
     private int _deferredIndexPendingWrites;
 
-    public PoolStore(ILogger<PoolStore> log)
+    public PoolStore(ILogger<PoolStore> log, IImageProcessor imageProcessor)
     {
         _log = log;
+        _imageProcessor = imageProcessor;
     }
 
     internal PoolStore(string dataFolderPath)
@@ -122,7 +128,7 @@ public sealed class PoolStore
         {
             if (_deferredIndexDepth == 0)
             {
-                _deferredIndex = await LoadIndexAsync(cancellationToken).ConfigureAwait(false);
+                _deferredIndex = CloneIndexDocument(await LoadIndexAsync(cancellationToken).ConfigureAwait(false));
                 _deferredIndexPendingWrites = 0;
                 _deferredIndexLastFlushUtc = DateTimeOffset.UtcNow;
             }
@@ -302,7 +308,9 @@ public sealed class PoolStore
             if (width > 0 && height > 0 && (width < cfg.MinImageWidth || height < cfg.MinImageHeight))
                 throw new InvalidDataException("Image dimensions are below the configured minimum.");
 
-            var hash = cfg.EnableDuplicateDetection ? ImageHash.ComputeHash(tmpPath) : 0;
+            var hash = cfg.EnableDuplicateDetection
+                ? await ImageHash.ComputeNormalizedHashAsync(tmpPath, _imageProcessor, cancellationToken).ConfigureAwait(false)
+                : 0;
             if (cfg.EnableDuplicateDetection && hash != 0)
             {
                 var existingHashes = await GetImageHashesAsync(item, poolDir, cancellationToken).ConfigureAwait(false);
@@ -420,6 +428,13 @@ public sealed class PoolStore
             Total = ordered.Count,
             Items = ordered.Skip(start).Take(limit).ToList()
         };
+    }
+
+    public void InvalidateIndexCache()
+    {
+        _cachedIndex = null;
+        _cachedIndexPath = null;
+        _cachedIndexLastWriteUtc = default;
     }
 
     public async Task<IReadOnlyList<PoolIndexEntry>> GetIndexEntriesAsync(CancellationToken cancellationToken)
@@ -606,15 +621,36 @@ public sealed class PoolStore
         try
         {
             if (!File.Exists(indexPath))
+            {
+                if (_cachedIndexPath != null
+                    && _cachedIndexPath.Equals(indexPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    InvalidateIndexCache();
+                }
+
                 return new PoolIndexDocument();
+            }
+
+            var lastWriteUtc = File.GetLastWriteTimeUtc(indexPath);
+            if (_cachedIndex != null
+                && _cachedIndexPath != null
+                && _cachedIndexPath.Equals(indexPath, StringComparison.OrdinalIgnoreCase)
+                && _cachedIndexLastWriteUtc == lastWriteUtc)
+            {
+                return _cachedIndex;
+            }
 
             await using var stream = File.OpenRead(indexPath);
             var index = await JsonSerializer.DeserializeAsync<PoolIndexDocument>(stream, JsonOptions, cancellationToken).ConfigureAwait(false);
-            return index ?? new PoolIndexDocument();
+            _cachedIndex = index ?? new PoolIndexDocument();
+            _cachedIndexPath = indexPath;
+            _cachedIndexLastWriteUtc = lastWriteUtc;
+            return _cachedIndex;
         }
         catch (Exception ex)
         {
             _log?.LogWarning(ex, "PosterRotator: unable to read pool index.");
+            InvalidateIndexCache();
             return new PoolIndexDocument();
         }
     }
@@ -638,7 +674,11 @@ public sealed class PoolStore
             ?? throw new InvalidOperationException("Plugin data folder is unavailable.");
         index.SchemaVersion = CurrentSchemaVersion;
         index.UpdatedUtc = DateTimeOffset.UtcNow;
-        await WriteJsonAtomicAsync(Path.Combine(root, IndexFileName), index, cancellationToken).ConfigureAwait(false);
+        var indexPath = Path.Combine(root, IndexFileName);
+        await WriteJsonAtomicAsync(indexPath, index, cancellationToken).ConfigureAwait(false);
+        _cachedIndex = index;
+        _cachedIndexPath = indexPath;
+        _cachedIndexLastWriteUtc = File.GetLastWriteTimeUtc(indexPath);
     }
 
     private async Task SavePoolAsync(PoolMetadata metadata, string poolDir, CancellationToken cancellationToken)
@@ -652,6 +692,7 @@ public sealed class PoolStore
         metadata.SchemaVersion = CurrentSchemaVersion;
         metadata.UpdatedUtc = DateTimeOffset.UtcNow;
         Recalculate(metadata);
+        ClearCurrentPosterAnnotations(metadata);
         await WriteJsonAtomicAsync(Path.Combine(poolDir, PoolFileName), metadata, cancellationToken).ConfigureAwait(false);
     }
 
@@ -843,6 +884,13 @@ public sealed class PoolStore
             .FirstOrDefault()?.Message;
     }
 
+    private static void ClearCurrentPosterAnnotations(PoolMetadata metadata)
+    {
+        metadata.CurrentPoster = new PoolCurrentPosterInfo();
+        foreach (var image in metadata.Images)
+            image.IsCurrent = false;
+    }
+
     private static PoolIndexEntry CreateIndexEntry(PoolMetadata metadata)
     {
         Recalculate(metadata);
@@ -861,6 +909,14 @@ public sealed class PoolStore
             HasErrors = !string.IsNullOrWhiteSpace(metadata.LastError)
         };
     }
+
+    private static PoolIndexDocument CloneIndexDocument(PoolIndexDocument index) =>
+        new()
+        {
+            SchemaVersion = index.SchemaVersion,
+            UpdatedUtc = index.UpdatedUtc,
+            Pools = index.Pools.ToList()
+        };
 
     private static void AddError(PoolMetadata metadata, string message)
     {
@@ -1068,6 +1124,7 @@ public sealed class PoolMetadata
     public int ImageCount { get; set; }
     public long SizeBytes { get; set; }
     public string? LastError { get; set; }
+    public PoolCurrentPosterInfo CurrentPoster { get; set; } = new();
     public List<PoolImageMetadata> Images { get; set; } = new();
     public List<PoolErrorInfo> RecentErrors { get; set; } = new();
 }
@@ -1085,6 +1142,15 @@ public sealed class PoolImageMetadata
     public ulong Hash { get; set; }
     public DateTimeOffset AddedUtc { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? LastAppliedUtc { get; set; }
+    public bool IsCurrent { get; set; }
+}
+
+public sealed class PoolCurrentPosterInfo
+{
+    public bool PrimaryImageFound { get; set; }
+    public bool Matched { get; set; }
+    public string? FileName { get; set; }
+    public string MatchMethod { get; set; } = "none";
 }
 
 public sealed class PoolIndexDocument

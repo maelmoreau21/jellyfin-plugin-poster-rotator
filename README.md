@@ -1,6 +1,6 @@
 # Jellyfin Poster Rotator
 
-Poster Rotator garde l'interface Jellyfin vivante en constituant un pool d'affiches par media, puis en remplacant regulierement l'image principale. La ligne `1.7.0.0` est optimisee pour les grosses bibliotheques et vise Jellyfin 12 beta.
+Poster Rotator garde l'interface Jellyfin vivante en constituant un pool d'affiches par media, puis en remplacant regulierement l'image principale. La ligne `1.7.0.0` est optimisee pour les grosses bibliotheques, y compris les index de `200000+` pools, et vise Jellyfin 12 beta.
 
 ## Compatibilite
 
@@ -23,6 +23,8 @@ Les correctifs UI et les regenerations d'archive de cette ligne doivent conserve
 6. Les images sont validees: URL, taille, format, dimensions, langue et doublons.
 7. La tache **Rotate pools** lit `index.json` et applique uniquement des images deja presentes avec `IProviderManager.SaveImage(...)`, seulement si le cooldown du media est expire.
 8. L'etat est maintenu dans `Jellyfin.Plugin.PosterRotator.pools/index.json` et `Jellyfin.Plugin.PosterRotator.pools/{itemId}/pool.json`.
+
+La detection des doublons passe par un hash calcule apres normalisation avec le pipeline d'images Jellyfin quand il est disponible. Cela rend la comparaison moins sensible aux dimensions, aux metadonnees et aux differences d'encodage entre fournisseurs.
 
 Le planificateur Jellyfin affiche une section **Poster Rotator** avec:
 
@@ -48,10 +50,11 @@ Pour une installation manuelle par zip, l'archive `Jellyfin.Plugin.PosterRotator
 
 L'interface admin est organisee en deux vrais onglets separes: `Pools` s'ouvre par defaut et contient uniquement les outils de pools, puis `Parametres` contient uniquement les reglages.
 
-- statistiques et etat dans l'onglet pools;
-- recherche paginee des pools `PluginData`;
+- statistiques et etat dans l'onglet pools, avec diagnostics limites aux IDs presents dans l'index du plugin;
+- recherche paginee des pools `PluginData`, servie depuis un index cache et adaptee aux tres grands volumes;
 - filtres par bibliotheque Jellyfin, type, erreur et pool vide/non vide;
-- detail du pool selectionne avec miniatures reduites cote serveur, normalisees au format affiche, taille bornee, et message lisible seulement si une image ne peut pas etre chargee;
+- detail du pool selectionne avec indication de l'affiche actuellement utilisee, badge `Actuelle` sur la carte correspondante, et fallback par derniere rotation appliquee si le hash ne correspond pas;
+- miniatures reduites cote serveur, normalisees au format affiche, taille bornee, grille compacte et noms de fichiers sur plusieurs lignes pour afficher plus d'affiches a l'ecran;
 - import et suppression d'affiches;
 - rotation immediate par media ou bibliotheque;
 - purge des orphelins, d'une bibliotheque ou d'un media;
@@ -69,7 +72,7 @@ Les anciens dossiers `.poster_pool` du mode `MediaFolders` restent compatibles s
 - `Jellyfin.Plugin.PosterRotator.pools/{itemId}/pool.json`: metadonnees du pool, images, hashes, langues, sources, dates et erreurs recentes.
 - Les anciens fichiers `rotation_state.json`, `pool_urls.json`, `pool_languages.json` et `pool_hashes.json` ne sont plus migres automatiquement.
 
-La recherche des pools lit l'index existant sans scanner tous les dossiers. Si des pools ont ete ajoutes manuellement ou si l'index est absent, utilisez l'action **Reparer la liste des pools**. Si des medias n'ont pas encore de pool, utilisez la tache planifiee **Download missing pools**. Les apercus de la page admin utilisent `preview=true` pour charger une image reduite; si Jellyfin ne peut pas generer cette miniature, l'interface retente l'image originale tout en la gardant bornee a une petite carte.
+La recherche des pools lit l'index existant sans scanner tous les dossiers et conserve cet index en memoire jusqu'a sa prochaine modification. Si des pools ont ete ajoutes manuellement ou si l'index est absent, utilisez l'action **Reparer la liste des pools**. Si des medias n'ont pas encore de pool, utilisez la tache planifiee **Download missing pools**. Les apercus de la page admin utilisent `preview=true` pour charger une image reduite; si Jellyfin ne peut pas generer cette miniature, l'interface retente l'image originale tout en la gardant bornee a une petite carte.
 
 Le telechargement distant suit une chaine de redirection bornee et revalide chaque cible pour eviter les redirections vers localhost, reseaux prives ou link-local quand le blocage des URLs privees est actif. Les uploads sont rejetes des l'entree API si leur taille depasse `MaxDownloadMegabytes`.
 

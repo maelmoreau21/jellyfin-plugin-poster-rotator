@@ -3,25 +3,26 @@ namespace Jellyfin.Plugin.PosterRotator.Helpers;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+using MediaBrowser.Controller.Drawing;
+using MediaBrowser.Controller.Entities;
+using MediaBrowser.Model.Entities;
 
 /// <summary>
-/// Perceptual image hashing using Average Hash (aHash).
-/// Produces a 64-bit fingerprint by resizing to 8×8 grayscale and thresholding.
-/// Uses raw pixel parsing from JPEG/PNG/WebP — no SkiaSharp or System.Drawing needed.
-/// Falls back to file-content hash when image cannot be decoded.
+/// Lightweight image fingerprinting for duplicate detection.
 /// </summary>
 public static class ImageHash
 {
-    private const int HashSize = 8; // 8×8 = 64-bit hash
     private const string HashFileName = "pool_hashes.json";
+    public const int DefaultDuplicateThreshold = 10;
+    public const int CurrentPosterMatchThreshold = 6;
 
     /// <summary>
-    /// Compute an average hash (aHash) for an image file.
-    /// Uses a simplified approach: read raw bytes and compute a content-based hash.
-    /// For true perceptual hashing we'd need pixel decoding; this provides a good
-    /// approximation by sampling evenly-spaced bytes across the file.
+    /// Compute a 64-bit content fingerprint for an image file.
+    /// This is dependency-free and intentionally fast; for duplicate detection on
+    /// downloaded images, prefer <see cref="ComputeNormalizedHashAsync"/>.
     /// </summary>
     public static ulong ComputeHash(string filePath)
     {
@@ -33,20 +34,17 @@ public static class ImageHash
             using var fs = File.OpenRead(filePath);
             var fileLen = fs.Length;
 
-            // Skip file header (first 64 bytes typically contain format metadata)
             const int headerSkip = 64;
             var dataLen = fileLen - headerSkip;
             if (dataLen < 64)
             {
-                // File too small — hash entire content
                 var allBytes = File.ReadAllBytes(filePath);
                 return ComputeFromBytes(allBytes);
             }
 
-            // Sample 64 evenly-spaced bytes from the image data portion
             var samples = new byte[64];
             var step = dataLen / 64;
-            for (int i = 0; i < 64; i++)
+            for (var i = 0; i < 64; i++)
             {
                 fs.Seek(headerSkip + (i * step), SeekOrigin.Begin);
                 var b = fs.ReadByte();
@@ -61,16 +59,63 @@ public static class ImageHash
         }
     }
 
+    /// <summary>
+    /// Compute a hash after asking Jellyfin to normalize the image to a small poster
+    /// preview. This makes duplicate detection less sensitive to provider metadata,
+    /// source dimensions, and encoding differences.
+    /// </summary>
+    public static async Task<ulong> ComputeNormalizedHashAsync(
+        string filePath,
+        IImageProcessor? imageProcessor,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (imageProcessor == null)
+            return ComputeHash(filePath);
+
+        try
+        {
+            var info = new FileInfo(filePath);
+            if (!info.Exists || info.Length == 0)
+                return 0;
+
+            var processed = await imageProcessor.ProcessImage(new ImageProcessingOptions
+            {
+                Image = new ItemImageInfo
+                {
+                    Path = filePath,
+                    Type = ImageType.Primary,
+                    DateModified = info.LastWriteTimeUtc
+                },
+                MaxWidth = 64,
+                MaxHeight = 96,
+                Quality = 80,
+                SupportedOutputFormats = imageProcessor.GetSupportedImageOutputFormats()
+            }).ConfigureAwait(false);
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (!string.IsNullOrWhiteSpace(processed.Path) && File.Exists(processed.Path))
+                return ComputeHash(processed.Path);
+        }
+        catch
+        {
+            // Fall back to the dependency-free fingerprint below.
+        }
+
+        return ComputeHash(filePath);
+    }
+
     private static ulong ComputeFromBytes(byte[] data)
     {
         if (data.Length == 0) return 0;
 
-        // Sample or use first 64 bytes
         var values = new byte[64];
         if (data.Length >= 64)
         {
             var step = data.Length / 64;
-            for (int i = 0; i < 64; i++)
+            for (var i = 0; i < 64; i++)
                 values[i] = data[i * step];
         }
         else
@@ -78,56 +123,54 @@ public static class ImageHash
             Array.Copy(data, values, Math.Min(data.Length, 64));
         }
 
-        // Compute average
         long sum = 0;
-        for (int i = 0; i < 64; i++) sum += values[i];
+        for (var i = 0; i < 64; i++) sum += values[i];
         var avg = (byte)(sum / 64);
 
-        // Build hash: 1 if above average, 0 if below
         ulong hash = 0;
-        for (int i = 0; i < 64; i++)
+        for (var i = 0; i < 64; i++)
         {
             if (values[i] >= avg)
-                hash |= (1UL << i);
+                hash |= 1UL << i;
         }
+
         return hash;
     }
 
     /// <summary>
-    /// Compute Hamming distance between two hashes (number of differing bits).
+    /// Compute Hamming distance between two hashes.
     /// </summary>
     public static int HammingDistance(ulong a, ulong b)
     {
         var diff = a ^ b;
-        int count = 0;
+        var count = 0;
         while (diff != 0)
         {
             count++;
-            diff &= diff - 1; // Clear lowest set bit
+            diff &= diff - 1;
         }
+
         return count;
     }
 
     /// <summary>
-    /// Check if a hash is a duplicate of any existing hash.
-    /// Threshold of 10 means images with ≤10 bits difference are considered duplicates.
-    /// For 64-bit hashes, this is ~84% similarity.
+    /// Check if a hash is visually close to any existing hash.
     /// </summary>
-    public static bool IsDuplicate(ulong hash, IEnumerable<ulong> existingHashes, int threshold = 10)
+    public static bool IsDuplicate(ulong hash, IEnumerable<ulong> existingHashes, int threshold = DefaultDuplicateThreshold)
     {
-        if (hash == 0) return false; // Can't compare zero hashes
+        if (hash == 0) return false;
         foreach (var existing in existingHashes)
         {
             if (existing == 0) continue;
             if (HammingDistance(hash, existing) <= threshold)
                 return true;
         }
+
         return false;
     }
 
     /// <summary>
     /// Load hashes from pool_hashes.json in the pool directory.
-    /// Returns a dictionary of filename → hash.
     /// </summary>
     public static Dictionary<string, ulong> LoadHashes(string poolDir)
     {
@@ -140,7 +183,10 @@ public static class ImageHash
                 return JsonSerializer.Deserialize<Dictionary<string, ulong>>(json) ?? new();
             }
         }
-        catch { }
+        catch
+        {
+        }
+
         return new();
     }
 
@@ -158,7 +204,9 @@ public static class ImageHash
             File.WriteAllText(tmp, JsonSerializer.Serialize(map));
             File.Move(tmp, path, overwrite: true);
         }
-        catch { }
+        catch
+        {
+        }
     }
 
     /// <summary>
@@ -177,6 +225,8 @@ public static class ImageHash
                 File.Move(tmp, path, overwrite: true);
             }
         }
-        catch { }
+        catch
+        {
+        }
     }
 }

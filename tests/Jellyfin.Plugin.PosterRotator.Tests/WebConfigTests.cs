@@ -64,6 +64,8 @@ public sealed class WebConfigTests
         Assert.Contains("Supprimer tous les pools", html);
         Assert.Contains("PosterRotator/PurgeAllPools", html);
         Assert.Contains("purgeAllPools", html);
+        Assert.Contains("posterRotatorMediaName", html);
+        Assert.Contains("posterRotatorPill", html);
         Assert.DoesNotContain("<h3>Maintenance</h3>", html);
 
         var labelIndex = html.IndexOf("for=\"MaxRotationsPerRun\">Nombre maximum d'affiches a changer par passage", StringComparison.Ordinal);
@@ -92,12 +94,17 @@ public sealed class WebConfigTests
         Assert.Contains("appendQuery(url, 'quality', '80')", html);
         Assert.Contains("posterRotatorThumbImage", html);
         Assert.Contains("posterRotatorThumbError\" hidden", html);
-        Assert.Contains("grid-template-columns: repeat(auto-fill, minmax(108px, 120px));", html);
-        Assert.Contains("width: 120px !important;", html);
-        Assert.Contains("height: 180px !important;", html);
-        Assert.Contains("max-height: 180px !important;", html);
+        Assert.Contains("grid-template-columns: repeat(auto-fill, minmax(96px, 104px));", html);
+        Assert.Contains("width: 104px !important;", html);
+        Assert.Contains("height: 156px !important;", html);
+        Assert.Contains("max-height: 156px !important;", html);
         Assert.Contains("object-fit: cover !important;", html);
-        Assert.Contains("width=\"120\" height=\"180\"", html);
+        Assert.Contains("width=\"104\" height=\"156\"", html);
+        Assert.Contains("posterRotatorCurrentBadge", html);
+        Assert.Contains("Actuelle", html);
+        Assert.Contains("overflow-wrap: anywhere;", html);
+        Assert.Contains("-webkit-line-clamp: 3;", html);
+        Assert.Contains("prop(image, 'IsCurrent', 'isCurrent', false)", html);
         Assert.Contains("fallback.hidden = true;", html);
         Assert.Contains("fallback.hidden = false;", html);
         Assert.Contains("classList.add('is-hidden')", html);

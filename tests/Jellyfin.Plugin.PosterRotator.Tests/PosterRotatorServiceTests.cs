@@ -231,6 +231,30 @@ public class PosterRotatorServiceTests
         Assert.Null(PosterRotatorService.NormalizeLanguageCode("original"));
     }
 
+    [Fact]
+    public void MarkLastAppliedAsCurrent_UsesNewestAppliedImage()
+    {
+        var pool = new PoolMetadata
+        {
+            Images =
+            {
+                new PoolImageMetadata { FileName = "old.jpg", LastAppliedUtc = DateTimeOffset.Parse("2026-05-25T10:00:00Z") },
+                new PoolImageMetadata { FileName = "current.jpg", LastAppliedUtc = DateTimeOffset.Parse("2026-05-25T11:00:00Z") },
+                new PoolImageMetadata { FileName = "never.jpg" }
+            }
+        };
+
+        var matched = PosterRotatorService.MarkLastAppliedAsCurrent(pool, primaryImageFound: true);
+
+        Assert.True(matched);
+        Assert.True(pool.CurrentPoster.Matched);
+        Assert.True(pool.CurrentPoster.PrimaryImageFound);
+        Assert.Equal("current.jpg", pool.CurrentPoster.FileName);
+        Assert.Equal("last-applied", pool.CurrentPoster.MatchMethod);
+        Assert.True(pool.Images.Single(image => image.FileName == "current.jpg").IsCurrent);
+        Assert.False(pool.Images.Single(image => image.FileName == "old.jpg").IsCurrent);
+    }
+
     private static RemoteImageInfo Image(string url, string? language, ImageType type = ImageType.Primary) =>
         new()
         {

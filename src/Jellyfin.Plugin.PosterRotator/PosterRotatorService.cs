@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Data.Enums;
 using Jellyfin.Plugin.PosterRotator.Helpers;
+using MediaBrowser.Controller.Drawing;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Providers;
@@ -29,6 +30,7 @@ public class PosterRotatorService : IPosterRotatorService
     private readonly IProviderManager _providerManager;
     private readonly IHttpClientFactory _httpFactory;
     private readonly PoolStore _poolStore;
+    private readonly IImageProcessor _imageProcessor;
     private readonly ILogger<PosterRotatorService> _log;
     private PoolDiagnostics? _cachedDiagnostics;
     private DateTimeOffset _cachedDiagnosticsUtc;
@@ -44,12 +46,14 @@ public class PosterRotatorService : IPosterRotatorService
         IProviderManager providerManager,
         IHttpClientFactory httpFactory,
         PoolStore poolStore,
+        IImageProcessor imageProcessor,
         ILogger<PosterRotatorService> log)
     {
         _library = library;
         _providerManager = providerManager;
         _httpFactory = httpFactory;
         _poolStore = poolStore;
+        _imageProcessor = imageProcessor;
         _log = log;
     }
 
@@ -659,7 +663,7 @@ public class PosterRotatorService : IPosterRotatorService
             return;
 
         var (width, height) = PluginHelpers.GetImageDimensions(path);
-        var hash = ImageHash.ComputeHash(path);
+        var hash = await ImageHash.ComputeNormalizedHashAsync(path, _imageProcessor, cancellationToken).ConfigureAwait(false);
         await _poolStore.RecordImageAsync(
             item,
             poolDir,
@@ -874,6 +878,15 @@ public class PosterRotatorService : IPosterRotatorService
         var knownHashes = usePoolStore && poolExists
             ? new HashSet<ulong>(await _poolStore.GetImageHashesAsync(poolItem!, poolDir, ct).ConfigureAwait(false))
             : new HashSet<ulong>(ImageHash.LoadHashes(poolDir).Values);
+        if (cfg.EnableDuplicateDetection && poolExists)
+        {
+            foreach (var existingFile in LoadLocalPoolFiles(poolDir))
+            {
+                var normalizedHash = await ImageHash.ComputeNormalizedHashAsync(existingFile, _imageProcessor, ct).ConfigureAwait(false);
+                if (normalizedHash != 0)
+                    knownHashes.Add(normalizedHash);
+            }
+        }
 
         try
         {
@@ -1080,7 +1093,7 @@ public class PosterRotatorService : IPosterRotatorService
                 ulong hash = 0;
                 if (cfg.EnableDuplicateDetection)
                 {
-                    hash = ImageHash.ComputeHash(finalPath);
+                    hash = await ImageHash.ComputeNormalizedHashAsync(finalPath, _imageProcessor, ct).ConfigureAwait(false);
                     if (hash != 0)
                     {
                         if (ImageHash.IsDuplicate(hash, knownHashes))
@@ -1686,7 +1699,12 @@ public class PosterRotatorService : IPosterRotatorService
             if (_cachedDiagnostics != null && now - _cachedDiagnosticsUtc < DiagnosticsCacheDuration)
                 return _cachedDiagnostics;
 
-            var existingIds = _library.GetItemIds(new InternalItemsQuery { Recursive = true }).ToHashSet();
+            var indexedIds = (await _poolStore.GetIndexEntriesAsync(cancellationToken).ConfigureAwait(false))
+                .Select(entry => Guid.TryParse(entry.ItemId, out var itemId) ? itemId : Guid.Empty)
+                .Where(itemId => itemId != Guid.Empty)
+                .Distinct()
+                .ToArray();
+            var existingIds = GetExistingIndexedItemIds(indexedIds, cancellationToken);
             var diagnostics = await _poolStore.GetDiagnosticsAsync(existingIds, cancellationToken).ConfigureAwait(false);
             _cachedDiagnostics = diagnostics;
             _cachedDiagnosticsUtc = now;
@@ -1698,14 +1716,152 @@ public class PosterRotatorService : IPosterRotatorService
         }
     }
 
+    private HashSet<Guid> GetExistingIndexedItemIds(Guid[] indexedIds, CancellationToken cancellationToken)
+    {
+        var existingIds = new HashSet<Guid>();
+        foreach (var batch in indexedIds.Chunk(5000))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            foreach (var id in _library.GetItemIds(new InternalItemsQuery
+            {
+                ItemIds = batch.ToArray(),
+                EnableTotalRecordCount = false
+            }))
+            {
+                existingIds.Add(id);
+            }
+        }
+
+        return existingIds;
+    }
+
     public Task<PoolListResponse> ListPoolsAsync(PoolListQuery query, CancellationToken cancellationToken) =>
         _poolStore.ListPoolsAsync(query, cancellationToken);
 
     public Task<PoolRebuildIndexResult> RebuildPoolIndexAsync(CancellationToken cancellationToken) =>
         _poolStore.RebuildIndexAsync(cancellationToken);
 
-    public Task<PoolMetadata?> GetPoolAsync(Guid itemId, CancellationToken cancellationToken) =>
-        _poolStore.GetPoolAsync(itemId, reconcileFiles: true, cancellationToken);
+    private async Task AnnotateCurrentPosterAsync(Guid itemId, PoolMetadata metadata, CancellationToken cancellationToken)
+    {
+        MarkCurrentPoster(metadata, null, "none", primaryImageFound: false);
+
+        var item = TryGetItemById(itemId);
+        var primaryPath = TryGetPrimaryImagePath(item);
+        var primaryImageFound = !string.IsNullOrWhiteSpace(primaryPath) && File.Exists(primaryPath);
+
+        if (primaryImageFound)
+        {
+            var currentHash = await ImageHash.ComputeNormalizedHashAsync(primaryPath!, _imageProcessor, cancellationToken).ConfigureAwait(false);
+            if (currentHash != 0)
+            {
+                var storedHashMatch = metadata.Images.FirstOrDefault(image =>
+                    image.Hash != 0
+                    && ImageHash.HammingDistance(currentHash, image.Hash) <= ImageHash.CurrentPosterMatchThreshold);
+                if (storedHashMatch != null)
+                {
+                    MarkCurrentPoster(metadata, storedHashMatch.FileName, "stored-hash", primaryImageFound);
+                    return;
+                }
+
+                var visualMatch = await FindPoolImageByCurrentHashAsync(itemId, metadata, currentHash, cancellationToken).ConfigureAwait(false);
+                if (visualMatch != null)
+                {
+                    MarkCurrentPoster(metadata, visualMatch.FileName, "visual-hash", primaryImageFound);
+                    return;
+                }
+            }
+        }
+
+        if (!MarkLastAppliedAsCurrent(metadata, primaryImageFound))
+            MarkCurrentPoster(metadata, null, "none", primaryImageFound);
+    }
+
+    private async Task<PoolImageMetadata?> FindPoolImageByCurrentHashAsync(
+        Guid itemId,
+        PoolMetadata metadata,
+        ulong currentHash,
+        CancellationToken cancellationToken)
+    {
+        foreach (var image in metadata.Images)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                var file = await _poolStore.GetImageFileAsync(itemId, image.FileName, cancellationToken).ConfigureAwait(false);
+                var imageHash = await ImageHash.ComputeNormalizedHashAsync(file.Path, _imageProcessor, cancellationToken).ConfigureAwait(false);
+                if (imageHash != 0
+                    && ImageHash.HammingDistance(currentHash, imageHash) <= ImageHash.CurrentPosterMatchThreshold)
+                {
+                    return image;
+                }
+            }
+            catch (FileNotFoundException)
+            {
+            }
+            catch (InvalidDataException)
+            {
+            }
+        }
+
+        return null;
+    }
+
+    private static string? TryGetPrimaryImagePath(BaseItem? item)
+    {
+        if (item == null)
+            return null;
+
+        try
+        {
+            return item.GetImagePath(ImageType.Primary);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    internal static bool MarkLastAppliedAsCurrent(PoolMetadata metadata, bool primaryImageFound)
+    {
+        var lastApplied = metadata.Images
+            .Where(image => image.LastAppliedUtc.HasValue)
+            .OrderByDescending(image => image.LastAppliedUtc)
+            .ThenBy(image => image.FileName, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault();
+        if (lastApplied == null)
+            return false;
+
+        MarkCurrentPoster(metadata, lastApplied.FileName, "last-applied", primaryImageFound);
+        return true;
+    }
+
+    internal static void MarkCurrentPoster(
+        PoolMetadata metadata,
+        string? fileName,
+        string matchMethod,
+        bool primaryImageFound)
+    {
+        foreach (var image in metadata.Images)
+            image.IsCurrent = !string.IsNullOrWhiteSpace(fileName)
+                && image.FileName.Equals(fileName, StringComparison.OrdinalIgnoreCase);
+
+        metadata.CurrentPoster = new PoolCurrentPosterInfo
+        {
+            PrimaryImageFound = primaryImageFound,
+            Matched = !string.IsNullOrWhiteSpace(fileName),
+            FileName = fileName,
+            MatchMethod = string.IsNullOrWhiteSpace(matchMethod) ? "none" : matchMethod
+        };
+    }
+
+    public async Task<PoolMetadata?> GetPoolAsync(Guid itemId, CancellationToken cancellationToken)
+    {
+        var pool = await _poolStore.GetPoolAsync(itemId, reconcileFiles: true, cancellationToken).ConfigureAwait(false);
+        if (pool != null)
+            await AnnotateCurrentPosterAsync(itemId, pool, cancellationToken).ConfigureAwait(false);
+
+        return pool;
+    }
 
     public Task<PoolImageFile> GetPoolImageAsync(Guid itemId, string fileName, CancellationToken cancellationToken) =>
         _poolStore.GetImageFileAsync(itemId, fileName, cancellationToken);
@@ -1902,6 +2058,7 @@ public class PosterRotatorService : IPosterRotatorService
             TryDeleteSafeDirectory(poolDir, poolRoot, requireLegacyPoolName: false, result);
 
         TryDeleteFile(Path.Combine(poolRoot, "index.json"));
+        _poolStore.InvalidateIndexCache();
     }
 
     private void PurgeLegacyMediaPools(PurgePoolsResult result, CancellationToken cancellationToken)

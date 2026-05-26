@@ -204,7 +204,7 @@ public sealed class PoolStoreTests
     }
 
     [Fact]
-    public async Task ListPoolsAsync_UsesOnlyDedicatedIndexForLargeLibraries()
+    public async Task ListPoolsAsync_UsesOnlyDedicatedIndexForVeryLargeLibraries()
     {
         var root = CreateTempPluginDataFolder();
 
@@ -224,7 +224,7 @@ public sealed class PoolStoreTests
 
             var dedicatedRoot = PoolRoot(root);
             Directory.CreateDirectory(dedicatedRoot);
-            var entries = Enumerable.Range(0, 20_000)
+            var entries = Enumerable.Range(0, 200_000)
                 .Select(i => new PoolIndexEntry
                 {
                     ItemId = Guid.NewGuid().ToString(),
@@ -245,7 +245,7 @@ public sealed class PoolStoreTests
                 new PoolListQuery { Library = "Films", Start = 200, Limit = 25 },
                 CancellationToken.None);
 
-            Assert.Equal(2_000, page.Total);
+            Assert.Equal(20_000, page.Total);
             Assert.Equal(25, page.Items.Count);
             Assert.DoesNotContain(page.Items, item => item.ItemName == "Old");
             Assert.Single(Directory.EnumerateFileSystemEntries(dedicatedRoot));
@@ -277,6 +277,38 @@ public sealed class PoolStoreTests
             var afterFlush = await store.ListPoolsAsync(new PoolListQuery(), CancellationToken.None);
             Assert.Equal(1, afterFlush.Total);
             Assert.Equal(itemId.ToString(), afterFlush.Items.Single().ItemId);
+        }
+        finally
+        {
+            DeleteTempRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task DeferredIndexWrites_DoNotLeakThroughCachedIndexBeforeFlush()
+    {
+        var root = CreateTempPluginDataFolder();
+        var firstId = Guid.NewGuid();
+        var secondId = Guid.NewGuid();
+
+        try
+        {
+            var store = new PoolStore(root);
+            await CreatePool(store, root, firstId, "First", "Films");
+            var cached = await store.ListPoolsAsync(new PoolListQuery(), CancellationToken.None);
+            Assert.Equal(1, cached.Total);
+
+            await using (var _ = await store.BeginDeferredIndexWritesAsync(CancellationToken.None))
+            {
+                await CreatePool(store, root, secondId, "Second", "Films");
+
+                var beforeFlush = await store.ListPoolsAsync(new PoolListQuery(), CancellationToken.None);
+                Assert.Equal(1, beforeFlush.Total);
+                Assert.Equal(firstId.ToString(), beforeFlush.Items.Single().ItemId);
+            }
+
+            var afterFlush = await store.ListPoolsAsync(new PoolListQuery(), CancellationToken.None);
+            Assert.Equal(2, afterFlush.Total);
         }
         finally
         {
