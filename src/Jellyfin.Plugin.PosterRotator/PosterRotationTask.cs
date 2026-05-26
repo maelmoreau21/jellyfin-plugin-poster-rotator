@@ -11,15 +11,20 @@ public class PosterRotationTask : IScheduledTask
 {
     private readonly IPosterRotatorService _service;
     private readonly ILogger<PosterRotationTask> _logger;
+    private readonly IPosterRotatorLocalization _localization;
 
-    public PosterRotationTask(IPosterRotatorService service, ILogger<PosterRotationTask> logger)
+    public PosterRotationTask(
+        IPosterRotatorService service,
+        ILogger<PosterRotationTask> logger,
+        IPosterRotatorLocalization localization)
     {
         _service = service;
         _logger = logger;
+        _localization = localization;
     }
 
-    public string Name => "Rotate pools";
-    public string Description => "Rotates eligible posters from existing local pools.";
+    public string Name => _localization.Translate("Task.RotatePools.Name");
+    public string Description => _localization.Translate("Task.RotatePools.Description");
     public string Category => "Poster Rotator";
     public string Key => "PosterRotator.RotatePostersTask";
 

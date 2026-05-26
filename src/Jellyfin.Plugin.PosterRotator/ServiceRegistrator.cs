@@ -19,6 +19,7 @@ namespace Jellyfin.Plugin.PosterRotator
                     AllowAutoRedirect = false
                 });
             services.AddSingleton<PoolStore>();
+            services.AddSingleton<IPosterRotatorLocalization, PosterRotatorLocalization>();
             services.AddSingleton<PosterRotatorService>();
             services.AddSingleton<IPosterRotatorService>(sp => sp.GetRequiredService<PosterRotatorService>());
             services.AddSingleton<IScheduledTask, PosterRotationTask>();

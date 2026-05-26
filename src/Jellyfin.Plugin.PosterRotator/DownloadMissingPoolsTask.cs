@@ -11,15 +11,20 @@ public class DownloadMissingPoolsTask : IScheduledTask
 {
     private readonly IPosterRotatorService _service;
     private readonly ILogger<DownloadMissingPoolsTask> _logger;
+    private readonly IPosterRotatorLocalization _localization;
 
-    public DownloadMissingPoolsTask(IPosterRotatorService service, ILogger<DownloadMissingPoolsTask> logger)
+    public DownloadMissingPoolsTask(
+        IPosterRotatorService service,
+        ILogger<DownloadMissingPoolsTask> logger,
+        IPosterRotatorLocalization localization)
     {
         _service = service;
         _logger = logger;
+        _localization = localization;
     }
 
-    public string Name => "Download missing pools";
-    public string Description => "Downloads images for missing or incomplete poster pools without rotating posters.";
+    public string Name => _localization.Translate("Task.DownloadMissingPools.Name");
+    public string Description => _localization.Translate("Task.DownloadMissingPools.Description");
     public string Category => "Poster Rotator";
     public string Key => "PosterRotator.DownloadMissingPoolsTask";
 

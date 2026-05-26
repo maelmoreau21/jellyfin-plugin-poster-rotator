@@ -39,19 +39,17 @@ public sealed class WebConfigTests
     {
         var html = LoadConfigHtml();
 
-        Assert.Contains("Nombre maximum d'affiches a changer par passage", html);
+        Assert.Contains("data-i18n=\"Label.MaxRotationsPerRun\"", html);
         Assert.Contains("min=\"0\"", html);
-        Assert.Contains("(0 = aucune limite de nombre. Le delai interne entre deux changements reste respecte.)", html);
+        Assert.Contains("data-i18n=\"Help.MaxRotationsPerRun\"", html);
         Assert.Contains("posterRotatorFieldHelp", html);
         Assert.DoesNotContain("Cadence", html);
-        Assert.DoesNotContain("Affiches par pool", html);
-        Assert.DoesNotContain("Heures entre changements", html);
         Assert.DoesNotContain("MaxProviderLookupsPerRun", html);
         Assert.DoesNotContain("MaxDownloadsPerRun", html);
         Assert.DoesNotContain("ProcessingBatchSize", html);
         Assert.DoesNotContain("AutoCleanupOrphanedPools", html);
         Assert.DoesNotContain("CleanupIntervalDays", html);
-        Assert.Contains("Affiches max en langue preferee par pool", html);
+        Assert.Contains("data-i18n=\"Label.MaxPreferredLanguageImages\"", html);
         Assert.Contains("FallbackMode", html);
         Assert.Contains("fallbackModeValue", html);
         Assert.Contains("OriginalThenConfigured", html);
@@ -60,24 +58,22 @@ public sealed class WebConfigTests
         Assert.Contains("ConfiguredOnly", html);
         Assert.Contains("byId('FallbackMode').value = String(fallbackModeValue(fallbackMode));", html);
         Assert.Contains("cfg.FallbackMode = fallbackModeValue(byId('FallbackMode').value);", html);
-        Assert.Contains("Autoriser toutes les langues en dernier recours", html);
+        Assert.Contains("data-i18n=\"Checkbox.AllowAnyLanguageFallback\"", html);
         Assert.DoesNotContain("VO en fallback", html);
-        Assert.DoesNotContain("Reparer la liste des pools", html);
         Assert.DoesNotContain("RebuildIndexBtn", html);
-        Assert.Contains("Telecharger les pools manquants", html);
+        Assert.Contains("data-i18n=\"Button.DownloadMissingPools\"", html);
         Assert.Contains("DownloadMissingPoolsBtn", html);
         Assert.Contains("downloadMissingPoolsNow", html);
         Assert.Contains("PosterRotator/Pools/DownloadMissing", html);
-        Assert.DoesNotContain("Purger orphelins", html);
         Assert.DoesNotContain("PurgeOrphansBtn", html);
-        Assert.Contains("Supprimer tous les pools", html);
+        Assert.Contains("data-i18n=\"Button.PurgeAllPools\"", html);
         Assert.Contains("PosterRotator/PurgeAllPools", html);
         Assert.Contains("purgeAllPools", html);
         Assert.Contains("posterRotatorMediaName", html);
         Assert.Contains("posterRotatorPill", html);
         Assert.DoesNotContain("<h3>Maintenance</h3>", html);
-        Assert.Contains("Parcourir les affiches dans l'ordre", html);
-        Assert.Contains("Active: prend l'image suivante du pool a chaque rotation. Desactive: choisit une affiche au hasard. Ne change pas le delai entre deux rotations.", html);
+        Assert.Contains("data-i18n=\"Checkbox.SequentialRotation\"", html);
+        Assert.Contains("data-i18n=\"Help.SequentialRotation\"", html);
         Assert.Contains("id=\"PoolsLimit\"", html);
         Assert.Contains("<option value=\"25\">25</option>", html);
         Assert.Contains("<option value=\"50\" selected>50</option>", html);
@@ -92,13 +88,29 @@ public sealed class WebConfigTests
         Assert.Contains("function markSelectedPoolRow()", html);
         Assert.DoesNotContain("return loadPools(false);", html);
 
-        var labelIndex = html.IndexOf("for=\"MaxRotationsPerRun\">Nombre maximum d'affiches a changer par passage", StringComparison.Ordinal);
-        var helpIndex = html.IndexOf("(0 = aucune limite de nombre. Le delai interne entre deux changements reste respecte.)", StringComparison.Ordinal);
+        var labelIndex = html.IndexOf("for=\"MaxRotationsPerRun\" data-i18n=\"Label.MaxRotationsPerRun\"", StringComparison.Ordinal);
+        var helpIndex = html.IndexOf("data-i18n=\"Help.MaxRotationsPerRun\"", StringComparison.Ordinal);
         var inputIndex = html.IndexOf("<input id=\"MaxRotationsPerRun\"", StringComparison.Ordinal);
 
         Assert.True(labelIndex >= 0);
         Assert.True(helpIndex > labelIndex);
         Assert.True(inputIndex > helpIndex);
+    }
+
+    [Fact]
+    public void ConfigPage_ExposesInterfaceLanguageSelectorAndLocalizationEndpoint()
+    {
+        var html = LoadConfigHtml();
+
+        Assert.Contains("id=\"InterfaceLanguage\"", html);
+        Assert.Contains("data-i18n=\"Label.InterfaceLanguage\"", html);
+        Assert.Contains("<option value=\"auto\" data-i18n=\"Language.Auto\">", html);
+        Assert.Contains("<option value=\"en\" data-i18n=\"Language.English\">", html);
+        Assert.Contains("<option value=\"fr\" data-i18n=\"Language.French\">", html);
+        Assert.Contains("cfg.InterfaceLanguage = interfaceLanguageValue(textValue('InterfaceLanguage', 'auto'));", html);
+        Assert.Contains("loadLocalization(interfaceLanguage)", html);
+        Assert.Contains("PosterRotator/Localization?language=", html);
+        Assert.Contains("document.querySelectorAll('[data-i18n]')", html);
     }
 
     [Fact]
@@ -125,7 +137,7 @@ public sealed class WebConfigTests
         Assert.Contains("object-fit: cover !important;", html);
         Assert.Contains("width=\"104\" height=\"156\"", html);
         Assert.Contains("posterRotatorCurrentBadge", html);
-        Assert.Contains("Actuelle", html);
+        Assert.Contains("t('Message.Current')", html);
         Assert.Contains("overflow-wrap: anywhere;", html);
         Assert.Contains("-webkit-line-clamp: 3;", html);
         Assert.Contains("prop(image, 'IsCurrent', 'isCurrent', false)", html);
@@ -134,7 +146,7 @@ public sealed class WebConfigTests
         Assert.Contains("classList.add('is-hidden')", html);
         Assert.Contains("classList.remove('is-hidden')", html);
         Assert.DoesNotContain("img.style.display", html);
-        Assert.Contains("Apercu indisponible", html);
+        Assert.Contains("t('Message.PreviewUnavailable')", html);
         Assert.Contains("data-image-delete", html);
     }
 

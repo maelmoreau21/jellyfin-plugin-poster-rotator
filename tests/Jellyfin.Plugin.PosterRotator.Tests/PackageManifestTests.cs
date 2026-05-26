@@ -11,9 +11,22 @@ public sealed class PackageManifestTests
         var meta = JsonDocument.Parse(File.ReadAllText(FindRepoFile("meta.json"))).RootElement;
 
         Assert.Equal("7f6eea8b-0e9c-4cbd-9d2a-31f9a37ce2b7", meta.GetProperty("guid").GetString());
-        Assert.Equal("1.7.0.0", meta.GetProperty("version").GetString());
+        Assert.Equal("1.8.0.0", meta.GetProperty("version").GetString());
         Assert.Equal("12.0.0.0", meta.GetProperty("targetAbi").GetString());
         Assert.Equal("jellyfin-plugin-posterrotator.png", meta.GetProperty("imagePath").GetString());
+    }
+
+    [Fact]
+    public void ManifestJson_DeclaresLatestJellyfin12Release()
+    {
+        var manifest = JsonDocument.Parse(File.ReadAllText(FindRepoFile("manifest.json"))).RootElement;
+        var plugin = manifest[0];
+        var latest = plugin.GetProperty("versions")[0];
+
+        Assert.Equal("1.8.0.0", latest.GetProperty("version").GetString());
+        Assert.Equal("12.0.0.0", latest.GetProperty("targetAbi").GetString());
+        Assert.Contains("v1.8.0.0", latest.GetProperty("sourceUrl").GetString());
+        Assert.Equal("5cf1260fc37b9978afe28012c44c0e83", latest.GetProperty("checksum").GetString());
     }
 
     private static string FindRepoFile(string fileName)

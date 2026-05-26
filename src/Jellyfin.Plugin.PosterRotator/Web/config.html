@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 
 <head>
   <meta charset="utf-8" />
@@ -341,67 +341,67 @@
             <div id="GlobalStatus" class="posterRotatorStatus"></div>
           </div>
           <div class="posterRotatorTabs" role="tablist" aria-label="Poster Rotator">
-            <button id="PoolsTab" type="button" class="raised emby-button posterRotatorTab is-active" data-panel="PoolsPanel" role="tab" aria-selected="true" aria-controls="PoolsPanel">Pools</button>
-            <button id="SettingsTab" type="button" class="raised emby-button posterRotatorTab" data-panel="SettingsPanel" role="tab" aria-selected="false" aria-controls="SettingsPanel" tabindex="-1">Parametres</button>
+            <button id="PoolsTab" type="button" class="raised emby-button posterRotatorTab is-active" data-panel="PoolsPanel" role="tab" aria-selected="true" aria-controls="PoolsPanel" data-i18n="Tab.Pools">Pools</button>
+            <button id="SettingsTab" type="button" class="raised emby-button posterRotatorTab" data-panel="SettingsPanel" role="tab" aria-selected="false" aria-controls="SettingsPanel" tabindex="-1" data-i18n="Tab.Settings">Settings</button>
           </div>
         </div>
 
         <div id="PoolsPanel" class="posterRotatorPanel is-active" role="tabpanel" aria-labelledby="PoolsTab" aria-hidden="false">
           <div class="posterRotatorStats">
             <div class="posterRotatorStat">
-              <div class="posterRotatorDescription">Pools</div>
+              <div class="posterRotatorDescription" data-i18n="Stat.Pools">Pools</div>
               <div id="DiagPoolCount" class="posterRotatorStatValue">-</div>
             </div>
             <div class="posterRotatorStat">
-              <div class="posterRotatorDescription">Espace disque</div>
+              <div class="posterRotatorDescription" data-i18n="Stat.DiskSpace">Disk space</div>
               <div id="DiagDiskSize" class="posterRotatorStatValue">-</div>
             </div>
             <div class="posterRotatorStat">
-              <div class="posterRotatorDescription">Orphelins</div>
+              <div class="posterRotatorDescription" data-i18n="Stat.Orphans">Orphans</div>
               <div id="DiagOrphanCount" class="posterRotatorStatValue">-</div>
             </div>
             <div class="posterRotatorStat">
-              <div class="posterRotatorDescription">Page</div>
+              <div class="posterRotatorDescription" data-i18n="Stat.Page">Page</div>
               <div id="PoolsPageStat" class="posterRotatorStatValue">-</div>
             </div>
           </div>
 
           <div class="posterRotatorGrid">
             <div class="posterRotatorBand">
-              <h2 class="posterRotatorSectionTitle">Pools PluginData</h2>
+              <h2 class="posterRotatorSectionTitle" data-i18n="Heading.PluginDataPools">PluginData pools</h2>
               <div class="posterRotatorToolbar">
                 <div class="inputContainer">
-                  <label class="inputLabel inputLabelUnfocused" for="PoolsSearch">Recherche</label>
+                  <label class="inputLabel inputLabelUnfocused" for="PoolsSearch" data-i18n="Label.Search">Search</label>
                   <input id="PoolsSearch" type="text" is="emby-input" />
                 </div>
                 <div class="inputContainer">
-                  <label class="selectLabel" for="PoolsLibrary">Bibliotheque</label>
+                  <label class="selectLabel" for="PoolsLibrary" data-i18n="Label.Library">Library</label>
                   <select id="PoolsLibrary" is="emby-select">
-                    <option value="">Toutes</option>
+                    <option value="" data-i18n="Option.AllLibraries">All</option>
                   </select>
                 </div>
                 <div class="inputContainer">
-                  <label class="selectLabel" for="PoolsType">Type</label>
+                  <label class="selectLabel" for="PoolsType" data-i18n="Label.Type">Type</label>
                   <select id="PoolsType" is="emby-select">
-                    <option value="">Tous</option>
-                    <option value="Movie">Films</option>
-                    <option value="Series">Series</option>
-                    <option value="Season">Saisons</option>
-                    <option value="Episode">Episodes</option>
-                    <option value="BoxSet">Collections</option>
+                    <option value="" data-i18n="Option.AllTypes">All</option>
+                    <option value="Movie" data-i18n="Option.Movie">Movies</option>
+                    <option value="Series" data-i18n="Option.Series">Series</option>
+                    <option value="Season" data-i18n="Option.Season">Seasons</option>
+                    <option value="Episode" data-i18n="Option.Episode">Episodes</option>
+                    <option value="BoxSet" data-i18n="Option.BoxSet">Collections</option>
                   </select>
                 </div>
                 <div class="inputContainer">
-                  <label class="selectLabel" for="PoolsState">Etat</label>
+                  <label class="selectLabel" for="PoolsState" data-i18n="Label.State">State</label>
                   <select id="PoolsState" is="emby-select">
-                    <option value="">Tous</option>
-                    <option value="errors">Avec erreurs</option>
-                    <option value="empty">Vides</option>
-                    <option value="filled">Avec images</option>
+                    <option value="" data-i18n="Option.AllStates">All</option>
+                    <option value="errors" data-i18n="Option.Errors">With errors</option>
+                    <option value="empty" data-i18n="Option.Empty">Empty</option>
+                    <option value="filled" data-i18n="Option.Filled">With images</option>
                   </select>
                 </div>
                 <div class="inputContainer">
-                  <label class="selectLabel" for="PoolsLimit">Par page</label>
+                  <label class="selectLabel" for="PoolsLimit" data-i18n="Label.PageSize">Per page</label>
                   <select id="PoolsLimit" is="emby-select">
                     <option value="25">25</option>
                     <option value="50" selected>50</option>
@@ -413,24 +413,24 @@
 
               <div class="posterRotatorActionBar">
                 <div class="posterRotatorActionGroup">
-                  <div class="posterRotatorActionGroupTitle">Navigation</div>
-                  <button id="PrevPoolsBtn" type="button" class="raised emby-button">Precedent</button>
-                  <button id="NextPoolsBtn" type="button" class="raised emby-button">Suivant</button>
+                  <div class="posterRotatorActionGroupTitle" data-i18n="Group.Navigation">Navigation</div>
+                  <button id="PrevPoolsBtn" type="button" class="raised emby-button" data-i18n="Button.Previous">Previous</button>
+                  <button id="NextPoolsBtn" type="button" class="raised emby-button" data-i18n="Button.Next">Next</button>
                 </div>
                 <div class="posterRotatorActionGroup">
-                  <div class="posterRotatorActionGroupTitle">Actualisation</div>
-                  <button id="RefreshAllBtn" type="button" class="raised emby-button">Actualiser</button>
-                  <button id="DownloadMissingPoolsBtn" type="button" class="raised button-submit emby-button">Telecharger les pools manquants</button>
+                  <div class="posterRotatorActionGroupTitle" data-i18n="Group.Refresh">Refresh</div>
+                  <button id="RefreshAllBtn" type="button" class="raised emby-button" data-i18n="Button.Refresh">Refresh</button>
+                  <button id="DownloadMissingPoolsBtn" type="button" class="raised button-submit emby-button" data-i18n="Button.DownloadMissingPools">Download missing pools</button>
                 </div>
                 <div class="posterRotatorActionGroup">
-                  <div class="posterRotatorActionGroupTitle">Rotation</div>
-                  <button id="RotateLibraryBtn" type="button" class="raised emby-button">Rotation bibliotheque</button>
+                  <div class="posterRotatorActionGroupTitle" data-i18n="Group.Rotation">Rotation</div>
+                  <button id="RotateLibraryBtn" type="button" class="raised emby-button" data-i18n="Button.RotateLibrary">Rotate library</button>
                 </div>
                 <div class="posterRotatorActionGroup">
-                  <div class="posterRotatorActionGroupTitle">Purge</div>
-                  <button id="PurgeAllPoolsBtn" type="button" class="raised button-cancel emby-button">Supprimer tous les pools</button>
-                  <button id="PurgeLibraryBtn" type="button" class="raised button-cancel emby-button">Purger bibliotheque</button>
-                  <button id="PurgeItemBtn" type="button" class="raised button-cancel emby-button">Purger media</button>
+                  <div class="posterRotatorActionGroupTitle" data-i18n="Group.Purge">Purge</div>
+                  <button id="PurgeAllPoolsBtn" type="button" class="raised button-cancel emby-button" data-i18n="Button.PurgeAllPools">Delete all pools</button>
+                  <button id="PurgeLibraryBtn" type="button" class="raised button-cancel emby-button" data-i18n="Button.PurgeLibrary">Purge library</button>
+                  <button id="PurgeItemBtn" type="button" class="raised button-cancel emby-button" data-i18n="Button.PurgeItem">Purge media</button>
                 </div>
               </div>
 
@@ -438,12 +438,12 @@
                 <table class="posterRotatorTable">
                   <thead>
                     <tr>
-                      <th>Media</th>
-                      <th>Type</th>
-                      <th>Bibliotheque</th>
-                      <th>Images</th>
-                      <th>Taille</th>
-                      <th>Derniere rotation</th>
+                      <th data-i18n="Table.Media">Media</th>
+                      <th data-i18n="Table.Type">Type</th>
+                      <th data-i18n="Table.Library">Library</th>
+                      <th data-i18n="Table.Images">Images</th>
+                      <th data-i18n="Table.Size">Size</th>
+                      <th data-i18n="Table.LastRotation">Last rotation</th>
                       <th></th>
                     </tr>
                   </thead>
@@ -457,10 +457,10 @@
               <h3 id="PoolDetailTitle">Pool</h3>
               <div id="PoolDetailMeta" class="posterRotatorDescription"></div>
               <div class="posterRotatorActions">
-                <button id="RotatePoolBtn" type="button" class="raised emby-button">Rotation maintenant</button>
+                <button id="RotatePoolBtn" type="button" class="raised emby-button" data-i18n="Button.RotateNow">Rotate now</button>
                 <input id="PoolUploadFile" class="posterRotatorHiddenInput" type="file"
                   accept=".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif" />
-                <button id="UploadPoolImageBtn" type="button" class="raised emby-button">Importer</button>
+                <button id="UploadPoolImageBtn" type="button" class="raised emby-button" data-i18n="Button.Upload">Import</button>
               </div>
               <div id="PoolImages" class="posterRotatorThumbs"></div>
             </div>
@@ -469,92 +469,100 @@
 
         <div id="SettingsPanel" class="posterRotatorPanel" role="tabpanel" aria-labelledby="SettingsTab" aria-hidden="true" hidden>
           <form id="PosterRotatorConfigForm" class="posterRotatorBand">
-            <h2 class="posterRotatorSectionTitle">Parametres</h2>
+            <h2 class="posterRotatorSectionTitle" data-i18n="Heading.Settings">Settings</h2>
 
             <div class="posterRotatorFormGrid">
               <div class="inputContainer">
-                <label class="selectLabel" for="PoolStorageMode">Stockage des pools</label>
-                <select id="PoolStorageMode" is="emby-select">
-                  <option value="0">PluginData</option>
-                  <option value="1">Dossiers medias</option>
+                <label class="selectLabel" for="InterfaceLanguage" data-i18n="Label.InterfaceLanguage">Interface language</label>
+                <select id="InterfaceLanguage" is="emby-select">
+                  <option value="auto" data-i18n="Language.Auto">Same as Jellyfin</option>
+                  <option value="en" data-i18n="Language.English">English</option>
+                  <option value="fr" data-i18n="Language.French">Francais</option>
                 </select>
               </div>
               <div class="inputContainer">
-                <label class="inputLabel inputLabelUnfocused" for="MaxRotationsPerRun">Nombre maximum d'affiches a changer par passage</label>
-                <div class="posterRotatorDescription posterRotatorFieldHelp">(0 = aucune limite de nombre. Le delai interne entre deux changements reste respecte.)</div>
+                <label class="selectLabel" for="PoolStorageMode" data-i18n="Label.PoolStorage">Pool storage</label>
+                <select id="PoolStorageMode" is="emby-select">
+                  <option value="0">PluginData</option>
+                  <option value="1" data-i18n="Option.MediaFolders">Media folders</option>
+                </select>
+              </div>
+              <div class="inputContainer">
+                <label class="inputLabel inputLabelUnfocused" for="MaxRotationsPerRun" data-i18n="Label.MaxRotationsPerRun">Maximum posters to change per run</label>
+                <div class="posterRotatorDescription posterRotatorFieldHelp" data-i18n="Help.MaxRotationsPerRun">(0 = no count limit. The internal delay between changes is still respected.)</div>
                 <input id="MaxRotationsPerRun" type="number" min="0" max="100000" is="emby-input" value="500" />
               </div>
             </div>
 
             <div class="posterRotatorFormGrid">
               <div class="inputContainer">
-                <label class="inputLabel inputLabelUnfocused" for="MaxDownloadMegabytes">Taille max image (MB)</label>
+                <label class="inputLabel inputLabelUnfocused" for="MaxDownloadMegabytes" data-i18n="Label.MaxImageSize">Max image size (MB)</label>
                 <input id="MaxDownloadMegabytes" type="number" min="1" max="200" is="emby-input" value="25" />
               </div>
               <div class="inputContainer">
-                <label class="inputLabel inputLabelUnfocused" for="MinImageWidth">Largeur minimale</label>
+                <label class="inputLabel inputLabelUnfocused" for="MinImageWidth" data-i18n="Label.MinWidth">Minimum width</label>
                 <input id="MinImageWidth" type="number" min="0" max="4000" is="emby-input" value="500" />
               </div>
               <div class="inputContainer">
-                <label class="inputLabel inputLabelUnfocused" for="MinImageHeight">Hauteur minimale</label>
+                <label class="inputLabel inputLabelUnfocused" for="MinImageHeight" data-i18n="Label.MinHeight">Minimum height</label>
                 <input id="MinImageHeight" type="number" min="0" max="4000" is="emby-input" value="750" />
               </div>
               <div class="inputContainer">
-                <label class="inputLabel inputLabelUnfocused" for="ExtraPosterPatterns">Motifs supplementaires</label>
+                <label class="inputLabel inputLabelUnfocused" for="ExtraPosterPatterns" data-i18n="Label.ExtraPatterns">Additional patterns</label>
                 <input id="ExtraPosterPatterns" type="text" is="emby-input" placeholder="folder.jpg, alt-*.png" />
               </div>
             </div>
 
             <div class="posterRotatorActions">
-              <label class="emby-checkbox-label"><input id="SequentialRotation" type="checkbox" is="emby-checkbox" /><span>Parcourir les affiches dans l'ordre</span></label>
-              <label class="emby-checkbox-label"><input id="LockImagesAfterFill" type="checkbox" is="emby-checkbox" /><span>Verrouiller les pools pleins</span></label>
-              <label class="emby-checkbox-label"><input id="EnableSeasonPosters" type="checkbox" is="emby-checkbox" /><span>Saisons</span></label>
-              <label class="emby-checkbox-label"><input id="EnableEpisodePosters" type="checkbox" is="emby-checkbox" /><span>Episodes</span></label>
-              <label class="emby-checkbox-label"><input id="BlockPrivateNetworkImageUrls" type="checkbox" is="emby-checkbox" /><span>Bloquer URLs privees</span></label>
-              <label class="emby-checkbox-label"><input id="EnableDuplicateDetection" type="checkbox" is="emby-checkbox" /><span>Doublons visuels</span></label>
+              <label class="emby-checkbox-label"><input id="SequentialRotation" type="checkbox" is="emby-checkbox" /><span data-i18n="Checkbox.SequentialRotation">Use posters in order</span></label>
+              <label class="emby-checkbox-label"><input id="LockImagesAfterFill" type="checkbox" is="emby-checkbox" /><span data-i18n="Checkbox.LockImagesAfterFill">Lock full pools</span></label>
+              <label class="emby-checkbox-label"><input id="EnableSeasonPosters" type="checkbox" is="emby-checkbox" /><span data-i18n="Checkbox.SeasonPosters">Seasons</span></label>
+              <label class="emby-checkbox-label"><input id="EnableEpisodePosters" type="checkbox" is="emby-checkbox" /><span data-i18n="Checkbox.EpisodePosters">Episodes</span></label>
+              <label class="emby-checkbox-label"><input id="BlockPrivateNetworkImageUrls" type="checkbox" is="emby-checkbox" /><span data-i18n="Checkbox.BlockPrivateUrls">Block private URLs</span></label>
+              <label class="emby-checkbox-label"><input id="EnableDuplicateDetection" type="checkbox" is="emby-checkbox" /><span data-i18n="Checkbox.DuplicateDetection">Visual duplicates</span></label>
             </div>
-            <div class="posterRotatorDescription posterRotatorFieldHelp">Active: prend l'image suivante du pool a chaque rotation. Desactive: choisit une affiche au hasard. Ne change pas le delai entre deux rotations.</div>
+            <div class="posterRotatorDescription posterRotatorFieldHelp" data-i18n="Help.SequentialRotation">Enabled: uses the next image from the pool at each rotation. Disabled: picks a random poster. Does not change the delay between rotations.</div>
 
             <div class="posterRotatorBand">
-              <h3>Bibliotheques</h3>
+              <h3 data-i18n="Heading.Libraries">Libraries</h3>
               <div id="LibraryRulesContainer" class="posterRotatorCheckboxList"></div>
             </div>
 
             <div class="posterRotatorBand">
-              <h3>Langues</h3>
-              <label class="emby-checkbox-label"><input id="EnableLanguageFilter" type="checkbox" is="emby-checkbox" /><span>Filtrer par langue</span></label>
+              <h3 data-i18n="Heading.PosterLanguages">Poster languages</h3>
+              <label class="emby-checkbox-label"><input id="EnableLanguageFilter" type="checkbox" is="emby-checkbox" /><span data-i18n="Checkbox.FilterByLanguage">Filter by language</span></label>
               <div class="posterRotatorFormGrid">
                 <div class="inputContainer">
-                  <label class="inputLabel inputLabelUnfocused" for="PreferredLanguage">Langue preferee</label>
+                  <label class="inputLabel inputLabelUnfocused" for="PreferredLanguage" data-i18n="Label.PreferredLanguage">Preferred language</label>
                   <input id="PreferredLanguage" type="text" is="emby-input" value="fr" placeholder="fr" />
                 </div>
                 <div class="inputContainer">
-                  <label class="inputLabel inputLabelUnfocused" for="MaxPreferredLanguageImages">Affiches max en langue preferee par pool</label>
+                  <label class="inputLabel inputLabelUnfocused" for="MaxPreferredLanguageImages" data-i18n="Label.MaxPreferredLanguageImages">Max preferred-language posters per pool</label>
                   <input id="MaxPreferredLanguageImages" type="number" min="0" max="10" is="emby-input" value="2" />
                 </div>
                 <div class="inputContainer">
-                  <label class="inputLabel inputLabelUnfocused" for="FallbackLanguage">Langue fallback</label>
+                  <label class="inputLabel inputLabelUnfocused" for="FallbackLanguage" data-i18n="Label.FallbackLanguage">Fallback language</label>
                   <input id="FallbackLanguage" type="text" is="emby-input" value="en" placeholder="en" />
                 </div>
                 <div class="inputContainer">
-                  <label class="selectLabel" for="FallbackMode">Ordre de fallback</label>
+                  <label class="selectLabel" for="FallbackMode" data-i18n="Label.FallbackMode">Fallback order</label>
                   <select id="FallbackMode" is="emby-select">
-                    <option value="0">Langue originale puis fallback</option>
-                    <option value="1">Fallback puis langue originale</option>
-                    <option value="2">Langue originale uniquement</option>
-                    <option value="3">Fallback uniquement</option>
+                    <option value="0" data-i18n="Option.OriginalThenConfigured">Original language, then fallback</option>
+                    <option value="1" data-i18n="Option.ConfiguredThenOriginal">Fallback, then original language</option>
+                    <option value="2" data-i18n="Option.OriginalOnly">Original language only</option>
+                    <option value="3" data-i18n="Option.ConfiguredOnly">Fallback only</option>
                   </select>
                 </div>
               </div>
               <div class="posterRotatorActions">
-                <label class="emby-checkbox-label"><input id="IncludeUnknownLanguage" type="checkbox" is="emby-checkbox" /><span>Inclure les images sans langue</span></label>
-                <label class="emby-checkbox-label"><input id="AllowAnyLanguageFallback" type="checkbox" is="emby-checkbox" /><span>Autoriser toutes les langues en dernier recours</span></label>
+                <label class="emby-checkbox-label"><input id="IncludeUnknownLanguage" type="checkbox" is="emby-checkbox" /><span data-i18n="Checkbox.IncludeUnknownLanguage">Include images without language</span></label>
+                <label class="emby-checkbox-label"><input id="AllowAnyLanguageFallback" type="checkbox" is="emby-checkbox" /><span data-i18n="Checkbox.AllowAnyLanguageFallback">Allow any language as a last resort</span></label>
               </div>
             </div>
 
             <div style="margin-top:20px;">
               <button is="emby-button" type="submit" class="raised button-submit block emby-button">
-                <span>Enregistrer</span>
+                <span data-i18n="Button.Save">Save</span>
               </button>
             </div>
           </form>
@@ -568,8 +576,18 @@
         var poolsState = { start: 0, limit: 50, total: 0, selectedItemId: null, requestToken: 0 };
         var searchTimer = null;
         var libraryNames = [];
+        var localizationState = { language: 'en', strings: {} };
 
         function byId(id) { return document.getElementById(id); }
+        function t(key) {
+          return localizationState.strings[key] || key;
+        }
+        function tf(key) {
+          var args = Array.prototype.slice.call(arguments, 1);
+          return t(key).replace(/\{(\d+)\}/g, function (match, index) {
+            return args[index] === undefined ? match : args[index];
+          });
+        }
         function prop(obj, pascal, camel, fallback) {
           if (!obj) return fallback;
           if (obj[pascal] !== undefined) return obj[pascal];
@@ -605,6 +623,10 @@
         }
         function storageModeValue(value) {
           return value === 1 || value === '1' || value === 'MediaFolders' ? 1 : 0;
+        }
+        function interfaceLanguageValue(value) {
+          if (value === 'fr' || value === 'en') return value;
+          return 'auto';
         }
         function fallbackModeValue(value) {
           if (value === 0 || value === '0' || value === 'OriginalThenConfigured') return 0;
@@ -675,6 +697,41 @@
           setText('GlobalStatus', text || '');
         }
 
+        function applyStaticTranslations() {
+          document.querySelectorAll('[data-i18n]').forEach(function (el) {
+            el.textContent = t(el.getAttribute('data-i18n'));
+          });
+          document.documentElement.lang = localizationState.language || 'en';
+        }
+
+        function populateInterfaceLanguageOptions(options, selectedValue) {
+          var select = byId('InterfaceLanguage');
+          if (!select) return;
+          var selected = interfaceLanguageValue(selectedValue || select.value || 'auto');
+          if (options && options.length) {
+            select.innerHTML = options.map(function (option) {
+              return '<option value="' + escapeHtml(prop(option, 'Value', 'value', '')) + '">'
+                + escapeHtml(prop(option, 'Name', 'name', '')) + '</option>';
+            }).join('');
+          }
+          select.value = selected;
+          if (!select.value) select.value = 'auto';
+        }
+
+        function loadLocalization(language) {
+          var selected = interfaceLanguageValue(language || 'auto');
+          return apiGet('PosterRotator/Localization?language=' + encodeURIComponent(selected))
+            .then(function (data) {
+              localizationState.language = prop(data, 'Language', 'language', 'en');
+              localizationState.strings = prop(data, 'Strings', 'strings', {}) || {};
+              populateInterfaceLanguageOptions(prop(data, 'Languages', 'languages', []), selected);
+              applyStaticTranslations();
+            })
+            .catch(function (err) {
+              console.error('PosterRotator localization error:', err);
+            });
+        }
+
         function selectPanel(panelId) {
           document.querySelectorAll('.posterRotatorTab').forEach(function (button) {
             var active = button.getAttribute('data-panel') === panelId;
@@ -691,14 +748,14 @@
         }
 
         function getFolderName(folder) {
-          return folder.Name || folder.DisplayName || (folder.Path ? folder.Path.split(/[\\/]/).pop() : 'Unknown');
+          return folder.Name || folder.DisplayName || (folder.Path ? folder.Path.split(/[\\/]/).pop() : t('Message.Unknown'));
         }
 
         function populatePoolLibraryFilter(names) {
           var select = byId('PoolsLibrary');
           if (!select) return;
           var current = select.value || '';
-          select.innerHTML = '<option value="">Toutes</option>' + names.map(function (name) {
+          select.innerHTML = '<option value="">' + escapeHtml(t('Option.AllLibraries')) + '</option>' + names.map(function (name) {
             return '<option value="' + escapeHtml(name) + '">' + escapeHtml(name) + '</option>';
           }).join('');
           if (current && names.indexOf(current) >= 0) select.value = current;
@@ -715,7 +772,7 @@
           checkbox.checked = !!enabled;
           checkbox.dataset.libraryName = name || '';
           var span = document.createElement('span');
-          span.textContent = name || '(sans nom)';
+          span.textContent = name || t('Message.NoName');
           label.appendChild(checkbox);
           label.appendChild(span);
           div.appendChild(label);
@@ -740,7 +797,7 @@
 
           container.innerHTML = '';
           if (!names.length) {
-            container.innerHTML = '<div class="posterRotatorDescription">Aucune bibliotheque detectee.</div>';
+            container.innerHTML = '<div class="posterRotatorDescription">' + escapeHtml(t('Message.NoLibraries')) + '</div>';
             return;
           }
 
@@ -766,7 +823,7 @@
               libraryNames = ((cfg && cfg.LibraryRules) || []).map(function (rule) { return rule.Name; }).filter(Boolean);
               populatePoolLibraryFilter(libraryNames);
               renderLibraryRules(cfg || {}, libraryNames);
-              setGlobalStatus('Bibliotheques Jellyfin indisponibles.');
+              setGlobalStatus(t('Message.LibrariesUnavailable'));
             });
         }
 
@@ -779,7 +836,7 @@
             })
             .catch(function (err) {
               console.error('PosterRotator diagnostics error:', err);
-              setGlobalStatus('Erreur diagnostic.');
+              setGlobalStatus(t('Message.DiagnosticsError'));
             });
         }
 
@@ -823,7 +880,7 @@
           if (resetStart) poolsState.start = 0;
           var token = ++poolsState.requestToken;
           updatePoolButtonStates();
-          setText('PoolsStatus', 'Chargement...');
+          setText('PoolsStatus', t('Message.Loading'));
           return apiGet(buildPoolsUrl())
             .then(function (data) {
               if (token !== poolsState.requestToken) return;
@@ -833,13 +890,13 @@
               if (!body) return;
 
               if (!items.length) {
-                body.innerHTML = '<tr><td colspan="7">Aucun pool trouve.</td></tr>';
+                body.innerHTML = '<tr><td colspan="7">' + escapeHtml(t('Message.NoPools')) + '</td></tr>';
               } else {
                 body.innerHTML = items.map(function (entry) {
                   var itemId = prop(entry, 'ItemId', 'itemId', '');
                   var lastError = prop(entry, 'LastError', 'lastError', '');
                   var selected = itemId && itemId === poolsState.selectedItemId ? ' class="is-selected"' : '';
-                  var itemName = prop(entry, 'ItemName', 'itemName', '(sans nom)');
+                  var itemName = prop(entry, 'ItemName', 'itemName', t('Message.NoName'));
                   var itemPath = prop(entry, 'ItemPath', 'itemPath', '');
                   var itemType = prop(entry, 'ItemType', 'itemType', '-');
                   var libraryName = prop(entry, 'LibraryName', 'libraryName', '-');
@@ -852,14 +909,14 @@
                     + '<td>' + prop(entry, 'ImageCount', 'imageCount', 0) + '</td>'
                     + '<td>' + formatBytes(prop(entry, 'SizeBytes', 'sizeBytes', 0)) + '</td>'
                     + '<td>' + formatDate(prop(entry, 'LastRotatedUtc', 'lastRotatedUtc', null)) + '</td>'
-                    + '<td><button type="button" class="raised emby-button" data-pool-open="' + escapeHtml(itemId) + '">Ouvrir</button></td>'
+                    + '<td><button type="button" class="raised emby-button" data-pool-open="' + escapeHtml(itemId) + '">' + escapeHtml(t('Button.Open')) + '</button></td>'
                     + '</tr>';
                 }).join('');
               }
 
               var page = Math.floor(poolsState.start / poolsState.limit) + 1;
               var pages = Math.max(1, Math.ceil(poolsState.total / poolsState.limit));
-              setText('PoolsStatus', poolsState.total + ' pool(s), page ' + page + ' / ' + pages);
+              setText('PoolsStatus', tf('Message.PoolsStatus', poolsState.total, page, pages));
               setText('PoolsPageStat', page + '/' + pages);
               body.querySelectorAll('[data-pool-open]').forEach(function (button) {
                 button.addEventListener('click', function () { openPool(button.getAttribute('data-pool-open')); });
@@ -869,7 +926,7 @@
             .catch(function (err) {
               if (token !== poolsState.requestToken) return;
               console.error('PosterRotator pools error:', err);
-              setText('PoolsStatus', 'Erreur chargement pools.');
+              setText('PoolsStatus', t('Message.PoolsLoadError'));
               updatePoolButtonStates();
             });
         }
@@ -881,24 +938,23 @@
             .then(function (pool) {
               var detail = byId('PoolDetail');
               if (detail) detail.style.display = 'block';
-              setText('PoolDetailTitle', prop(pool, 'ItemName', 'itemName', 'Pool'));
+              setText('PoolDetailTitle', prop(pool, 'ItemName', 'itemName', t('Message.Pool')));
               var current = prop(pool, 'CurrentPoster', 'currentPoster', {});
               var currentFile = prop(current, 'FileName', 'fileName', '');
               var currentMethod = prop(current, 'MatchMethod', 'matchMethod', 'none');
-              var currentText = currentFile
-                ? ', actuelle: ' + currentFile + ' (' + currentMethod + ')'
-                : ', actuelle: non detectee';
-              setText('PoolDetailMeta', prop(pool, 'ImageCount', 'imageCount', 0)
-                + ' image(s), ' + formatBytes(prop(pool, 'SizeBytes', 'sizeBytes', 0))
-                + ', rotation: ' + formatDate(prop(pool, 'LastRotatedUtc', 'lastRotatedUtc', null))
-                + currentText);
+              var imageCount = prop(pool, 'ImageCount', 'imageCount', 0);
+              var size = formatBytes(prop(pool, 'SizeBytes', 'sizeBytes', 0));
+              var rotated = formatDate(prop(pool, 'LastRotatedUtc', 'lastRotatedUtc', null));
+              setText('PoolDetailMeta', currentFile
+                ? tf('Message.PoolMetaCurrent', imageCount, size, rotated, currentFile, currentMethod)
+                : tf('Message.PoolMetaNoCurrent', imageCount, size, rotated));
               renderPoolImages(prop(pool, 'Images', 'images', []));
               markSelectedPoolRow();
               updatePoolButtonStates();
             })
             .catch(function (err) {
               console.error('PosterRotator pool detail error:', err);
-              alert('Impossible de charger le pool.');
+              alert(t('Message.PoolDetailLoadError'));
             });
         }
 
@@ -906,7 +962,7 @@
           var container = byId('PoolImages');
           if (!container) return;
           if (!images || !images.length) {
-            container.innerHTML = '<div class="posterRotatorDescription">Pool vide.</div>';
+            container.innerHTML = '<div class="posterRotatorDescription">' + escapeHtml(t('Message.EmptyPool')) + '</div>';
             return;
           }
           container.innerHTML = images.map(function (image) {
@@ -916,13 +972,13 @@
             var originalSrc = poolOriginalImageUrl(fileName, image);
             var isCurrent = !!prop(image, 'IsCurrent', 'isCurrent', false);
             return '<div class="posterRotatorThumb' + (isCurrent ? ' is-current' : '') + '">'
-              + (isCurrent ? '<div class="posterRotatorCurrentBadge">Actuelle</div>' : '')
+              + (isCurrent ? '<div class="posterRotatorCurrentBadge">' + escapeHtml(t('Message.Current')) + '</div>' : '')
               + '<img class="posterRotatorThumbImage" alt="" src="' + escapeHtml(src) + '" data-original-src="' + escapeHtml(originalSrc) + '" width="104" height="156" loading="lazy" />'
-              + '<div class="posterRotatorThumbError" hidden>Apercu indisponible</div>'
+              + '<div class="posterRotatorThumbError" hidden>' + escapeHtml(t('Message.PreviewUnavailable')) + '</div>'
               + '<div class="posterRotatorThumbBody">'
               + '<div class="posterRotatorThumbName" title="' + escapeHtml(fileName) + '">' + escapeHtml(fileName) + '</div>'
               + '<div class="posterRotatorDescription">' + formatBytes(prop(image, 'SizeBytes', 'sizeBytes', 0)) + ' - ' + escapeHtml(prop(image, 'Language', 'language', 'unknown')) + ' - ' + escapeHtml(source) + '</div>'
-              + '<button type="button" class="raised button-cancel emby-button" data-image-delete="' + escapeHtml(fileName) + '">Supprimer</button>'
+              + '<button type="button" class="raised button-cancel emby-button" data-image-delete="' + escapeHtml(fileName) + '">' + escapeHtml(t('Button.Delete')) + '</button>'
               + '</div></div>';
           }).join('');
           container.querySelectorAll('[data-image-delete]').forEach(function (button) {
@@ -965,21 +1021,21 @@
           if (!poolsState.selectedItemId) return;
           postJson('PosterRotator/Pools/' + encodeURIComponent(poolsState.selectedItemId) + '/RotateNow', {})
             .then(function () { return openPool(poolsState.selectedItemId).then(function () { return loadDiagnostics(); }); })
-            .catch(function () { alert('Rotation impossible pour ce pool.'); });
+            .catch(function () { alert(t('Message.RotatePoolError')); });
         }
 
         function rotateLibrary() {
           var library = textValue('PoolsLibrary', '');
           if (!library) {
-            alert('Choisis une bibliotheque dans le filtre.');
+            alert(t('Message.SelectLibrary'));
             return;
           }
           postJson('PosterRotator/Libraries/' + encodeURIComponent(library) + '/RotateNow', {})
             .then(function (result) {
-              alert(prop(result, 'Message', 'message', 'Rotation terminee.'));
+              alert(prop(result, 'Message', 'message', t('Message.RotateLibraryFallback')));
               return refreshAll(false);
             })
-            .catch(function () { alert('Rotation bibliotheque impossible.'); });
+            .catch(function () { alert(t('Message.RotateLibraryError')); });
         }
 
         function purge(scope) {
@@ -987,34 +1043,34 @@
           if (scope === 'library') {
             payload.LibraryName = textValue('PoolsLibrary', '');
             if (!payload.LibraryName) {
-              alert('Choisis une bibliotheque dans le filtre.');
+              alert(t('Message.SelectLibrary'));
               return;
             }
           }
           if (scope === 'item') {
             payload.ItemId = poolsState.selectedItemId;
             if (!payload.ItemId) {
-              alert('Ouvre un pool avant de purger un media.');
+              alert(t('Message.OpenPoolBeforePurge'));
               return;
             }
           }
-          if (!confirm('Confirmer la purge ' + scope + ' ?')) return;
+          if (!confirm(tf('Message.ConfirmPurge', scope))) return;
           postJson('PosterRotator/Purge', payload)
             .then(function (result) {
-              alert(prop(result, 'DeletedCount', 'deletedCount', 0) + ' pool(s) supprime(s).');
+              alert(tf('Message.PurgeResult', prop(result, 'DeletedCount', 'deletedCount', 0)));
               var detail = byId('PoolDetail');
               if (detail) detail.style.display = 'none';
               poolsState.selectedItemId = null;
               return refreshAll(true);
             })
-            .catch(function () { alert('Purge impossible.'); });
+            .catch(function () { alert(t('Message.PurgeError')); });
         }
 
         function uploadPoolImage() {
           if (!poolsState.selectedItemId) return;
           var fileInput = byId('PoolUploadFile');
           if (!fileInput || !fileInput.files || !fileInput.files.length) {
-            alert('Choisis une image.');
+            alert(t('Message.ChooseImage'));
             return;
           }
           var form = new FormData();
@@ -1030,13 +1086,13 @@
             fileInput.value = '';
             return openPool(poolsState.selectedItemId).then(function () { return loadDiagnostics(); });
           }).catch(function () {
-            alert('Import refuse.');
+            alert(t('Message.UploadRejected'));
           });
         }
 
         function deletePoolImage(fileName) {
           if (!poolsState.selectedItemId || !fileName) return;
-          if (!confirm('Supprimer cette image du pool ?')) return;
+          if (!confirm(t('Message.ConfirmImageDelete'))) return;
           ApiClient.ajax({
             type: 'DELETE',
             url: ApiClient.getUrl('PosterRotator/Pools/' + encodeURIComponent(poolsState.selectedItemId) + '/Images/' + encodeURIComponent(fileName)),
@@ -1044,43 +1100,39 @@
           }).then(function () {
             return openPool(poolsState.selectedItemId).then(function () { return loadDiagnostics(); });
           }).catch(function () {
-            alert('Suppression impossible.');
+            alert(t('Message.DeleteError'));
           });
         }
 
         function downloadMissingPoolsNow() {
-          setGlobalStatus('Telechargement des pools manquants...');
-          setText('PoolsStatus', 'Telechargement progressif en cours...');
+          setGlobalStatus(t('Message.DownloadStarting'));
+          setText('PoolsStatus', t('Message.DownloadProgressive'));
           postJson('PosterRotator/Pools/DownloadMissing', {})
             .then(function (result) {
-              var message = prop(result, 'Message', 'message', 'Telechargement termine.');
-              if (prop(result, 'LimitedByRunBudget', 'limitedByRunBudget', false) && message.indexOf('relancez') < 0) {
-                message += ' Le telechargement est progressif: relancez pour continuer.';
-              }
-
+              var message = prop(result, 'Message', 'message', t('Message.DownloadFallback'));
               setGlobalStatus(message);
               setText('PoolsStatus', message);
               return Promise.all([loadDiagnostics(), loadPools(false)]);
             })
             .catch(function () {
-              setGlobalStatus('Telechargement des pools manquants impossible.');
-              setText('PoolsStatus', 'Telechargement impossible.');
+              setGlobalStatus(t('Message.DownloadError'));
+              setText('PoolsStatus', t('Message.DownloadShortError'));
             });
         }
 
         function purgeAllPools() {
-          if (!confirm('Supprimer tous les pools PluginData et les anciens pools dossiers medias ?')) return;
-          setGlobalStatus('Suppression de tous les pools...');
+          if (!confirm(t('Message.ConfirmPurgeAll'))) return;
+          setGlobalStatus(t('Message.PurgeAllStarting'));
           postJson('PosterRotator/PurgeAllPools', {})
             .then(function (result) {
-              setGlobalStatus(prop(result, 'DeletedCount', 'deletedCount', 0) + ' pool(s) supprime(s).');
+              setGlobalStatus(tf('Message.PurgeResult', prop(result, 'DeletedCount', 'deletedCount', 0)));
               var detail = byId('PoolDetail');
               if (detail) detail.style.display = 'none';
               poolsState.selectedItemId = null;
               return refreshAll(true);
             })
             .catch(function () {
-              setGlobalStatus('Suppression de tous les pools impossible.');
+              setGlobalStatus(t('Message.PurgeAllError'));
             });
         }
 
@@ -1088,6 +1140,11 @@
           return ApiClient.getPluginConfiguration(pluginId)
             .then(function (cfg) {
               cfg = cfg || {};
+              var interfaceLanguage = interfaceLanguageValue(cfg.InterfaceLanguage);
+              byId('InterfaceLanguage').value = interfaceLanguage;
+              return loadLocalization(interfaceLanguage).then(function () { return cfg; });
+            })
+            .then(function (cfg) {
               byId('PoolStorageMode').value = String(storageModeValue(cfg.PoolStorageMode));
               byId('MaxRotationsPerRun').value = cfg.MaxRotationsPerRun ?? 500;
               byId('SequentialRotation').checked = !!cfg.SequentialRotation;
@@ -1119,6 +1176,7 @@
           ApiClient.getPluginConfiguration(pluginId)
             .then(function (cfg) {
               cfg = cfg || {};
+              cfg.InterfaceLanguage = interfaceLanguageValue(textValue('InterfaceLanguage', 'auto'));
               cfg.PoolStorageMode = storageModeValue(byId('PoolStorageMode').value);
               cfg.MaxRotationsPerRun = intValue('MaxRotationsPerRun', 500, 0, 100000);
               cfg.SequentialRotation = boolValue('SequentialRotation', false);
@@ -1155,7 +1213,7 @@
             .then(function (result) { Dashboard.processPluginConfigurationUpdateResult(result); })
             .catch(function (err) {
               console.error('PosterRotator save error:', err);
-              alert('Erreur lors de la sauvegarde.');
+              alert(t('Message.SaveError'));
             })
             .finally(function () { Dashboard.hideLoadingMsg(); });
           return false;
@@ -1181,6 +1239,20 @@
           if (refreshAllBtn) refreshAllBtn.addEventListener('click', function () { refreshAll(false); });
           var downloadMissingPoolsBtn = byId('DownloadMissingPoolsBtn');
           if (downloadMissingPoolsBtn) downloadMissingPoolsBtn.addEventListener('click', downloadMissingPoolsNow);
+          var interfaceLanguage = byId('InterfaceLanguage');
+          if (interfaceLanguage) {
+            interfaceLanguage.addEventListener('change', function () {
+              var previousRules = Array.prototype.slice.call(document.querySelectorAll('#LibraryRulesContainer input[type="checkbox"]')).map(function (checkbox) {
+                return { Name: checkbox.dataset.libraryName || '', Enabled: !!checkbox.checked };
+              });
+              loadLocalization(interfaceLanguage.value).then(function () {
+                populatePoolLibraryFilter(libraryNames);
+                renderLibraryRules({ LibraryRules: previousRules }, libraryNames);
+                loadPools(false);
+                if (poolsState.selectedItemId) openPool(poolsState.selectedItemId);
+              });
+            });
+          }
           var purgeAllPoolsBtn = byId('PurgeAllPoolsBtn');
           if (purgeAllPoolsBtn) purgeAllPoolsBtn.addEventListener('click', purgeAllPools);
           var search = byId('PoolsSearch');
@@ -1224,7 +1296,7 @@
             .then(function () { return Promise.all([loadDiagnostics(), loadPools(false)]); })
             .catch(function (err) {
               console.error('PosterRotator load error:', err);
-              alert('Erreur lors du chargement.');
+              alert(t('Message.LoadError'));
             })
             .finally(function () { Dashboard.hideLoadingMsg(); });
         }

@@ -31,6 +31,7 @@ public class PosterRotatorService : IPosterRotatorService
     private readonly IHttpClientFactory _httpFactory;
     private readonly PoolStore _poolStore;
     private readonly IImageProcessor _imageProcessor;
+    private readonly IPosterRotatorLocalization _localization;
     private readonly ILogger<PosterRotatorService> _log;
     private PoolDiagnostics? _cachedDiagnostics;
     private DateTimeOffset _cachedDiagnosticsUtc;
@@ -47,6 +48,7 @@ public class PosterRotatorService : IPosterRotatorService
         IHttpClientFactory httpFactory,
         PoolStore poolStore,
         IImageProcessor imageProcessor,
+        IPosterRotatorLocalization localization,
         ILogger<PosterRotatorService> log)
     {
         _library = library;
@@ -54,6 +56,7 @@ public class PosterRotatorService : IPosterRotatorService
         _httpFactory = httpFactory;
         _poolStore = poolStore;
         _imageProcessor = imageProcessor;
+        _localization = localization;
         _log = log;
     }
 
@@ -248,7 +251,7 @@ public class PosterRotatorService : IPosterRotatorService
             return new PoolDownloadResult
             {
                 CandidateCount = 0,
-                Message = "Aucun media candidat."
+                Message = T("Api.NoCandidateMedia")
             };
         }
 
@@ -346,10 +349,10 @@ public class PosterRotatorService : IPosterRotatorService
             budget.Downloads,
             sw.Elapsed.TotalSeconds);
 
-        var message = $"{completedPoolCount} pool(s) completees, {topUpCount} image(s) ajoutees.";
+        var message = Tf("Api.DownloadResult", completedPoolCount, topUpCount);
         if (limitedByRunBudget)
         {
-            message += " Passage limite par les plafonds du run; relancez Telecharger les pools manquants pour continuer.";
+            message += T("Api.DownloadLimitedSuffix");
         }
 
         return new PoolDownloadResult
@@ -1857,7 +1860,7 @@ public class PosterRotatorService : IPosterRotatorService
             {
                 Success = false,
                 ItemId = itemId.ToString(),
-                Message = "Media introuvable dans Jellyfin."
+                Message = T("Api.MediaNotFound")
             };
         }
 
@@ -1868,7 +1871,7 @@ public class PosterRotatorService : IPosterRotatorService
             {
                 Success = false,
                 ItemId = itemId.ToString(),
-                Message = "Pool introuvable dans le dossier plugin."
+                Message = T("Api.PoolNotFound")
             };
         }
 
@@ -1877,12 +1880,12 @@ public class PosterRotatorService : IPosterRotatorService
         var files = LoadLocalPoolFiles(poolDir).ToList();
         if (files.Count == 0)
         {
-            await _poolStore.RecordErrorAsync(itemId, "Rotation immediate impossible: pool vide.", cancellationToken).ConfigureAwait(false);
+            await _poolStore.RecordErrorAsync(itemId, T("Api.RotateEmptyPoolError"), cancellationToken).ConfigureAwait(false);
             return new PoolOperationResult
             {
                 Success = false,
                 ItemId = itemId.ToString(),
-                Message = "Pool vide."
+                Message = T("Api.EmptyPool")
             };
         }
 
@@ -1891,13 +1894,13 @@ public class PosterRotatorService : IPosterRotatorService
         var chosen = PickNextFor(files, item, cfg, state);
         if (!await SavePrimaryImageAsync(item, chosen, cancellationToken).ConfigureAwait(false))
         {
-            await _poolStore.RecordErrorAsync(itemId, "Rotation immediate impossible: SaveImage a echoue.", cancellationToken).ConfigureAwait(false);
+            await _poolStore.RecordErrorAsync(itemId, T("Api.RotateSaveImageError"), cancellationToken).ConfigureAwait(false);
             return new PoolOperationResult
             {
                 Success = false,
                 ItemId = itemId.ToString(),
                 FileName = Path.GetFileName(chosen),
-                Message = "Jellyfin n'a pas accepte l'image selectionnee."
+                Message = T("Api.SaveImageRejected")
             };
         }
 
@@ -1916,7 +1919,7 @@ public class PosterRotatorService : IPosterRotatorService
             FileName = Path.GetFileName(chosen),
             ProcessedCount = 1,
             RotatedCount = 1,
-            Message = "Rotation effectuee."
+            Message = T("Api.RotationComplete")
         };
     }
 
@@ -1962,7 +1965,7 @@ public class PosterRotatorService : IPosterRotatorService
             ProcessedCount = processed,
             RotatedCount = rotated,
             FailedCount = failed,
-            Message = $"{rotated}/{processed} pool(s) tournes."
+            Message = Tf("Api.LibraryRotationResult", rotated, processed)
         };
     }
 
@@ -1973,7 +1976,7 @@ public class PosterRotatorService : IPosterRotatorService
         CancellationToken cancellationToken)
     {
         using var poolLock = await _poolStore.LockPoolAsync(itemId, cancellationToken).ConfigureAwait(false);
-        var item = TryGetItemById(itemId) ?? throw new FileNotFoundException("Media introuvable dans Jellyfin.");
+        var item = TryGetItemById(itemId) ?? throw new FileNotFoundException(T("Api.MediaNotFound"));
         var snapshot = CreateSnapshot(item, GetLibraryRootPaths());
         var cfg = Plugin.Instance?.Configuration ?? new Configuration();
         return await _poolStore.ImportImageAsync(snapshot, stream, fileName, cfg, cancellationToken).ConfigureAwait(false);
@@ -1989,6 +1992,10 @@ public class PosterRotatorService : IPosterRotatorService
         _poolStore.PurgeAsync(request, ItemExists, cancellationToken);
 
     private bool ItemExists(Guid itemId) => TryGetItemById(itemId) != null;
+
+    private string T(string key) => _localization.Translate(key);
+
+    private string Tf(string key, params object[] args) => PosterRotatorLocalization.Format(T(key), args);
 
     private BaseItem? TryGetItemById(Guid itemId)
     {

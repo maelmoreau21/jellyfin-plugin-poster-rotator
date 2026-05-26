@@ -1,17 +1,18 @@
 # Jellyfin Poster Rotator
 
-Poster Rotator garde l'interface Jellyfin vivante en constituant un pool d'affiches par media, puis en remplacant regulierement l'image principale. La ligne `1.7.0.0` est optimisee pour les grosses bibliotheques, y compris les index de `200000+` pools, et vise Jellyfin 12 beta.
+Poster Rotator garde l'interface Jellyfin vivante en constituant un pool d'affiches par media, puis en remplacant regulierement l'image principale. La ligne `1.8.0.0` est optimisee pour les grosses bibliotheques, y compris les index de `200000+` pools, vise Jellyfin 12 beta, et ajoute une interface bilingue anglais/francais.
 
 ## Compatibilite
 
-- Version du plugin: `1.7.0.0`
+- Version du plugin: `1.8.0.0`
 - ABI cible: Jellyfin `12.0.0.0`
 - Packages Jellyfin: `12.0.0-20260523021143`
 - Runtime: `.NET 9`
-- Ligne precedente: `1.6.0.0` reste la version pour Jellyfin `10.11.x`
+- Ligne precedente Jellyfin 12: `1.7.0.0`
+- Ligne Jellyfin 10.11: `1.6.0.0`
 
-La version `1.7.0.0` ne fait pas d'acces SQL brut. Elle passe par les services Jellyfin (`ILibraryManager`, `IProviderManager`) et stocke son etat dans le dossier data du plugin.
-Les correctifs UI et les regenerations d'archive de cette ligne doivent conserver la version `1.7.0.0`.
+La version `1.8.0.0` ne fait pas d'acces SQL brut. Elle passe par les services Jellyfin (`ILibraryManager`, `IProviderManager`) et stocke son etat dans le dossier data du plugin.
+Les correctifs UI et les regenerations d'archive de cette ligne doivent conserver la version `1.8.0.0`.
 
 ## Fonctionnement
 
@@ -45,11 +46,11 @@ https://raw.githubusercontent.com/maelmoreau21/jellyfin-plugin-poster-rotator/re
 
 Puis installez **Poster Rotator** depuis le catalogue des plugins et redemarrez Jellyfin.
 
-Pour une installation manuelle par zip, l'archive `Jellyfin.Plugin.PosterRotator-1.7.0.0.zip` contient aussi `meta.json` et `jellyfin-plugin-posterrotator.png`, afin que la page plugins de Jellyfin puisse afficher l'image du plugin.
+Pour une installation manuelle par zip, l'archive `Jellyfin.Plugin.PosterRotator-1.8.0.0.zip` contient aussi `meta.json` et `jellyfin-plugin-posterrotator.png`, afin que la page plugins de Jellyfin puisse afficher l'image du plugin.
 
 ## Interface
 
-L'interface admin est organisee en deux vrais onglets separes: `Pools` s'ouvre par defaut et contient uniquement les outils de pools, puis `Parametres` contient uniquement les reglages.
+L'interface admin est organisee en deux vrais onglets separes: `Pools` s'ouvre par defaut et contient uniquement les outils de pools, puis `Parametres` contient uniquement les reglages. En haut de `Parametres`, le choix de langue de l'interface propose `Same as Jellyfin`, `English` et `Francais`; le mode automatique suit la langue `UICulture` du serveur Jellyfin et retombe sur l'anglais si elle n'est pas encore traduite.
 
 - statistiques et etat dans l'onglet pools, avec diagnostics limites aux IDs presents dans l'index du plugin;
 - recherche paginee des pools `PluginData`, servie depuis un index cache et adaptee aux tres grands volumes;
@@ -64,7 +65,8 @@ L'interface admin est organisee en deux vrais onglets separes: `Pools` s'ouvre p
 - suppression de tous les pools en une action admin confirmee;
 - reglage simple du nombre maximum d'affiches changees par passage, avec l'aide `0 = aucune limite...` directement sous le libelle du champ;
 - reglage **Parcourir les affiches dans l'ordre**: active, il prend l'image suivante du pool a chaque rotation; desactive, il choisit une affiche au hasard;
-- bibliotheques, langues et securite dans l'onglet `Parametres`;
+- bibliotheques, langues d'affiches et securite dans l'onglet `Parametres`;
+- interface traduite en anglais et francais, avec noms/descriptions des taches planifiees traduits selon le meme choix de langue quand Jellyfin rafraichit ces libelles;
 - fallback de langue configurable: langue preferee, langue originale detectee, langue fallback, images sans langue et dernier recours toutes langues. L'interface accepte aussi les noms d'enum Jellyfin pour conserver correctement l'ordre de fallback.
 
 Les anciens dossiers `.poster_pool` du mode `MediaFolders` restent compatibles seulement si ce mode est choisi. Les anciens pools sous `Jellyfin.Plugin.PosterRotator/pools` ne sont pas migres et sont ignores.

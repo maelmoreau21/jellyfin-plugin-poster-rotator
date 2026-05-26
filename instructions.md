@@ -1,18 +1,20 @@
 # Instructions
 
-## Objectif de la branche 1.7
+## Objectif de la branche 1.8
 
-Preparer Poster Rotator `1.7.0.0` pour Jellyfin `12.0.0.0`.
+Preparer Poster Rotator `1.8.0.0` pour Jellyfin `12.0.0.0`.
 
 - Ne pas ajouter d'acces SQL brut.
 - Ne pas utiliser `SQLiteConnection`, `DbConnection`, `FromSql`, `ExecuteSql`, ni requetes textuelles.
 - Utiliser les services Jellyfin injectes (`ILibraryManager`, `IProviderManager`, etc.).
 - Garder `CS0618` en erreur pour bloquer les API `[Obsolete]`.
 - Conserver `1.6.0.0` comme ligne compatible Jellyfin `10.11.x`.
+- Conserver `1.7.0.0` comme precedente ligne Jellyfin 12 beta.
+- Garder l'interface du plugin localisable en anglais et francais, avec fallback anglais.
 
 ## Stockage des pools
 
-La ligne 1.7 utilise un stockage fichier structure dans un dossier dedie, frere du dossier config du plugin:
+La ligne 1.8 utilise un stockage fichier structure dans un dossier dedie, frere du dossier config du plugin:
 
 - `Jellyfin.Plugin.PosterRotator.pools/index.json`: index leger pour diagnostics, recherche, pagination et actions globales.
 - `Jellyfin.Plugin.PosterRotator.pools/{itemId}/pool.json`: metadonnees versionnees du pool, images, hashes, langues, sources, dates et erreurs recentes.
@@ -87,6 +89,7 @@ Jellyfin doit afficher une categorie `Poster Rotator` dans le planificateur:
 - `Download missing pools`: tache quotidienne par defaut a 02:00, cle stable `PosterRotator.DownloadMissingPoolsTask`;
 - `Rotate pools`: tache quotidienne par defaut a 03:00, cle stable `PosterRotator.RotatePostersTask`, rotation-only sans telechargement;
 - `Nettoyage pools orphelins`: tache hebdomadaire par defaut, purge `Scope = "orphans"`.
+- Les noms et descriptions des taches peuvent etre localises, mais les cles doivent rester stables.
 
 Les anciennes options de nettoyage automatique restent dans le modele de configuration pour compatibilite, mais ne doivent plus etre exposees dans l'interface.
 
@@ -94,6 +97,8 @@ Les anciennes options de nettoyage automatique restent dans le modele de configu
 
 L'interface utilise deux vrais onglets ARIA: `Pools` et `Parametres`.
 
+- le premier controle de l'onglet `Parametres` est la langue d'interface globale `InterfaceLanguage`: `auto`, `en`, `fr`;
+- `auto` suit `ServerConfiguration.UICulture` de Jellyfin, et toute langue non supportee retombe en anglais;
 - `Pools` est actif par defaut, avec `SettingsPanel` masque par `hidden`;
 - recherche et filtres uniquement dans l'onglet `Pools`;
 - filtre bibliotheque sous forme de menu deroulant charge depuis `/Library/VirtualFolders`;
@@ -149,18 +154,18 @@ dotnet test .\jellyfin-plugin-poster-rotator.sln -c Release -p:JellyfinPackageVe
 
 ## Release
 
-1. Verifier que `Version`, `AssemblyVersion` et `FileVersion` valent `1.7.0.0`.
+1. Verifier que `Version`, `AssemblyVersion` et `FileVersion` valent `1.8.0.0`.
    - Ne pas changer `meta.json.version`, `manifest.json.version` ni `targetAbi` pour un correctif UI de cette ligne.
 2. Compiler en `Release` contre le package Jellyfin 12 authentifie.
 3. Lancer les tests.
-4. Creer `Jellyfin.Plugin.PosterRotator-1.7.0.0.zip` avec:
+4. Creer `Jellyfin.Plugin.PosterRotator-1.8.0.0.zip` avec:
    - `Jellyfin.Plugin.PosterRotator.dll`
    - `Jellyfin.Plugin.PosterRotator.deps.json`
    - `Jellyfin.Plugin.PosterRotator.pdb`
    - `jellyfin-plugin-posterrotator.png`
    - `meta.json`
 5. Calculer le MD5 du zip et le reporter dans `manifest.json`.
-6. Garder l'entree `1.6.0.0` du manifest pour Jellyfin `10.11.x`.
+6. Garder les entrees `1.7.0.0` et `1.6.0.0` du manifest pour les lignes precedentes.
 
 ## Nettoyage
 

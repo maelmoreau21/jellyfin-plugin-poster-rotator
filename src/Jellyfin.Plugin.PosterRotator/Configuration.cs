@@ -32,6 +32,8 @@ public enum LanguageFallbackMode
 
 public class Configuration : BasePluginConfiguration
 {
+    public string InterfaceLanguage { get; set; } = "auto";
+
     // Backwards-compatible simple list of library names (older versions)
     public List<string> Libraries { get; set; } = new();
 

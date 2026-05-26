@@ -23,11 +23,22 @@ public class PurgeController : ControllerBase
 {
     private readonly PosterRotatorService _service;
     private readonly IImageProcessor _imageProcessor;
+    private readonly IPosterRotatorLocalization _localization;
 
-    public PurgeController(PosterRotatorService service, IImageProcessor imageProcessor)
+    public PurgeController(
+        PosterRotatorService service,
+        IImageProcessor imageProcessor,
+        IPosterRotatorLocalization localization)
     {
         _service = service;
         _imageProcessor = imageProcessor;
+        _localization = localization;
+    }
+
+    [HttpGet("Localization")]
+    public ActionResult<PosterRotatorLocalizationResponse> GetLocalization([FromQuery] string? language)
+    {
+        return Ok(_localization.GetResponse(language));
     }
 
     [HttpGet("Diagnostics")]
@@ -177,12 +188,12 @@ public class PurgeController : ControllerBase
         CancellationToken cancellationToken)
     {
         if (file == null || file.Length == 0)
-            return BadRequest("Aucun fichier recu.");
+            return BadRequest(_localization.Translate("Api.NoFileReceived"));
 
         var cfg = Plugin.Instance?.Configuration ?? new Configuration();
         var maxUploadBytes = Math.Clamp(cfg.MaxDownloadMegabytes, 1, 200) * 1024L * 1024L;
         if (file.Length > maxUploadBytes)
-            return BadRequest("Image trop volumineuse.");
+            return BadRequest(_localization.Translate("Api.ImageTooLarge"));
 
         try
         {

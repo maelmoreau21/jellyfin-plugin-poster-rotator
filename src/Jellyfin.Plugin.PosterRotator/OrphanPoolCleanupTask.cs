@@ -11,15 +11,20 @@ public class OrphanPoolCleanupTask : IScheduledTask
 {
     private readonly IPosterRotatorService _service;
     private readonly ILogger<OrphanPoolCleanupTask> _logger;
+    private readonly IPosterRotatorLocalization _localization;
 
-    public OrphanPoolCleanupTask(IPosterRotatorService service, ILogger<OrphanPoolCleanupTask> logger)
+    public OrphanPoolCleanupTask(
+        IPosterRotatorService service,
+        ILogger<OrphanPoolCleanupTask> logger,
+        IPosterRotatorLocalization localization)
     {
         _service = service;
         _logger = logger;
+        _localization = localization;
     }
 
-    public string Name => "Nettoyage pools orphelins";
-    public string Description => "Deletes PluginData pools whose Jellyfin media no longer exists.";
+    public string Name => _localization.Translate("Task.CleanOrphanPools.Name");
+    public string Description => _localization.Translate("Task.CleanOrphanPools.Description");
     public string Category => "Poster Rotator";
     public string Key => "PosterRotator.CleanupOrphanPools";
 
