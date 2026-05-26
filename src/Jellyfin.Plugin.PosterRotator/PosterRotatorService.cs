@@ -110,6 +110,13 @@ public class PosterRotatorService : IPosterRotatorService
             .SelectMany(kv => kv.Value)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
+        // ManualLibraryRoots is retained only for config compatibility; runtime selection now uses UI libraries or all roots.
+        if (cfg.ManualLibraryRoots != null && cfg.ManualLibraryRoots.Count > 0)
+        {
+            _log.LogInformation("PosterRotator: ignoring legacy ManualLibraryRoots during this run.");
+            cfg.ManualLibraryRoots.Clear();
+        }
+
         var configuredNames = GetConfiguredLibraryNames(cfg);
         var selection = ResolveSelectedRoots(cfg, configuredNames, libraryMap, allLibraryRoots);
         return (libraryMap, selection, kinds);
@@ -215,6 +222,7 @@ public class PosterRotatorService : IPosterRotatorService
     {
         var sw = Stopwatch.StartNew();
         int processedCount = 0, skippedCount = 0, errorCount = 0, topUpCount = 0, completedPoolCount = 0;
+        var limitedByRunBudget = false;
 
         var scope = ResolveRunScope(cfg);
         var hasSelection = scope.Selection.Paths.Count > 0 || scope.Selection.LibraryNames.Count > 0;
@@ -265,6 +273,7 @@ public class PosterRotatorService : IPosterRotatorService
 
                 if (!budget.HasDownloadWorkRemaining)
                 {
+                    limitedByRunBudget = true;
                     skippedCount += Math.Max(0, total - done);
                     progress?.Report(100);
                     break;
@@ -337,6 +346,12 @@ public class PosterRotatorService : IPosterRotatorService
             budget.Downloads,
             sw.Elapsed.TotalSeconds);
 
+        var message = $"{completedPoolCount} pool(s) completees, {topUpCount} image(s) ajoutees.";
+        if (limitedByRunBudget)
+        {
+            message += " Passage limite par les plafonds du run; relancez Telecharger les pools manquants pour continuer.";
+        }
+
         return new PoolDownloadResult
         {
             CandidateCount = candidateCount,
@@ -347,7 +362,8 @@ public class PosterRotatorService : IPosterRotatorService
             ErrorCount = errorCount,
             ProviderLookups = budget.ProviderLookups,
             DownloadAttempts = budget.Downloads,
-            Message = $"{completedPoolCount} pool(s) completees, {topUpCount} image(s) ajoutees."
+            LimitedByRunBudget = limitedByRunBudget,
+            Message = message
         };
     }
 
@@ -399,41 +415,6 @@ public class PosterRotatorService : IPosterRotatorService
         List<string> allLibraryRoots)
     {
         var result = new SelectedRoots();
-
-        if (cfg.ManualLibraryRoots is { Count: > 0 })
-        {
-            var manual = cfg.ManualLibraryRoots
-                .Where(s => !string.IsNullOrWhiteSpace(s))
-                .Select(s => s.Trim())
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            foreach (var entry in manual)
-            {
-                if (LooksLikePath(entry))
-                {
-                    result.Paths.Add(entry);
-                    continue;
-                }
-
-                if (libraryMap.TryGetValue(entry, out var paths) && paths is { Count: > 0 })
-                {
-                    result.Paths.AddRange(paths);
-                    result.LibraryNames.Add(entry);
-                }
-                else
-                {
-                    _log.LogWarning("PosterRotator: manual entry '{Entry}' does not match any known library", entry);
-                }
-            }
-
-            DeduplicatePaths(result.Paths);
-            if (result.Paths.Count > 0)
-            {
-                _log.LogInformation("PosterRotator: using ManualLibraryRoots resolved to: {Roots}", string.Join(",", result.Paths));
-                return result;
-            }
-        }
 
         if (configuredNames.Count > 0)
         {

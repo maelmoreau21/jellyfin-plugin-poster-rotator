@@ -390,7 +390,7 @@ public sealed class PoolStore
 
     public async Task<PoolListResponse> ListPoolsAsync(PoolListQuery query, CancellationToken cancellationToken)
     {
-        var index = await LoadIndexAsync(cancellationToken).ConfigureAwait(false);
+        var index = await LoadIndexForListingAsync(cancellationToken).ConfigureAwait(false);
         var items = index.Pools.AsEnumerable();
 
         if (!string.IsNullOrWhiteSpace(query.Library))
@@ -613,9 +613,31 @@ public sealed class PoolStore
 
     private async Task<PoolIndexDocument> LoadIndexAsync(CancellationToken cancellationToken)
     {
+        return (await LoadIndexWithStateAsync(cancellationToken).ConfigureAwait(false)).Index;
+    }
+
+    private async Task<PoolIndexDocument> LoadIndexForListingAsync(CancellationToken cancellationToken)
+    {
+        var load = await LoadIndexWithStateAsync(cancellationToken).ConfigureAwait(false);
+        if (_deferredIndex != null || (!load.Missing && !load.Corrupt))
+            return load.Index;
+
+        var root = TryGetPoolRootPath(create: false);
+        if (!HasAnyPoolDirectory(root))
+            return load.Index;
+
+        _log?.LogInformation(
+            "PosterRotator: pool index is {State}; rebuilding from existing pool folders.",
+            load.Missing ? "missing" : "corrupt");
+        await RebuildIndexAsync(cancellationToken).ConfigureAwait(false);
+        return await LoadIndexAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<PoolIndexLoadResult> LoadIndexWithStateAsync(CancellationToken cancellationToken)
+    {
         var root = TryGetPoolRootPath(create: false);
         if (root == null)
-            return new PoolIndexDocument();
+            return new PoolIndexLoadResult(new PoolIndexDocument(), Missing: true, Corrupt: false);
 
         var indexPath = Path.Combine(root, IndexFileName);
         try
@@ -628,7 +650,7 @@ public sealed class PoolStore
                     InvalidateIndexCache();
                 }
 
-                return new PoolIndexDocument();
+                return new PoolIndexLoadResult(new PoolIndexDocument(), Missing: true, Corrupt: false);
             }
 
             var lastWriteUtc = File.GetLastWriteTimeUtc(indexPath);
@@ -637,22 +659,49 @@ public sealed class PoolStore
                 && _cachedIndexPath.Equals(indexPath, StringComparison.OrdinalIgnoreCase)
                 && _cachedIndexLastWriteUtc == lastWriteUtc)
             {
-                return _cachedIndex;
+                return new PoolIndexLoadResult(_cachedIndex, Missing: false, Corrupt: false);
             }
 
             await using var stream = File.OpenRead(indexPath);
             var index = await JsonSerializer.DeserializeAsync<PoolIndexDocument>(stream, JsonOptions, cancellationToken).ConfigureAwait(false);
+            if (index == null)
+            {
+                InvalidateIndexCache();
+                return new PoolIndexLoadResult(new PoolIndexDocument(), Missing: false, Corrupt: true);
+            }
+
             _cachedIndex = index ?? new PoolIndexDocument();
             _cachedIndexPath = indexPath;
             _cachedIndexLastWriteUtc = lastWriteUtc;
-            return _cachedIndex;
+            return new PoolIndexLoadResult(_cachedIndex, Missing: false, Corrupt: false);
         }
         catch (Exception ex)
         {
             _log?.LogWarning(ex, "PosterRotator: unable to read pool index.");
             InvalidateIndexCache();
-            return new PoolIndexDocument();
+            return new PoolIndexLoadResult(new PoolIndexDocument(), Missing: false, Corrupt: true);
         }
+    }
+
+    private static bool HasAnyPoolDirectory(string? root)
+    {
+        if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root) || IsReparsePoint(root))
+            return false;
+
+        try
+        {
+            foreach (var directory in Directory.EnumerateDirectories(root))
+            {
+                if (Guid.TryParseExact(Path.GetFileName(directory), "N", out _) && !IsReparsePoint(directory))
+                    return true;
+            }
+        }
+        catch
+        {
+            return false;
+        }
+
+        return false;
     }
 
     private async Task SaveIndexAsync(PoolIndexDocument index, CancellationToken cancellationToken)
@@ -1064,6 +1113,8 @@ public sealed class PoolStore
         }
     }
 
+    private sealed record PoolIndexLoadResult(PoolIndexDocument Index, bool Missing, bool Corrupt);
+
     private sealed class Releaser : IDisposable
     {
         private readonly SemaphoreSlim _semaphore;
@@ -1247,5 +1298,6 @@ public sealed class PoolDownloadResult
     public int ErrorCount { get; set; }
     public int ProviderLookups { get; set; }
     public int DownloadAttempts { get; set; }
+    public bool LimitedByRunBudget { get; set; }
     public string Message { get; set; } = string.Empty;
 }

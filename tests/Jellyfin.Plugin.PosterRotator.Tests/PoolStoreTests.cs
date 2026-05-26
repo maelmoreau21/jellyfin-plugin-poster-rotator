@@ -147,7 +147,7 @@ public sealed class PoolStoreTests
     }
 
     [Fact]
-    public async Task RebuildIndexAsync_RecreatesIndexWithoutListSideEffects()
+    public async Task ListPoolsAsync_AutoRebuildsMissingIndexWhenPoolDirectoriesExist()
     {
         var root = CreateTempPluginDataFolder();
         var itemId = Guid.NewGuid();
@@ -156,18 +156,64 @@ public sealed class PoolStoreTests
         {
             var store = new PoolStore(root);
             await CreatePool(store, root, itemId, "Movie", "Films");
-            File.Delete(Path.Combine(PoolRoot(root), "index.json"));
+            var indexPath = Path.Combine(PoolRoot(root), "index.json");
+            File.Delete(indexPath);
 
-            var before = await store.ListPoolsAsync(new PoolListQuery(), CancellationToken.None);
-            Assert.Equal(0, before.Total);
+            var first = await store.ListPoolsAsync(new PoolListQuery(), CancellationToken.None);
+            var rebuiltWriteUtc = File.GetLastWriteTimeUtc(indexPath);
+            var second = await store.ListPoolsAsync(new PoolListQuery(), CancellationToken.None);
 
-            var rebuild = await store.RebuildIndexAsync(CancellationToken.None);
-            var after = await store.ListPoolsAsync(new PoolListQuery(), CancellationToken.None);
+            Assert.Equal(1, first.Total);
+            Assert.Equal(itemId.ToString(), first.Items.Single().ItemId);
+            Assert.Equal(1, second.Total);
+            Assert.True(File.Exists(indexPath));
+            Assert.Equal(rebuiltWriteUtc, File.GetLastWriteTimeUtc(indexPath));
+        }
+        finally
+        {
+            DeleteTempRoot(root);
+        }
+    }
 
-            Assert.Equal(1, rebuild.IndexedCount);
-            Assert.Equal(1, rebuild.TotalCount);
-            Assert.Equal(1, after.Total);
-            Assert.Equal(itemId.ToString(), after.Items.Single().ItemId);
+    [Fact]
+    public async Task ListPoolsAsync_AutoRebuildsCorruptIndexWhenPoolDirectoriesExist()
+    {
+        var root = CreateTempPluginDataFolder();
+        var itemId = Guid.NewGuid();
+
+        try
+        {
+            var store = new PoolStore(root);
+            await CreatePool(store, root, itemId, "Movie", "Films");
+            await File.WriteAllTextAsync(Path.Combine(PoolRoot(root), "index.json"), "{not json");
+
+            var freshStore = new PoolStore(root);
+            var list = await freshStore.ListPoolsAsync(new PoolListQuery(), CancellationToken.None);
+
+            Assert.Equal(1, list.Total);
+            Assert.Equal(itemId.ToString(), list.Items.Single().ItemId);
+        }
+        finally
+        {
+            DeleteTempRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task ListPoolsAsync_MissingIndexAndEmptyRootReturnsEmptyList()
+    {
+        var root = CreateTempPluginDataFolder();
+
+        try
+        {
+            var poolRoot = PoolRoot(root);
+            Directory.CreateDirectory(poolRoot);
+            var store = new PoolStore(root);
+
+            var list = await store.ListPoolsAsync(new PoolListQuery(), CancellationToken.None);
+
+            Assert.Equal(0, list.Total);
+            Assert.False(File.Exists(Path.Combine(poolRoot, "index.json")));
         }
         finally
         {

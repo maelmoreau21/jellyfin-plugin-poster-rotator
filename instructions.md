@@ -19,7 +19,7 @@ La ligne 1.7 utilise un stockage fichier structure dans un dossier dedie, frere 
 - Les anciens pools sous `Jellyfin.Plugin.PosterRotator/pools` sont ignores et ne doivent pas etre migres.
 - Les anciens fichiers `rotation_state.json`, `pool_urls.json`, `pool_languages.json` et `pool_hashes.json` ne doivent plus etre migres automatiquement.
 
-La recherche UI ne doit pas scanner tous les dossiers a chaque requete. Utiliser l'index existant et l'action explicite `POST /PosterRotator/Pools/RebuildIndex` pour reconstruire l'index. Seul le rebuild explicite peut enumerer tous les dossiers de pools.
+La recherche UI ne doit pas scanner tous les dossiers a chaque requete. Utiliser l'index existant et reconstruire automatiquement l'index seulement s'il est absent ou illisible alors que des dossiers de pools existent. Apres une purge complete, invalider le cache et accepter une liste vide propre. L'endpoint `POST /PosterRotator/Pools/RebuildIndex` reste disponible en interne/admin, mais aucun bouton visible ne doit etre expose pour cette action.
 
 Ne pas ajouter de `DbContext` custom ni de SQL brut pour ce stockage.
 
@@ -38,6 +38,7 @@ Les taches planifiees doivent rester adaptees aux bibliotheques de plus de 200 0
 - ne pas telecharger ni creer de pool vide depuis `Rotate pools`;
 - ne creer `Jellyfin.Plugin.PosterRotator.pools/{itemId}` pendant `Download missing pools` que via `PoolStore`, lorsqu'un fichier image valide va etre ecrit, puis supprimer le dossier s'il reste vide;
 - ne jamais retomber vers `.poster_pool` ou le dossier du media quand `Download missing pools` force le stockage `PluginData`;
+- ignorer et vider les anciens `ManualLibraryRoots` caches pendant les runs admin ou planifies, car l'UI ne les expose plus;
 - garder `PluginData` comme stockage recommande.
 
 Valeurs par defaut:
@@ -58,7 +59,7 @@ Toutes les routes `PosterRotator/*` doivent rester protegees par `RequiresElevat
 
 - `GET /PosterRotator/Diagnostics`
 - `GET /PosterRotator/Pools?library=&query=&type=&hasErrors=&isEmpty=&start=&limit=`
-- `POST /PosterRotator/Pools/RebuildIndex`
+- `POST /PosterRotator/Pools/RebuildIndex` (interne/admin, pas de bouton visible)
 - `POST /PosterRotator/Pools/DownloadMissing`
 - `GET /PosterRotator/Pools/{itemId}`
 - `GET /PosterRotator/Pools/{itemId}/Images/{fileName}`
@@ -97,20 +98,26 @@ L'interface utilise deux vrais onglets ARIA: `Pools` et `Parametres`.
 - recherche et filtres uniquement dans l'onglet `Pools`;
 - filtre bibliotheque sous forme de menu deroulant charge depuis `/Library/VirtualFolders`;
 - statistiques compactes;
-- table paginee des pools;
+- table paginee des pools avec taille `25 / 50 / 100 / 200`;
 - table de resultats dense, avec nom, chemin ou ID, et badges type/bibliotheque lisibles;
+- token de requete JS pour eviter qu'une ancienne recherche remplace une recherche plus recente;
 - panneau de detail avec miniatures chargees via `ApiKey` et parametres `preview`;
+- ouvrir un pool ne doit pas recharger toute la liste; recharger la liste seulement apres rotation, import, suppression ou purge;
 - miniatures de pools reduites cote serveur via `IImageProcessor.ProcessImage`, normalisees en taille bornee, format affiche, avec fallback `Apercu indisponible` masque par defaut et visible seulement sur erreur de chargement;
 - si la preview serveur echoue, l'image retente une fois la route originale, toujours bornee par CSS et attributs `width`/`height`, avant d'afficher `Apercu indisponible`;
 - les cartes d'images doivent rester petites, environ `104x156`, pour voir plusieurs affiches a l'ecran;
 - le nom de fichier des affiches doit pouvoir passer sur 2 ou 3 lignes avec `overflow-wrap:anywhere`;
 - l'affiche courante doit afficher un badge `Actuelle`;
 - suppression/import d'images;
-- action de maintenance `Reparer la liste des pools` qui appelle `POST /PosterRotator/Pools/RebuildIndex`;
+- action principale `Telecharger les pools manquants` qui appelle `POST /PosterRotator/Pools/DownloadMissing`;
+- ne pas afficher de bouton `Reparer la liste des pools`; la reparation d'index est automatique ou reservee a l'endpoint admin;
 - action `Supprimer tous les pools` qui appelle `POST /PosterRotator/PurgeAllPools` apres confirmation;
+- les boutons `Precedent`, `Suivant`, `Rotation bibliotheque`, `Purger bibliotheque` et `Purger media` doivent etre desactives quand leur action n'est pas disponible;
 - l'onglet `Parametres` expose uniquement les reglages utiles au quotidien;
 - le champ `Nombre maximum d'affiches a changer par passage` accepte `0` pour aucune limite de nombre, avec le texte d'aide dans le meme `inputContainer` juste sous le libelle;
 - les langues exposent un ordre de fallback configurable: langue originale puis fallback, fallback puis langue originale, originale uniquement, ou fallback uniquement;
+- le helper JS `fallbackModeValue` doit accepter `0..3` et les noms `OriginalThenConfigured`, `ConfiguredThenOriginal`, `OriginalOnly`, `ConfiguredOnly`;
+- `Rotation sequentielle` doit etre libelle `Parcourir les affiches dans l'ordre`, avec l'aide: `Active: prend l'image suivante du pool a chaque rotation. Desactive: choisit une affiche au hasard. Ne change pas le delai entre deux rotations.`;
 - le dernier recours toutes langues peut etre active separement;
 - ne pas afficher `CadenceProfile`, `PoolSize`, `MinHoursBetweenSwitches`, `MaxProviderLookupsPerRun`, `MaxDownloadsPerRun`, `ProcessingBatchSize`, `AutoCleanupOrphanedPools` ou `CleanupIntervalDays`;
 - ne pas afficher `ManualLibraryRoots`; vider cette liste lors de la sauvegarde depuis l'interface.

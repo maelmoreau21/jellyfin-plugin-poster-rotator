@@ -53,6 +53,17 @@ public sealed class SecurityHardeningTests
         Assert.Contains("DownloadMissingPoolsNowAsync", controller);
     }
 
+    [Fact]
+    public void RuntimeIgnoresLegacyManualLibraryRoots()
+    {
+        var service = ReadRepoFile("PosterRotatorService.cs");
+
+        Assert.Contains("ManualLibraryRoots is retained only for config compatibility", service);
+        Assert.Contains("cfg.ManualLibraryRoots.Clear();", service);
+        Assert.DoesNotContain("using ManualLibraryRoots resolved", service);
+        Assert.DoesNotContain("manual entry '{Entry}'", service);
+    }
+
     private static string ReadRepoFile(string relativePath)
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

@@ -1,13 +1,13 @@
 {
   "category": "Metadata",
-  "changelog": "Compatibility: targets Jellyfin 12.0.0.0 beta while keeping plugin version 1.7.0.0. Scheduler: separates Download missing pools from Rotate pools; rotation uses existing indexed pools only while downloads fill missing or incomplete pools first. Fix: Download missing pools now writes strictly through Jellyfin.Plugin.PosterRotator.pools, creates item folders only when an image is being written, and relies on the scheduled task for pool downloads. Security: manually validates redirect targets for remote image downloads and rejects oversized uploads before opening the stream. Performance: uses index-only listing for very large libraries and batches index writes. Interface: removes the separate Maintenance block, removes duplicate scheduled-task buttons, adds a delete-all-pools action, retries original bounded images when preview generation fails, keeps thumbnails small, and keeps Pools as the default tab. Packaging: includes a local plugin image for manual zip installs.",
+  "changelog": "Compatibility: targets Jellyfin 12.0.0.0 beta while keeping plugin version 1.7.0.0. Scheduler: separates Download missing pools from Rotate pools; rotation uses existing indexed pools only while downloads fill missing or incomplete pools first. Fix: Download missing pools ignores legacy hidden ManualLibraryRoots, reports progressive run limits, and writes strictly through Jellyfin.Plugin.PosterRotator.pools. Performance: uses index-only listing for very large libraries, cached pagination, deferred index writes, and automatic index rebuild only when the pool index is missing or corrupt. Interface: removes the visible repair button, adds Telecharger les pools manquants, groups pool actions, adds 25/50/100/200 page sizes, disables unavailable actions, accepts enum names for FallbackMode, explains sequential rotation, shows the current poster badge, and keeps compact wrapped poster cards. Security: validates redirect targets for remote image downloads and rejects oversized uploads before opening the stream. Packaging: includes a local plugin image for manual zip installs.",
   "description": "Fill a local poster pool per movie from providers, then periodically rotate the Primary Poster image from the pool. This keeps Jellyfin looking fresh with rotating poster images on an interval of your choosing.",
   "guid": "7f6eea8b-0e9c-4cbd-9d2a-31f9a37ce2b7",
   "name": "Poster Rotator",
   "overview": "Pool-then-rotate posters with optional locking.",
   "owner": "Mael",
   "targetAbi": "12.0.0.0",
-  "timestamp": "2026-05-25T18:47:53Z",
+  "timestamp": "2026-05-26T17:16:51Z",
   "version": "1.7.0.0",
   "imagePath": "jellyfin-plugin-posterrotator.png",
   "assemblies": [
