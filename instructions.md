@@ -88,10 +88,10 @@ L'interface utilise deux vrais onglets ARIA: `Pools` et `Parametres`.
 - table paginee des pools;
 - panneau de detail avec miniatures chargees via `ApiKey` et parametres `preview`;
 - miniatures de pools reduites cote serveur via `IImageProcessor.ProcessImage`, normalisees en taille bornee, format affiche, avec fallback `Apercu indisponible` masque par defaut et visible seulement sur erreur de chargement;
-- si la preview serveur echoue, l'image retente une fois la route originale, toujours bornee par CSS, avant d'afficher `Apercu indisponible`;
+- si la preview serveur echoue, l'image retente une fois la route originale, toujours bornee par CSS et attributs `width`/`height`, avant d'afficher `Apercu indisponible`;
+- les cartes d'images doivent rester petites, environ `120x180`, pour voir plusieurs affiches a l'ecran;
 - suppression/import d'images;
 - action de maintenance `Reparer la liste des pools` qui appelle `POST /PosterRotator/Pools/RebuildIndex`;
-- action de maintenance `Telecharger les pools manquantes maintenant` qui appelle `POST /PosterRotator/Pools/DownloadMissing` et retourne un resume;
 - action `Supprimer tous les pools` qui appelle `POST /PosterRotator/PurgeAllPools` apres confirmation;
 - l'onglet `Parametres` expose uniquement les reglages utiles au quotidien;
 - le champ `Nombre maximum d'affiches a changer par passage` accepte `0` pour aucune limite de nombre, avec le texte d'aide dans le meme `inputContainer` juste sous le libelle;

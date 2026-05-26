@@ -163,8 +163,8 @@
 
     .posterRotatorThumbs {
       display: grid;
-      gap: 10px;
-      grid-template-columns: repeat(auto-fill, minmax(148px, 160px));
+      gap: 8px;
+      grid-template-columns: repeat(auto-fill, minmax(108px, 120px));
       justify-content: start;
       margin-top: 10px;
     }
@@ -172,24 +172,28 @@
     .posterRotatorThumb {
       border: 1px solid rgba(255, 255, 255, .12);
       border-radius: 6px;
-      max-width: 100%;
+      box-sizing: border-box;
+      max-width: 120px !important;
       overflow: hidden;
-      width: 160px;
+      width: 120px !important;
     }
 
     .posterRotatorThumbImage,
     .posterRotatorThumbError {
       aspect-ratio: 2 / 3;
-      height: 240px;
-      max-height: 240px;
-      width: 100%;
+      box-sizing: border-box;
+      height: 180px !important;
+      max-height: 180px !important;
+      max-width: 120px !important;
+      min-height: 180px !important;
+      min-width: 120px !important;
+      width: 120px !important;
     }
 
     .posterRotatorThumbImage {
       background: rgba(255, 255, 255, .06);
       display: block !important;
-      max-width: 100%;
-      object-fit: cover;
+      object-fit: cover !important;
     }
 
     .posterRotatorThumbImage.is-hidden {
@@ -321,11 +325,9 @@
                 <button id="PrevPoolsBtn" type="button" class="raised emby-button">Precedent</button>
                 <button id="NextPoolsBtn" type="button" class="raised emby-button">Suivant</button>
                 <button id="RefreshAllBtn" type="button" class="raised emby-button">Actualiser</button>
-                <button id="DownloadMissingPoolsBtn" type="button" class="raised emby-button">Telecharger les pools manquantes maintenant</button>
                 <button id="RebuildIndexBtn" type="button" class="raised emby-button">Reparer la liste des pools</button>
                 <button id="RotateLibraryBtn" type="button" class="raised emby-button">Rotation bibliotheque</button>
                 <button id="PurgeAllPoolsBtn" type="button" class="raised button-cancel emby-button">Supprimer tous les pools</button>
-                <button id="PurgeOrphansBtn" type="button" class="raised button-cancel emby-button">Purger orphelins</button>
                 <button id="PurgeLibraryBtn" type="button" class="raised button-cancel emby-button">Purger bibliotheque</button>
                 <button id="PurgeItemBtn" type="button" class="raised button-cancel emby-button">Purger media</button>
               </div>
@@ -760,7 +762,7 @@
             var src = poolImageUrl(fileName, image);
             var originalSrc = poolOriginalImageUrl(fileName, image);
             return '<div class="posterRotatorThumb">'
-              + '<img class="posterRotatorThumbImage" alt="" src="' + escapeHtml(src) + '" data-original-src="' + escapeHtml(originalSrc) + '" loading="lazy" />'
+              + '<img class="posterRotatorThumbImage" alt="" src="' + escapeHtml(src) + '" data-original-src="' + escapeHtml(originalSrc) + '" width="120" height="180" loading="lazy" />'
               + '<div class="posterRotatorThumbError" hidden>Apercu indisponible</div>'
               + '<div class="posterRotatorThumbBody">'
               + '<div class="posterRotatorThumbName" title="' + escapeHtml(fileName) + '">' + escapeHtml(fileName) + '</div>'
@@ -903,18 +905,6 @@
             });
         }
 
-        function downloadMissingPoolsNow() {
-          setGlobalStatus('Telechargement des pools manquantes...');
-          postJson('PosterRotator/Pools/DownloadMissing', {})
-            .then(function (result) {
-              setGlobalStatus(prop(result, 'Message', 'message', 'Telechargement termine.'));
-              return refreshAll(true);
-            })
-            .catch(function () {
-              setGlobalStatus('Telechargement des pools manquantes impossible.');
-            });
-        }
-
         function purgeAllPools() {
           if (!confirm('Supprimer tous les pools PluginData et les anciens pools dossiers medias ?')) return;
           setGlobalStatus('Suppression de tous les pools...');
@@ -1028,8 +1018,6 @@
           if (refreshAllBtn) refreshAllBtn.addEventListener('click', function () { refreshAll(false); });
           var rebuildIndexBtn = byId('RebuildIndexBtn');
           if (rebuildIndexBtn) rebuildIndexBtn.addEventListener('click', rebuildIndex);
-          var downloadMissingPoolsBtn = byId('DownloadMissingPoolsBtn');
-          if (downloadMissingPoolsBtn) downloadMissingPoolsBtn.addEventListener('click', downloadMissingPoolsNow);
           var purgeAllPoolsBtn = byId('PurgeAllPoolsBtn');
           if (purgeAllPoolsBtn) purgeAllPoolsBtn.addEventListener('click', purgeAllPools);
           var search = byId('PoolsSearch');
@@ -1056,8 +1044,6 @@
           if (uploadPoolImageBtn) uploadPoolImageBtn.addEventListener('click', uploadPoolImage);
           var rotateLibraryBtn = byId('RotateLibraryBtn');
           if (rotateLibraryBtn) rotateLibraryBtn.addEventListener('click', rotateLibrary);
-          var purgeOrphansBtn = byId('PurgeOrphansBtn');
-          if (purgeOrphansBtn) purgeOrphansBtn.addEventListener('click', function () { purge('orphans'); });
           var purgeLibraryBtn = byId('PurgeLibraryBtn');
           if (purgeLibraryBtn) purgeLibraryBtn.addEventListener('click', function () { purge('library'); });
           var purgeItemBtn = byId('PurgeItemBtn');
