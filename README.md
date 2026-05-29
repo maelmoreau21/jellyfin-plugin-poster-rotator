@@ -1,90 +1,90 @@
 # Jellyfin Poster Rotator
 
-Poster Rotator garde l'interface Jellyfin vivante en constituant un pool d'affiches par media, puis en remplacant regulierement l'image principale. La ligne `1.8.0.0` est optimisee pour les grosses bibliotheques, y compris les index de `200000+` pools, vise Jellyfin 12 beta, et ajoute une interface bilingue anglais/francais.
+Poster Rotator keeps the Jellyfin interface alive by creating a pool of posters per media, then periodically rotating the primary image. The `1.8.0.0` line is optimized for large libraries, including indexes with `200,000+` pools, targets Jellyfin 12 beta, and adds a bilingual English/French interface.
 
-## Compatibilite
+## Compatibility
 
-- Version du plugin: `1.8.0.0`
-- ABI cible: Jellyfin `12.0.0.0`
-- Packages Jellyfin: `12.0.0-20260523021143`
+- Plugin version: `1.8.0.0`
+- Target ABI: Jellyfin `12.0.0.0`
+- Jellyfin packages: `12.0.0-20260523021143`
 - Runtime: `.NET 9`
-- Ligne precedente Jellyfin 12: `1.7.0.0`
-- Ligne Jellyfin 10.11: `1.6.0.0`
+- Previous Jellyfin 12 line: `1.7.0.0`
+- Jellyfin 10.11 line: `1.6.0.0`
 
-La version `1.8.0.0` ne fait pas d'acces SQL brut. Elle passe par les services Jellyfin (`ILibraryManager`, `IProviderManager`) et stocke son etat dans le dossier data du plugin.
-Les correctifs UI et les regenerations d'archive de cette ligne doivent conserver la version `1.8.0.0`.
+Version `1.8.0.0` does not make raw SQL access. It uses Jellyfin services (`ILibraryManager`, `IProviderManager`) and stores its state in the plugin's data folder.
+UI hotfixes and archive regenerations for this line must retain version `1.8.0.0`.
 
-## Fonctionnement
+## How it Works
 
-1. La tache planifiee **Download missing pools** recupere les IDs des films, series, collections, et optionnellement saisons/episodes.
-2. Les IDs sont melanges puis traites par lots pour eviter de charger toute une bibliotheque en memoire.
-3. Les bibliotheques activees sont resolues par les bibliotheques cochees dans l'interface; les anciennes racines manuelles cachees sont ignorees au runtime.
-4. Chaque media utilise un pool local sous `Jellyfin.Plugin.PosterRotator.pools/{itemId}`.
-5. Les affiches distantes viennent de `IProviderManager.GetAvailableRemoteImages(...)`.
-6. Les images sont validees: URL, taille, format, dimensions, langue et doublons.
-7. La tache **Rotate pools** lit `index.json` et applique uniquement des images deja presentes avec `IProviderManager.SaveImage(...)`, seulement si le cooldown du media est expire.
-8. L'etat est maintenu dans `Jellyfin.Plugin.PosterRotator.pools/index.json` et `Jellyfin.Plugin.PosterRotator.pools/{itemId}/pool.json`.
+1. The scheduled task **Download missing pools** retrieves the IDs of movies, shows, collections, and optionally seasons/episodes.
+2. The IDs are shuffled and then processed in batches to avoid loading an entire library into memory.
+3. Enabled libraries are resolved by the checked libraries in the interface; old hidden manual roots are ignored at runtime.
+4. Each media uses a local pool under `Jellyfin.Plugin.PosterRotator.pools/{itemId}`.
+5. Remote posters are retrieved from `IProviderManager.GetAvailableRemoteImages(...)`.
+6. Images are validated: URL, size, format, dimensions, language, and duplicates.
+7. The task **Rotate pools** reads `index.json` and only applies images already present with `IProviderManager.SaveImage(...)`, and only if the media's cooldown has expired.
+8. State is maintained in `Jellyfin.Plugin.PosterRotator.pools/index.json` and `Jellyfin.Plugin.PosterRotator.pools/{itemId}/pool.json`.
 
-La detection des doublons passe par un hash calcule apres normalisation avec le pipeline d'images Jellyfin quand il est disponible. Cela rend la comparaison moins sensible aux dimensions, aux metadonnees et aux differences d'encodage entre fournisseurs.
+Duplicate detection uses a hash calculated after normalization with the Jellyfin image pipeline when available. This makes the comparison less sensitive to dimensions, metadata, and encoding differences between providers.
 
-Le planificateur Jellyfin affiche une section **Poster Rotator** avec:
+The Jellyfin scheduler displays a **Poster Rotator** section with:
 
-- **Download missing pools**: remplit les pools manquantes ou incompletes sans changer les affiches, en ecrivant strictement sous `Jellyfin.Plugin.PosterRotator.pools`;
-- **Rotate pools**: change les affiches eligibles depuis les pools existantes, sans telecharger;
-- **Nettoyage pools orphelins**: supprime les pools dont le media n'existe plus.
+- **Download missing pools**: fills missing or incomplete pools without changing posters, writing strictly under `Jellyfin.Plugin.PosterRotator.pools`;
+- **Rotate pools**: rotates eligible posters from existing pools without downloading;
+- **Orphan pool cleanup**: deletes pools for media that no longer exist.
 
-Le seul reglage de volume expose dans l'interface est **Nombre maximum d'affiches a changer par passage**. `0` signifie aucune limite de nombre, tout en respectant le delai interne entre deux changements du meme media.
-Les plafonds internes de telechargement restent actifs par passage; si un run atteint cette limite, l'interface indique que le telechargement est progressif et peut etre relance.
+The only volume setting exposed in the interface is **Maximum number of posters to change per run**. `0` means no count limit, while still respecting the internal delay between two changes of the same media.
+Internal download caps remain active per run; if a run reaches this limit, the interface indicates that the download is progressive and can be restarted.
 
 ## Installation
 
-Ajoutez ce depot dans Jellyfin:
+Add this repository to Jellyfin:
 
 ```text
 https://raw.githubusercontent.com/maelmoreau21/jellyfin-plugin-poster-rotator/refs/heads/main/manifest.json
 ```
 
-Puis installez **Poster Rotator** depuis le catalogue des plugins et redemarrez Jellyfin.
+Then install **Poster Rotator** from the plugin catalog and restart Jellyfin.
 
-Pour une installation manuelle par zip, l'archive `Jellyfin.Plugin.PosterRotator-1.8.0.0.zip` contient aussi `meta.json` et `jellyfin-plugin-posterrotator.png`, afin que la page plugins de Jellyfin puisse afficher l'image du plugin.
+For a manual zip install, the `Jellyfin.Plugin.PosterRotator-1.8.0.0.zip` archive also contains `meta.json` and `jellyfin-plugin-posterrotator.png`, so that Jellyfin's plugin page can display the plugin image.
 
 ## Interface
 
-L'interface admin est organisee en deux vrais onglets separes: `Pools` s'ouvre par defaut et contient uniquement les outils de pools, puis `Parametres` contient uniquement les reglages. En haut de `Parametres`, le choix de langue de l'interface propose `Same as Jellyfin`, `English` et `Francais`; le mode automatique suit la langue `UICulture` du serveur Jellyfin et retombe sur l'anglais si elle n'est pas encore traduite.
+The admin interface is organized into two separate tabs: `Pools` opens by default and contains only pool tools, and `Parameters` contains only settings. At the top of `Parameters`, the interface language choice offers `Same as Jellyfin`, `English`, and `Francais`; the automatic mode follows the Jellyfin server's `UICulture` language and falls back to English if it is not yet translated.
 
-- statistiques et etat dans l'onglet pools, avec diagnostics limites aux IDs presents dans l'index du plugin;
-- recherche paginee des pools `PluginData`, servie depuis un index cache et adaptee aux tres grands volumes;
-- taille de page `25 / 50 / 100 / 200` et boutons de navigation desactives quand ils ne sont pas applicables;
-- filtres par bibliotheque Jellyfin, type, erreur et pool vide/non vide;
-- detail du pool selectionne avec indication de l'affiche actuellement utilisee, badge `Actuelle` sur la carte correspondante, et fallback par derniere rotation appliquee si le hash ne correspond pas;
-- miniatures reduites cote serveur, normalisees au format affiche, taille bornee, grille compacte et noms de fichiers sur plusieurs lignes pour afficher plus d'affiches a l'ecran;
-- action **Telecharger les pools manquants** pour relancer directement le remplissage apres une suppression ou une purge;
-- import et suppression d'affiches;
-- rotation immediate par media ou bibliotheque;
-- purge des orphelins, d'une bibliotheque ou d'un media;
-- suppression de tous les pools en une action admin confirmee;
-- reglage simple du nombre maximum d'affiches changees par passage, avec l'aide `0 = aucune limite...` directement sous le libelle du champ;
-- reglage **Parcourir les affiches dans l'ordre**: active, il prend l'image suivante du pool a chaque rotation; desactive, il choisit une affiche au hasard;
-- bibliotheques, langues d'affiches et securite dans l'onglet `Parametres`;
-- interface traduite en anglais et francais, avec noms/descriptions des taches planifiees traduits selon le meme choix de langue quand Jellyfin rafraichit ces libelles;
-- fallback de langue configurable: langue preferee, langue originale detectee, langue fallback, images sans langue et dernier recours toutes langues. L'interface accepte aussi les noms d'enum Jellyfin pour conserver correctement l'ordre de fallback.
+- Statistics and status in the pools tab, with diagnostics limited to IDs present in the plugin's index;
+- Paged search of `PluginData` pools, served from a cached index and adapted to very large volumes;
+- Page size options `25 / 50 / 100 / 200` and navigation buttons disabled when not applicable;
+- Filters by Jellyfin library, type, error, and empty/non-empty pool;
+- Detail of the selected pool showing the currently used poster, an `Active` badge on the corresponding card, and a fallback to the last applied rotation if the hash doesn't match;
+- Server-side scaled thumbnails, normalized to the poster format, bounded size, compact grid, and file names wrapping to multiple lines to display more posters on screen;
+- **Download missing pools** action to immediately restart filling after a deletion or purge;
+- Import and deletion of posters;
+- Immediate rotation by media or library;
+- Purge of orphans, a library, or a media;
+- Delete all pools in a confirmed admin action;
+- Simple setting for the maximum number of posters changed per run, with help text `0 = no limit...` directly under the field label;
+- **Browse posters in order** setting: when enabled, it takes the next image from the pool on each rotation; when disabled, it chooses a poster at random;
+- Libraries, poster languages, and security in the `Parameters` tab;
+- Interface translated into English and French, with scheduled task names/descriptions translated according to the same language choice when Jellyfin refreshes these labels;
+- Configurable language fallback: preferred language, original language detected, fallback language, images without language, and last resort all languages. The interface also accepts Jellyfin enum names to correctly preserve the fallback order.
 
-Les anciens dossiers `.poster_pool` du mode `MediaFolders` restent compatibles seulement si ce mode est choisi. Les anciens pools sous `Jellyfin.Plugin.PosterRotator/pools` ne sont pas migres et sont ignores.
+Legacy `.poster_pool` folders from `MediaFolders` mode remain compatible only if that mode is selected. Legacy pools under `Jellyfin.Plugin.PosterRotator/pools` are not migrated and are ignored.
 
-## Stockage PluginData
+## PluginData Storage
 
-- `Jellyfin.Plugin.PosterRotator.pools/index.json`: index leger pour recherche, pagination et actions globales.
-- `Jellyfin.Plugin.PosterRotator.pools/{itemId}/pool.json`: metadonnees du pool, images, hashes, langues, sources, dates et erreurs recentes.
-- Les anciens fichiers `rotation_state.json`, `pool_urls.json`, `pool_languages.json` et `pool_hashes.json` ne sont plus migres automatiquement.
+- `Jellyfin.Plugin.PosterRotator.pools/index.json`: lightweight index for search, pagination, and global actions.
+- `Jellyfin.Plugin.PosterRotator.pools/{itemId}/pool.json`: versioned pool metadata, images, hashes, languages, sources, dates, and recent errors.
+- Legacy files `rotation_state.json`, `pool_urls.json`, `pool_languages.json`, and `pool_hashes.json` are no longer automatically migrated.
 
-La recherche des pools lit l'index existant sans scanner tous les dossiers et conserve cet index en memoire jusqu'a sa prochaine modification. Si l'index est absent ou illisible alors que des dossiers de pools existent, il est reconstruit automatiquement une seule fois; il n'y a plus de bouton manuel visible pour cette reparation. Si des medias n'ont pas encore de pool, utilisez la tache planifiee **Download missing pools** ou le bouton **Telecharger les pools manquants** dans l'onglet `Pools`. Les apercus de la page admin utilisent `preview=true` pour charger une image reduite; si Jellyfin ne peut pas generer cette miniature, l'interface retente l'image originale tout en la gardant bornee a une petite carte.
+The pool search reads the existing index without scanning all directories and keeps this index in memory until its next modification. If the index is missing or unreadable while pool folders exist, it is rebuilt automatically once; there is no longer a visible manual button for this repair. If media do not yet have a pool, use the scheduled task **Download missing pools** or the **Download missing pools** button in the `Pools` tab. Admin page previews use `preview=true` to load a scaled-down image; if Jellyfin cannot generate this thumbnail, the interface falls back to the original image while keeping it bounded to a small card.
 
-Le telechargement distant suit une chaine de redirection bornee et revalide chaque cible pour eviter les redirections vers localhost, reseaux prives ou link-local quand le blocage des URLs privees est actif. Les uploads sont rejetes des l'entree API si leur taille depasse `MaxDownloadMegabytes`.
+Remote downloading follows a bounded redirection chain and re-validates each target to avoid redirection to localhost, private, or link-local networks when blocking of private URLs is active. Uploads are rejected from the API entry if their size exceeds `MaxDownloadMegabytes`.
 
-## Developpement
+## Development
 
-Les instructions de build, test et release sont dans [instructions.md](./instructions.md).
+Build, test, and release instructions are in [instructions.md](./instructions.md).
 
-## Licence
+## License
 
-Distribue sous licence MIT.
+Distributed under the [MIT License](LICENSE).

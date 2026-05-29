@@ -1,38 +1,38 @@
 # Jellyfin Poster Rotator - Project Structure
 
-> **Purpose**: Ce document sert de mémoire pour l'IA afin d'éviter toute hallucination et de maintenir une compréhension cohérente du projet.
+> **Purpose**: This document serves as a memory aid for the AI to avoid any hallucinations and maintain a consistent understanding of the project.
 
 ---
 
-## 📁 Structure des Fichiers
+## 📁 File Structure
 
 ```
 jellyfin-plugin-poster-rotator-1/
 ├── .agent/
-│   └── PROJECT_STRUCTURE.md         # Ce fichier (mémoire IA)
-├── manifest.json                    # Manifest du plugin pour le repository Jellyfin
-├── README.md                        # Documentation principale
+│   └── PROJECT_STRUCTURE.md         # This file (AI memory)
+├── manifest.json                    # Plugin manifest for the Jellyfin repository
+├── README.md                        # Main documentation
 ├── jellyfin-plugin-poster-rotator.sln
 └── src/
     └── Jellyfin.Plugin.PosterRotator/
         ├── Api/
-        │   └── PurgeController.cs   # API REST: POST PurgeAllPools (suppression pools)
+        │   └── PurgeController.cs   # REST API: POST PurgeAllPools (pool deletion)
         ├── Helpers/
-        │   ├── PluginHelpers.cs     # Utilitaires (GuessExt, FormatSize, GetImageDimensions, RetryAsync…)
-        │   └── ImageHash.cs         # Hash perceptuel (aHash, Hamming distance, pool_hashes.json)
+        │   ├── PluginHelpers.cs     # Utilities (GuessExt, FormatSize, GetImageDimensions, RetryAsync…)
+        │   └── ImageHash.cs         # Perceptual hash (aHash, Hamming distance, pool_hashes.json)
         ├── Web/
-        │   └── config.html          # Interface de configuration
-        ├── Plugin.cs                # Enregistrement du plugin
-        ├── Configuration.cs         # Classe de configuration
-        ├── PosterRotatorService.cs  # Service principal de rotation (~1060 lignes)
-        ├── PosterRotationTask.cs    # Tâche planifiée Jellyfin
-        ├── ServiceRegistrator.cs    # Injection de dépendances
+        │   └── config.html          # Configuration interface
+        ├── Plugin.cs                # Plugin registration
+        ├── Configuration.cs         # Configuration class
+        ├── PosterRotatorService.cs  # Main rotation service (~1060 lines)
+        ├── PosterRotationTask.cs    # Jellyfin scheduled task
+        ├── ServiceRegistrator.cs    # Dependency injection
         └── Jellyfin.Plugin.PosterRotator.csproj
 ```
 
 ---
 
-## 🔧 Fichiers Clés
+## 🔧 Key Files
 
 ### `Jellyfin.Plugin.PosterRotator.csproj`
 - **Target Framework**: `net9.0`
@@ -40,104 +40,103 @@ jellyfin-plugin-poster-rotator-1/
 - **Packages**: Jellyfin.Model, Controller, Common, Extensions `10.11.6`
 
 ### `Plugin.cs`
-- **Classe**: `Plugin : BasePlugin<Configuration>, IHasWebPages`
+- **Class**: `Plugin : BasePlugin<Configuration>, IHasWebPages`
 - **GUID**: `7f6eea8b-0e9c-4cbd-9d2a-31f9a37ce2b7`
 - **Pages**: `config.html`
 
 ### `Configuration.cs`
-Propriétés principales:
-- `PoolSize` (défaut: 5)
+Main properties:
+- `PoolSize` (default: 5)
 - `SequentialRotation`
 - `LockImagesAfterFill`
-- `MinHoursBetweenSwitches` (défaut: 23)
+- `MinHoursBetweenSwitches` (default: 23)
 - `EnableSeasonPosters`, `EnableEpisodePosters`
 - `AutoCleanupOrphanedPools`, `CleanupIntervalDays`
 - `EnableLanguageFilter`, `PreferredLanguage`, `MaxPreferredLanguageImages`
 - `UseOriginalLanguageAsFallback`, `FallbackLanguage`, `IncludeUnknownLanguage`
-- **v1.5.0**: `MinImageWidth` (défaut: 500), `MinImageHeight` (défaut: 750)
-- **v1.5.0**: `MinImageWidth` (défaut: 500), `MinImageHeight` (défaut: 750)
-- **v1.5.6**: `EnableDuplicateDetection` (défaut: true) — détection doublons visuels au téléchargement
+- **v1.5.0**: `MinImageWidth` (default: 500), `MinImageHeight` (default: 750)
+- **v1.5.6**: `EnableDuplicateDetection` (default: true) — visual duplicate detection upon download
 
 ### `ServiceRegistrator.cs`
-- Enregistre `PosterRotatorService` en singleton
+- Registers `PosterRotatorService` as a singleton
 
 ### `PosterRotatorService.cs`
-- `RunAsync()` - Point d'entrée de la rotation
-- `ProcessItemAsync()` - Traite un item (pool top-up + rotation + notification)
-- `TryTopUpFromProvidersAsync()` - Télécharges images via `IProviderManager` (GetImageProviders avec null options)
-  - **v1.5.0**: `RetryAsync` sur `GetImages()` et `GetAsync()` (backoff exponentiel 1s→2s→4s)
-  - **v1.5.0**: Filtre qualité (pre-download via RemoteImageInfo, post-download via header parsing)
-  - **v1.5.6**: Dedup URL (`pool_urls.json`) - Bloque téléchargement si URL déjà vue
-  - **v1.5.0**: Dedup perceptuel (aHash + Hamming distance, rejet si ≤10 bits de différence)
-- `GetOriginalLanguage()` - Détecte la langue originale
-- `GetLibraryRootPaths()` - Appel direct `_library.GetVirtualFolders()`
-- `NudgeLibraryRoot()` - Notification par touch fichier
-- **v1.5.0**: `PurgeAllPools()` - Supprime tous les `.poster_pool` de toutes les bibliothèques
+- `RunAsync()` - Rotation entry point
+- `ProcessItemAsync()` - Processes an item (pool top-up + rotation + notification)
+- `TryTopUpFromProvidersAsync()` - Downloads images via `IProviderManager` (GetImageProviders with null options)
+  - **v1.5.0**: `RetryAsync` on `GetImages()` and `GetAsync()` (exponential backoff 1s→2s→4s)
+  - **v1.5.0**: Quality filter (pre-download via RemoteImageInfo, post-download via header parsing)
+  - **v1.5.6**: URL dedup (`pool_urls.json`) - Blocks download if URL has already been seen
+  - **v1.5.0**: Perceptual dedup (aHash + Hamming distance, reject if ≤10 bits of difference)
+- `GetOriginalLanguage()` - Detects original language
+- `GetLibraryRootPaths()` - Direct call `_library.GetVirtualFolders()`
+- `NudgeLibraryRoot()` - Notification by file touch
+- **v1.5.0**: `PurgeAllPools()` - Deletes all `.poster_pool` files across all libraries
 
 ### `PluginHelpers.cs`
-- `GuessExtFromUrl()` / `GuessExtFromMime()` - Extensions depuis URL/mime
-- `FormatSize()` - Formatage taille fichier
-- `GetContentType()` - Détecte le mime type
-- `GetItemDirectory()` - Chemin dossier d'un item
-- `LoadRotationState()` / `SaveRotationState()` - Écriture atomique (tmp + rename)
-- `UpdateJsonMapFile()` / `CountInJsonMap()` - JSON map atomique
-- **v1.5.0**: `GetImageDimensions()` - Dimensions via headers JPEG/PNG/WebP/GIF (pas de décodage)
-- **v1.5.0**: `RetryAsync()` - Retry générique avec backoff exponentiel
+- `GuessExtFromUrl()` / `GuessExtFromMime()` - Extensions from URL/mime
+- `FormatSize()` - File size formatting
+- `GetContentType()` - Detects mime type
+- `GetItemDirectory()` - Path to an item's directory
+- `LoadRotationState()` / `SaveRotationState()` - Atomic write (tmp + rename)
+- `UpdateJsonMapFile()` / `CountInJsonMap()` - Atomic JSON map
+- **v1.5.0**: `GetImageDimensions()` - Dimensions via JPEG/PNG/WebP/GIF headers (no decoding)
+- **v1.5.0**: `RetryAsync()` - Generic retry with exponential backoff
 
 ### `ImageHash.cs` (v1.5.0)
-- `ComputeHash()` → `ulong` - Hash perceptuel par échantillonnage bytes (64-bit)
-- `HammingDistance()` - Distance de Hamming entre 2 hashes
-- `IsDuplicate()` - Détection doublon (seuil: 10 bits)
-- `LoadHashes()` / `SaveHash()` / `RemoveHash()` - Persistence JSON atomique
+- `ComputeHash()` → `ulong` - Perceptual hash by bytes sampling (64-bit)
+- `HammingDistance()` - Hamming distance between 2 hashes
+- `IsDuplicate()` - Duplicate detection (threshold: 10 bits)
+- `LoadHashes()` / `SaveHash()` / `RemoveHash()` - Atomic JSON persistence
 
 ### `PurgeController.cs` (v1.5.0)
-- `POST /PosterRotator/PurgeAllPools` - Supprime tous les pools, renvoie `{ DeletedCount: N }`
-- Autorisé admin uniquement (`Policies.RequiresElevation`)
+- `POST /PosterRotator/PurgeAllPools` - Deletes all pools, returns `{ DeletedCount: N }`
+- Authorized for admins only (`Policies.RequiresElevation`)
 
 ---
 
-## 📂 Structure des Pools
+## 📂 Pool Structure
 
 ```
 /path/to/movie/
 ├── movie.mkv
 ├── poster.jpg
 └── .poster_pool/
-    ├── pool_original.jpg            # Backup affiche initiale (ex-pool_currentprimary)
-    ├── pool_1705123456789.jpg       # Affiches téléchargées
-    ├── rotation_state.json          # État rotation
-    ├── pool_languages.json          # Métadonnées langue
-    ├── pool_urls.json               # Historique URLs téléchargées (v1.5.6)
-    ├── pool_hashes.json             # Hashes perceptuels (v1.5.0)
-    ├── pool_order.json              # Ordre personnalisé
-    └── pool.lock                    # Verrouillage
+    ├── pool_original.jpg            # Initial poster backup (formerly pool_currentprimary)
+    ├── pool_1705123456789.jpg       # Downloaded posters
+    ├── rotation_state.json          # Rotation state
+    ├── pool_languages.json          # Language metadata
+    ├── pool_urls.json               # History of downloaded URLs (v1.5.6)
+    ├── pool_hashes.json             # Perceptual hashes (v1.5.0)
+    ├── pool_order.json              # Custom order
+    └── pool.lock                    # Lock file
 ```
 
 ---
 
-## 🔌 APIs Jellyfin Utilisées
+## 🔌 Jellyfin APIs Used
 
-| Service | Injection | Utilisation |
+| Service | Injection | Usage |
 |---------|-----------|-------------|
-| `ILibraryManager` | Directe (DI) | `GetItemList()`, `GetVirtualFolders()`, `GetItemById()` |
-| `IServiceProvider` | Directe (DI) | Résolution `IEnumerable<IRemoteImageProvider>` |
-| `IHttpClientFactory` | Directe (DI) | Téléchargement images (pool top-up) |
+| `ILibraryManager` | Direct (DI) | `GetItemList()`, `GetVirtualFolders()`, `GetItemById()` |
+| `IServiceProvider` | Direct (DI) | Resolving `IEnumerable<IRemoteImageProvider>` |
+| `IHttpClientFactory` | Direct (DI) | Image downloading (pool top-up) |
 
 ---
 
-## ✅ Fonctionnalités (v1.5.0)
+## ✅ Features (v1.5.0)
 
-- [x] Rotation automatique de posters (séquentielle ou aléatoire)
-- [x] Pool local par item (.poster_pool)
-- [x] Top-up automatique via providers Jellyfin
-- [x] Préférences de langue (filtrage, langue préférée, VO auto)
-- [x] Détection automatique langue originale
-- [x] Nettoyage automatique des pools orphelins
-- [x] Verrouillage des pools après remplissage
-- [x] Support Films, Séries, Saisons, Épisodes
-- [x] Page de configuration Jellyfin
-- [x] **v1.5.0**: Filtre qualité d'image (dimensions minimales)
-- [x] **v1.5.0**: Retry avec backoff exponentiel (providers + downloads)
-- [x] **v1.5.6**: Détection doublons URL (pool_urls.json)
-- [x] **v1.5.0**: Détection doublons visuels (hash perceptuel aHash)
-- [x] **v1.5.0**: Bouton purge tous les pools (API + UI)
+- [x] Automatic poster rotation (sequential or random)
+- [x] Local pool per item (.poster_pool)
+- [x] Automatic top-up via Jellyfin providers
+- [x] Language preferences (filtering, preferred language, auto VO)
+- [x] Automatic original language detection
+- [x] Automatic cleanup of orphaned pools
+- [x] Pool locking after fill
+- [x] Support for Movies, Shows, Seasons, Episodes
+- [x] Jellyfin configuration page
+- [x] **v1.5.0**: Image quality filter (minimum dimensions)
+- [x] **v1.5.0**: Retry with exponential backoff (providers + downloads)
+- [x] **v1.5.6**: URL duplicate detection (pool_urls.json)
+- [x] **v1.5.0**: Visual duplicate detection (perceptual aHash)
+- [x] **v1.5.0**: Purge all pools button (API + UI)
