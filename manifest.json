@@ -12,8 +12,8 @@
         "version": "1.8.0.0",
         "targetAbi": "12.0.0.0",
         "sourceUrl": "https://github.com/maelmoreau21/jellyfin-plugin-poster-rotator/releases/download/v1.8.0.0/Jellyfin.Plugin.PosterRotator-1.8.0.0.zip",
-        "checksum": "5cf1260fc37b9978afe28012c44c0e83",
-        "timestamp": "2026-05-26T18:00:21Z",
+        "checksum": "0c328169503c57c7e53f364d931bc0a9",
+        "timestamp": "2026-05-29T14:02:00Z",
         "changelog": "Compatibility: targets Jellyfin 12.0.0.0 beta with plugin version 1.8.0.0. Localization: adds a global interface language setting with Same as Jellyfin, English, and French, localizes the admin page, visible API messages, and scheduled task names/descriptions while keeping task keys stable. Interface: preserves all 1.7.0.0 pool management, language filtering, security, pagination, and rotation controls. Packaging: includes meta.json and a local plugin image for manual zip installs."
       },
       {
