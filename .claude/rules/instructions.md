@@ -1,142 +1,58 @@
-# Jellyfin Poster Rotator - Project Structure
+# Jellyfin Poster Rotator - Instructions For AI Agents
 
-> **Purpose**: This document serves as a memory aid for the AI to avoid any hallucinations and maintain a consistent understanding of the project.
+Read this document before changing the project.
 
----
+- Do not invent runtime behavior or payloads: verify the code before proposing changes.
+- Do not invent documentation structure: keep this file and [README.md](../../README.md) aligned when behavior or setup changes.
+- Do not commit, push, create branches, or merge without an explicit user request.
+- Keep changes minimal and preserve the project's existing feature set and naming.
 
-## 📁 File Structure
+## Canonical Stack
 
-```
-jellyfin-plugin-poster-rotator-1/
-├── .agent/
-│   └── PROJECT_STRUCTURE.md         # This file (AI memory)
-├── manifest.json                    # Plugin manifest for the Jellyfin repository
-├── README.md                        # Main documentation
-├── jellyfin-plugin-poster-rotator.sln
-└── src/
-    └── Jellyfin.Plugin.PosterRotator/
-        ├── Api/
-        │   └── PurgeController.cs   # REST API: POST PurgeAllPools (pool deletion)
-        ├── Helpers/
-        │   ├── PluginHelpers.cs     # Utilities (GuessExt, FormatSize, GetImageDimensions, RetryAsync…)
-        │   └── ImageHash.cs         # Perceptual hash (aHash, Hamming distance, pool_hashes.json)
-        ├── Web/
-        │   └── config.html          # Configuration interface
-        ├── Plugin.cs                # Plugin registration
-        ├── Configuration.cs         # Configuration class
-        ├── PosterRotatorService.cs  # Main rotation service (~1060 lines)
-        ├── PosterRotationTask.cs    # Jellyfin scheduled task
-        ├── ServiceRegistrator.cs    # Dependency injection
-        └── Jellyfin.Plugin.PosterRotator.csproj
-```
+- Language: C# on `net9.0`
+- Plugin model: Jellyfin plugin + scheduled task + admin web page
+- Storage: local plugin data under the media item / plugin data folders
+- Jellyfin APIs: `ILibraryManager`, `IProviderManager`, `IServiceProvider`, `IHttpClientFactory`
 
----
+## Project Map
 
-## 🔧 Key Files
+- `Jellyfin.Plugin.PosterRotator.csproj`: target framework, package references, plugin metadata
+- `Plugin.cs`: plugin registration and web pages
+- `Configuration.cs`: persisted options
+- `ServiceRegistrator.cs`: dependency injection registration
+- `PosterRotatorService.cs`: pool download, rotation, duplicate detection, cleanup flow
+- `PosterRotationTask.cs`: Jellyfin scheduled task entry point
+- `Helpers/PluginHelpers.cs`: image helpers, retries, atomic JSON utilities
+- `Helpers/ImageHash.cs`: perceptual hash and duplicate detection
+- `Api/PurgeController.cs`: admin purge endpoint for all pools
+- `Web/config.html`: configuration interface
 
-### `Jellyfin.Plugin.PosterRotator.csproj`
-- **Target Framework**: `net9.0`
-- **Version**: `1.5.6.0`
-- **Packages**: Jellyfin.Model, Controller, Common, Extensions `10.11.6`
+## Runtime Rules
 
-### `Plugin.cs`
-- **Class**: `Plugin : BasePlugin<Configuration>, IHasWebPages`
-- **GUID**: `7f6eea8b-0e9c-4cbd-9d2a-31f9a37ce2b7`
-- **Pages**: `config.html`
+- Rotations must respect cooldowns and the selected ordering mode.
+- Pool creation and refresh must keep duplicate detection consistent with the helper code.
+- Language filtering and fallback behavior must remain compatible with the saved configuration values.
+- Admin purge actions must remain restricted to elevated users.
 
-### `Configuration.cs`
-Main properties:
-- `PoolSize` (default: 5)
-- `SequentialRotation`
-- `LockImagesAfterFill`
-- `MinHoursBetweenSwitches` (default: 23)
-- `EnableSeasonPosters`, `EnableEpisodePosters`
-- `AutoCleanupOrphanedPools`, `CleanupIntervalDays`
-- `EnableLanguageFilter`, `PreferredLanguage`, `MaxPreferredLanguageImages`
-- `UseOriginalLanguageAsFallback`, `FallbackLanguage`, `IncludeUnknownLanguage`
-- **v1.5.0**: `MinImageWidth` (default: 500), `MinImageHeight` (default: 750)
-- **v1.5.6**: `EnableDuplicateDetection` (default: true) — visual duplicate detection upon download
-
-### `ServiceRegistrator.cs`
-- Registers `PosterRotatorService` as a singleton
-
-### `PosterRotatorService.cs`
-- `RunAsync()` - Rotation entry point
-- `ProcessItemAsync()` - Processes an item (pool top-up + rotation + notification)
-- `TryTopUpFromProvidersAsync()` - Downloads images via `IProviderManager` (GetImageProviders with null options)
-  - **v1.5.0**: `RetryAsync` on `GetImages()` and `GetAsync()` (exponential backoff 1s→2s→4s)
-  - **v1.5.0**: Quality filter (pre-download via RemoteImageInfo, post-download via header parsing)
-  - **v1.5.6**: URL dedup (`pool_urls.json`) - Blocks download if URL has already been seen
-  - **v1.5.0**: Perceptual dedup (aHash + Hamming distance, reject if ≤10 bits of difference)
-- `GetOriginalLanguage()` - Detects original language
-- `GetLibraryRootPaths()` - Direct call `_library.GetVirtualFolders()`
-- `NudgeLibraryRoot()` - Notification by file touch
-- **v1.5.0**: `PurgeAllPools()` - Deletes all `.poster_pool` files across all libraries
-
-### `PluginHelpers.cs`
-- `GuessExtFromUrl()` / `GuessExtFromMime()` - Extensions from URL/mime
-- `FormatSize()` - File size formatting
-- `GetContentType()` - Detects mime type
-- `GetItemDirectory()` - Path to an item's directory
-- `LoadRotationState()` / `SaveRotationState()` - Atomic write (tmp + rename)
-- `UpdateJsonMapFile()` / `CountInJsonMap()` - Atomic JSON map
-- **v1.5.0**: `GetImageDimensions()` - Dimensions via JPEG/PNG/WebP/GIF headers (no decoding)
-- **v1.5.0**: `RetryAsync()` - Generic retry with exponential backoff
-
-### `ImageHash.cs` (v1.5.0)
-- `ComputeHash()` → `ulong` - Perceptual hash by bytes sampling (64-bit)
-- `HammingDistance()` - Hamming distance between 2 hashes
-- `IsDuplicate()` - Duplicate detection (threshold: 10 bits)
-- `LoadHashes()` / `SaveHash()` / `RemoveHash()` - Atomic JSON persistence
-
-### `PurgeController.cs` (v1.5.0)
-- `POST /PosterRotator/PurgeAllPools` - Deletes all pools, returns `{ DeletedCount: N }`
-- Authorized for admins only (`Policies.RequiresElevation`)
-
----
-
-## 📂 Pool Structure
+## Local Data Layout
 
 ```
 /path/to/movie/
 ├── movie.mkv
 ├── poster.jpg
 └── .poster_pool/
-    ├── pool_original.jpg            # Initial poster backup (formerly pool_currentprimary)
-    ├── pool_1705123456789.jpg       # Downloaded posters
-    ├── rotation_state.json          # Rotation state
-    ├── pool_languages.json          # Language metadata
-    ├── pool_urls.json               # History of downloaded URLs (v1.5.6)
-    ├── pool_hashes.json             # Perceptual hashes (v1.5.0)
-    ├── pool_order.json              # Custom order
-    └── pool.lock                    # Lock file
+  ├── pool_original.jpg
+  ├── pool_1705123456789.jpg
+  ├── rotation_state.json
+  ├── pool_languages.json
+  ├── pool_urls.json
+  ├── pool_hashes.json
+  ├── pool_order.json
+  └── pool.lock
 ```
 
----
+## Validation
 
-## 🔌 Jellyfin APIs Used
-
-| Service | Injection | Usage |
-|---------|-----------|-------------|
-| `ILibraryManager` | Direct (DI) | `GetItemList()`, `GetVirtualFolders()`, `GetItemById()` |
-| `IServiceProvider` | Direct (DI) | Resolving `IEnumerable<IRemoteImageProvider>` |
-| `IHttpClientFactory` | Direct (DI) | Image downloading (pool top-up) |
-
----
-
-## ✅ Features (v1.5.0)
-
-- [x] Automatic poster rotation (sequential or random)
-- [x] Local pool per item (.poster_pool)
-- [x] Automatic top-up via Jellyfin providers
-- [x] Language preferences (filtering, preferred language, auto VO)
-- [x] Automatic original language detection
-- [x] Automatic cleanup of orphaned pools
-- [x] Pool locking after fill
-- [x] Support for Movies, Shows, Seasons, Episodes
-- [x] Jellyfin configuration page
-- [x] **v1.5.0**: Image quality filter (minimum dimensions)
-- [x] **v1.5.0**: Retry with exponential backoff (providers + downloads)
-- [x] **v1.5.6**: URL duplicate detection (pool_urls.json)
-- [x] **v1.5.0**: Visual duplicate detection (perceptual aHash)
-- [x] **v1.5.0**: Purge all pools button (API + UI)
+- Build the plugin with `dotnet build src/Jellyfin.Plugin.PosterRotator/Jellyfin.Plugin.PosterRotator.csproj` only if the task touches the plugin source tree.
+- Prefer checking behavior in the smallest relevant slice before broad validation.
+- Update this file when a user-facing workflow, storage format, or setup expectation changes.

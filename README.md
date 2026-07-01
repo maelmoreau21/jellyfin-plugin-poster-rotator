@@ -1,5 +1,20 @@
 # Jellyfin Poster Rotator
 
+<p align="center">
+	<img src="jellyfin-plugin-poster-rotator.png" width="128" height="128" alt="Poster Rotator logo">
+</p>
+
+<p align="center">
+	<img src="https://img.shields.io/github/license/maelmoreau21/jellyfin-plugin-poster-rotator" alt="License">
+	<img src="https://img.shields.io/github/v/release/maelmoreau21/jellyfin-plugin-poster-rotator" alt="Release">
+</p>
+
+<p align="center">
+	<strong>Creates local poster pools per media item and rotates them on a schedule, with language and duplicate filtering.</strong>
+</p>
+
+## Overview
+
 Poster Rotator keeps the Jellyfin interface alive by creating a pool of posters per media, then periodically rotating the primary image. The `1.8.0.0` line is optimized for large libraries, including indexes with `200,000+` pools, targets Jellyfin 12 beta, and adds a bilingual English/French interface.
 
 ## Compatibility
@@ -14,7 +29,7 @@ Poster Rotator keeps the Jellyfin interface alive by creating a pool of posters 
 Version `1.8.0.0` does not make raw SQL access. It uses Jellyfin services (`ILibraryManager`, `IProviderManager`) and stores its state in the plugin's data folder.
 UI hotfixes and archive regenerations for this line must retain version `1.8.0.0`.
 
-## How it Works
+## Features
 
 1. The scheduled task **Download missing pools** retrieves the IDs of movies, shows, collections, and optionally seasons/episodes.
 2. The IDs are shuffled and then processed in batches to avoid loading an entire library into memory.
@@ -48,7 +63,7 @@ Then install **Poster Rotator** from the plugin catalog and restart Jellyfin.
 
 For a manual zip install, the `Jellyfin.Plugin.PosterRotator-1.8.0.0.zip` archive also contains `meta.json` and `jellyfin-plugin-posterrotator.png`, so that Jellyfin's plugin page can display the plugin image.
 
-## Interface
+## Usage
 
 The admin interface is organized into two separate tabs: `Pools` opens by default and contains only pool tools, and `Parameters` contains only settings. At the top of `Parameters`, the interface language choice offers `Same as Jellyfin`, `English`, and `Francais`; the automatic mode follows the Jellyfin server's `UICulture` language and falls back to English if it is not yet translated.
 
@@ -71,7 +86,7 @@ The admin interface is organized into two separate tabs: `Pools` opens by defaul
 
 Legacy `.poster_pool` folders from `MediaFolders` mode remain compatible only if that mode is selected. Legacy pools under `Jellyfin.Plugin.PosterRotator/pools` are not migrated and are ignored.
 
-## PluginData Storage
+## Storage
 
 - `Jellyfin.Plugin.PosterRotator.pools/index.json`: lightweight index for search, pagination, and global actions.
 - `Jellyfin.Plugin.PosterRotator.pools/{itemId}/pool.json`: versioned pool metadata, images, hashes, languages, sources, dates, and recent errors.
