@@ -116,8 +116,11 @@ jobs:
 
           updated = False
           for plugin in manifest:
-              for v_entry in plugin.get("versions", []):
+              versions_list = plugin.get("versions", [])
+              exists = False
+              for v_entry in versions_list:
                   if v_entry.get("version") == version:
+                      exists = True
                       old_checksum = v_entry.get("checksum")
                       if old_checksum != checksum:
                           v_entry["checksum"] = checksum
@@ -125,6 +128,20 @@ jobs:
                           updated = True
                           print(f"Updated checksum in manifest.json from {old_checksum} to {checksum}")
                       break
+
+              if not exists:
+                  new_entry = {
+                      "version": version,
+                      "targetAbi": "12.0.0.0",
+                      "sourceUrl": f"https://github.com/maelmoreau21/jellyfin-plugin-poster-rotator/releases/download/v{version}/Jellyfin.Plugin.PosterRotator-{version}.zip",
+                      "checksum": checksum,
+                      "timestamp": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+                      "changelog": f"Release version {version}"
+                  }
+                  versions_list.insert(0, new_entry)
+                  plugin["versions"] = versions_list
+                  updated = True
+                  print(f"Added new version {version} to manifest.json")
 
           if updated:
               with open(manifest_path, "w") as f:
