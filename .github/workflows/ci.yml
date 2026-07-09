@@ -1,0 +1,33 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore ./jellyfin-plugin-poster-rotator.sln
+
+      - name: Build Solution
+        run: dotnet build ./jellyfin-plugin-poster-rotator.sln -c Release --no-restore -warnaserror:CS0618
+
+      - name: Run Tests
+        run: dotnet test ./jellyfin-plugin-poster-rotator.sln -c Release --no-build -warnaserror:CS0618

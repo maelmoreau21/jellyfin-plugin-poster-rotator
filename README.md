@@ -21,8 +21,8 @@ Poster Rotator keeps the Jellyfin interface alive by creating a pool of posters 
 
 - Plugin version: `1.8.0.0`
 - Target ABI: Jellyfin `12.0.0.0`
-- Jellyfin packages: `12.0.0-20260523021143`
-- Runtime: `.NET 9`
+- Jellyfin packages: `12.0.0-rc2`
+- Runtime: `.NET 10`
 - Previous Jellyfin 12 line: `1.7.0.0`
 - Jellyfin 10.11 line: `1.6.0.0`
 
@@ -99,6 +99,25 @@ Remote downloading follows a bounded redirection chain and re-validates each tar
 ## Development
 
 Build, test, and release instructions are in [instructions.md](./instructions.md).
+
+## Binary Publication via GitHub Releases
+
+Instead of committing pre-compiled plugin zip files directly to the Git repository, releases must be published on GitHub:
+
+1. **Build and package the plugin**:
+   - Follow the build/package steps in [instructions.md](./instructions.md) to generate the release zip (e.g., `Jellyfin.Plugin.PosterRotator-1.8.0.0.zip`).
+   - Calculate its MD5 checksum and update `manifest.json`.
+2. **Draft a new GitHub Release**:
+   - Go to the GitHub repository page.
+   - On the right sidebar, click **Releases**, then click **Draft a new release** (or go to tags and create a release from a tag).
+   - Set the tag name matching the version, e.g., `v1.8.0.0`, and select the target branch (`main`).
+   - Title the release, e.g., `v1.8.0.0`.
+   - Write or paste the changelog/release description.
+3. **Upload the ZIP asset**:
+   - Drag and drop `Jellyfin.Plugin.PosterRotator-1.8.0.0.zip` into the binaries attachment box.
+4. **Publish the Release**:
+   - Click **Publish release**.
+   - This ensures the download URL defined in `manifest.json` (`https://github.com/.../releases/download/v1.8.0.0/Jellyfin.Plugin.PosterRotator-1.8.0.0.zip`) works correctly.
 
 ## License
 
