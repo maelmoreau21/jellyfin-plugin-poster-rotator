@@ -995,7 +995,7 @@ public sealed class PoolStore
 
     private static string ResolveImagePath(string poolDir, string fileName, bool requireExists)
     {
-        if (string.IsNullOrWhiteSpace(fileName) || fileName != Path.GetFileName(fileName))
+        if (string.IsNullOrWhiteSpace(fileName) || fileName != Path.GetFileName(fileName) || fileName.Contains('/') || fileName.Contains('\\'))
             throw new InvalidDataException("Invalid image file name.");
 
         if (fileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)

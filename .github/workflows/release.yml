@@ -1,0 +1,150 @@
+name: Release Automation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - 'meta.json'
+      - 'manifest.json'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore ./jellyfin-plugin-poster-rotator.sln
+
+      - name: Build Release
+        run: dotnet build ./jellyfin-plugin-poster-rotator.sln -c Release --no-restore -warnaserror:CS0618
+
+      - name: Install Zip Utility
+        run: sudo apt-get update && sudo apt-get install -y zip
+
+      - name: Package Plugin & Update Manifest
+        id: package
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: python
+        run: |
+          import json
+          import hashlib
+          import os
+          import sys
+          import subprocess
+          from datetime import datetime
+
+          # 1. Get version from csproj
+          version = None
+          csproj_path = "src/Jellyfin.Plugin.PosterRotator/Jellyfin.Plugin.PosterRotator.csproj"
+          with open(csproj_path, "r") as f:
+              for line in f:
+                  if "<Version>" in line:
+                      version = line.split("<Version>")[1].split("</Version>")[0].strip()
+                      break
+
+          if not version:
+              print("Error: version not found in csproj")
+              sys.exit(1)
+
+          print(f"Version resolved: {version}")
+
+          # Write version to env for subsequent steps
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
+              print(f"version={version}", file=fh)
+
+          # 2. Package the ZIP
+          zip_filename = f"Jellyfin.Plugin.PosterRotator-{version}.zip"
+          files_to_zip = [
+              "src/Jellyfin.Plugin.PosterRotator/bin/Release/net10.0/Jellyfin.Plugin.PosterRotator.dll",
+              "src/Jellyfin.Plugin.PosterRotator/bin/Release/net10.0/Jellyfin.Plugin.PosterRotator.deps.json",
+              "src/Jellyfin.Plugin.PosterRotator/bin/Release/net10.0/Jellyfin.Plugin.PosterRotator.pdb",
+              "jellyfin-plugin-posterrotator.png",
+              "meta.json"
+          ]
+
+          # Run zip command
+          cmd = ["zip", "-j", zip_filename] + files_to_zip
+          print(f"Running command: {' '.join(cmd)}")
+          subprocess.run(cmd, check=True)
+
+          # 3. Calculate checksum
+          hasher = hashlib.md5()
+          with open(zip_filename, "rb") as f:
+              hasher.update(f.read())
+          checksum = hasher.hexdigest()
+          print(f"Calculated MD5: {checksum}")
+
+          # 4. Update manifest.json
+          manifest_path = "manifest.json"
+          with open(manifest_path, "r") as f:
+              manifest = json.load(f)
+
+          updated = False
+          for plugin in manifest:
+              for v_entry in plugin.get("versions", []):
+                  if v_entry.get("version") == version:
+                      old_checksum = v_entry.get("checksum")
+                      if old_checksum != checksum:
+                          v_entry["checksum"] = checksum
+                          v_entry["timestamp"] = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+                          updated = True
+                          print(f"Updated checksum in manifest.json from {old_checksum} to {checksum}")
+                      break
+
+          if updated:
+              with open(manifest_path, "w") as f:
+                  json.dump(manifest, f, indent=2)
+                  f.write("\n")
+              print("manifest_updated=true")
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
+                  print("manifest_updated=true", file=fh)
+          else:
+              print("manifest_updated=false")
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
+                  print("manifest_updated=false", file=fh)
+
+      - name: Commit manifest changes
+        if: steps.package.outputs.manifest_updated == 'true'
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add manifest.json
+          git commit -m "chore: update release checksum in manifest.json [skip ci]"
+          git push origin main
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.package.outputs.version }}
+        run: |
+          TAG="v${VERSION}"
+          ZIP_FILE="Jellyfin.Plugin.PosterRotator-${VERSION}.zip"
+          
+          # Create tag and release if not exists
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists, uploading/overwriting asset..."
+            gh release upload "$TAG" "$ZIP_FILE" --clobber
+          else
+            echo "Creating release $TAG..."
+            gh release create "$TAG" "$ZIP_FILE" \
+              --title "Release $TAG" \
+              --notes "Automated release of Poster Rotator plugin version $VERSION"
+          fi
