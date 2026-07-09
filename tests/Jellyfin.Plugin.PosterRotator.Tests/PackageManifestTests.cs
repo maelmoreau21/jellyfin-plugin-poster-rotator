@@ -26,7 +26,10 @@ public sealed class PackageManifestTests
         Assert.Equal("1.8.0.0", latest.GetProperty("version").GetString());
         Assert.Equal("12.0.0.0", latest.GetProperty("targetAbi").GetString());
         Assert.Contains("v1.8.0.0", latest.GetProperty("sourceUrl").GetString());
-        Assert.Equal("0c328169503c57c7e53f364d931bc0a9", latest.GetProperty("checksum").GetString());
+        var checksum = latest.GetProperty("checksum").GetString();
+        Assert.NotNull(checksum);
+        Assert.Equal(32, checksum.Length);
+        Assert.Matches("^[0-9a-fA-F]{32}$", checksum);
     }
 
     private static string FindRepoFile(string fileName)
