@@ -145,6 +145,6 @@ jobs:
           else
             echo "Creating release $TAG..."
             gh release create "$TAG" "$ZIP_FILE" \
-              --title "Release $TAG" \
+              --title "$TAG" \
               --notes "Automated release of Poster Rotator plugin version $VERSION"
           fi
