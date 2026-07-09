@@ -4,10 +4,6 @@ on:
   push:
     branches:
       - main
-    paths:
-      - 'src/**'
-      - 'meta.json'
-      - 'manifest.json'
   workflow_dispatch:
 
 permissions:
@@ -66,9 +62,30 @@ jobs:
 
           print(f"Version resolved: {version}")
 
-          # Write version to env for subsequent steps
+           # Write version to env for subsequent steps
           with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
               print(f"version={version}", file=fh)
+
+          # Update version in meta.json if different
+          meta_path = "meta.json"
+          meta_updated = False
+          if os.path.exists(meta_path):
+              with open(meta_path, "r") as f:
+                  meta = json.load(f)
+              if meta.get("version") != version:
+                  meta["version"] = version
+                  with open(meta_path, "w") as f:
+                      json.dump(meta, f, indent=2)
+                      f.write("\n")
+                  meta_updated = True
+                  print(f"Updated version in meta.json to {version}")
+
+          if meta_updated:
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
+                  print("meta_updated=true", file=fh)
+          else:
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
+                  print("meta_updated=false", file=fh)
 
           # 2. Package the ZIP
           zip_filename = f"Jellyfin.Plugin.PosterRotator-{version}.zip"
@@ -122,12 +139,12 @@ jobs:
                   print("manifest_updated=false", file=fh)
 
       - name: Commit manifest changes
-        if: steps.package.outputs.manifest_updated == 'true'
+        if: steps.package.outputs.manifest_updated == 'true' || steps.package.outputs.meta_updated == 'true'
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add manifest.json
-          git commit -m "chore: update release checksum in manifest.json [skip ci]"
+          git add manifest.json meta.json
+          git commit -m "chore: update release checksum and metadata [skip ci]"
           git push origin main
 
       - name: Publish GitHub Release
