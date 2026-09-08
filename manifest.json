@@ -12,8 +12,8 @@
         "version": "1.8.1.0",
         "targetAbi": "12.0.0.0",
         "sourceUrl": "https://github.com/maelmoreau21/jellyfin-plugin-poster-rotator/releases/download/v1.8.1.0/Jellyfin.Plugin.PosterRotator-1.8.1.0.zip",
-        "checksum": "a1bcfec76c5422276a0d4e1f51f21885",
-        "timestamp": "2026-09-08T18:56:00Z",
+        "checksum": "73aa6330c367e4f9b6947abbc79b95d1",
+        "timestamp": "2026-09-08T19:09:19Z",
         "changelog": "Compatibility: targets Jellyfin 12.0.0.0 stable release with plugin version 1.8.1.0. Fixes: resolves library list query in admin UI so library filtering can be configured, improves API request resilience with modern fetch fallback, and provides immediate visual loading feedback when downloading missing pools. Dependencies: updates to Jellyfin 12.0.0 stable and 10.11.11 fallback."
       },
       {
