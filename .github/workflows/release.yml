@@ -166,11 +166,7 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          ZIP_FILE="Jellyfin.Plugin.PosterRotator-${{ steps.package.outputs.version }}.zip"
           git add manifest.json meta.json
-          if [ -f "$ZIP_FILE" ]; then
-            git add "$ZIP_FILE"
-          fi
           git commit -m "chore: update release checksum and metadata [skip ci]"
           git pull --rebase origin main
           git push origin main

@@ -9,12 +9,20 @@
     "imageUrl": "https://raw.githubusercontent.com/maelmoreau21/jellyfin-plugin-poster-rotator/refs/heads/main/jellyfin-plugin-posterrotator.png",
     "versions": [
       {
+        "version": "1.8.1.0",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/maelmoreau21/jellyfin-plugin-poster-rotator/releases/download/v1.8.1.0/Jellyfin.Plugin.PosterRotator-1.8.1.0.zip",
+        "checksum": "a1bcfec76c5422276a0d4e1f51f21885",
+        "timestamp": "2026-09-08T18:56:00Z",
+        "changelog": "Compatibility: targets Jellyfin 12.0.0.0 stable release with plugin version 1.8.1.0. Fixes: resolves library list query in admin UI so library filtering can be configured, improves API request resilience with modern fetch fallback, and provides immediate visual loading feedback when downloading missing pools. Dependencies: updates to Jellyfin 12.0.0 stable and 10.11.11 fallback."
+      },
+      {
         "version": "1.8.0.0",
         "targetAbi": "12.0.0.0",
         "sourceUrl": "https://github.com/maelmoreau21/jellyfin-plugin-poster-rotator/releases/download/v1.8.0.0/Jellyfin.Plugin.PosterRotator-1.8.0.0.zip",
-        "checksum": "b1f431c7b00c7de0e8a0e89585a28dc5",
-        "timestamp": "2026-09-08T18:43:00Z",
-        "changelog": "Compatibility: targets Jellyfin 12.0.0.0 stable release with plugin version 1.8.0.0. Localization: adds a global interface language setting with Same as Jellyfin, English, and French, localizes the admin page, visible API messages, and scheduled task names/descriptions while keeping task keys stable. Interface: fixes library listing query and download feedback, preserves all pool management, language filtering, security, pagination, and rotation controls. Packaging: includes meta.json and a local plugin image for manual zip installs."
+        "checksum": "91642b22f32a4b92d9d6fdc67ea6caa3",
+        "timestamp": "2026-07-09T20:13:49Z",
+        "changelog": "Compatibility: targets Jellyfin 12.0.0.0 beta with plugin version 1.8.0.0. Localization: adds a global interface language setting with Same as Jellyfin, English, and French, localizes the admin page, visible API messages, and scheduled task names/descriptions while keeping task keys stable. Interface: preserves all 1.7.0.0 pool management, language filtering, security, pagination, and rotation controls. Packaging: includes meta.json and a local plugin image for manual zip installs."
       },
       {
         "version": "1.7.0.0",
