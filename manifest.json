@@ -12,8 +12,8 @@
         "version": "1.8.2.0",
         "targetAbi": "12.0.0.0",
         "sourceUrl": "https://github.com/maelmoreau21/jellyfin-plugin-poster-rotator/releases/download/v1.8.2.0/Jellyfin.Plugin.PosterRotator-1.8.2.0.zip",
-        "checksum": "e89281b9d06c4c4081dc6c2da67c9f23",
-        "timestamp": "2026-09-08T19:25:00Z",
+        "checksum": "a2f605a60a1b8caa2cc5af95a4592e4c",
+        "timestamp": "2026-09-08T19:31:52Z",
         "changelog": "Compatibility: targets Jellyfin 12.0.0.0 stable release with plugin version 1.8.2.0. Fixes: resolves library selection by replacing single-select with multi-library selection, adding select all/deselect all buttons, selected count badge, multi-library filter in pools view, and direct settings navigation. Dependencies: updates to Jellyfin 12.0.0 stable and 10.11.11 fallback."
       },
       {
