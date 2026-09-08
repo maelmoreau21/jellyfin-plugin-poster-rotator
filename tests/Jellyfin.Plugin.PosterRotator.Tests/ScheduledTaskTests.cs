@@ -104,6 +104,9 @@ public sealed class ScheduledTaskTests
         public Task DownloadMissingPoolsAsync(Configuration cfg, IProgress<double>? progress, CancellationToken cancellationToken) =>
             Task.CompletedTask;
 
+        public DownloadStatusSnapshot GetDownloadStatus() =>
+            new();
+
         public Task<PurgePoolsResult> PurgeAsync(PoolPurgeRequest request, CancellationToken cancellationToken)
         {
             LastPurgeRequest = request;

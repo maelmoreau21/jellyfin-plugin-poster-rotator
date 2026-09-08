@@ -417,6 +417,18 @@ public sealed class PoolStore
         if (query.IsEmpty.HasValue)
             items = items.Where(entry => (entry.ImageCount == 0) == query.IsEmpty.Value);
 
+        if (query.IsLocked.HasValue)
+            items = items.Where(entry => entry.IsLocked == query.IsLocked.Value);
+
+        if (!string.IsNullOrWhiteSpace(query.Completion))
+        {
+            var targetPoolSize = Plugin.Instance?.Configuration?.PoolSize ?? 4;
+            if (string.Equals(query.Completion, "complete", StringComparison.OrdinalIgnoreCase))
+                items = items.Where(entry => entry.ImageCount >= targetPoolSize);
+            else if (string.Equals(query.Completion, "incomplete", StringComparison.OrdinalIgnoreCase))
+                items = items.Where(entry => entry.ImageCount < targetPoolSize);
+        }
+
         if (!string.IsNullOrWhiteSpace(query.Query))
         {
             var text = query.Query.Trim();
@@ -426,19 +438,35 @@ public sealed class PoolStore
                 || entry.ItemId.Contains(text, StringComparison.OrdinalIgnoreCase));
         }
 
-        var ordered = items
-            .OrderByDescending(entry => entry.UpdatedUtc)
-            .ThenBy(entry => entry.ItemName, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        var isAsc = string.Equals(query.SortOrder, "asc", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(query.SortOrder, "ascending", StringComparison.OrdinalIgnoreCase);
 
+        var sortBy = query.SortBy?.Trim().ToLowerInvariant();
+        IOrderedEnumerable<PoolIndexEntry> ordered = sortBy switch
+        {
+            "name" => isAsc
+                ? items.OrderBy(entry => entry.ItemName, StringComparer.OrdinalIgnoreCase)
+                : items.OrderByDescending(entry => entry.ItemName, StringComparer.OrdinalIgnoreCase),
+            "images" => isAsc
+                ? items.OrderBy(entry => entry.ImageCount).ThenBy(entry => entry.ItemName, StringComparer.OrdinalIgnoreCase)
+                : items.OrderByDescending(entry => entry.ImageCount).ThenBy(entry => entry.ItemName, StringComparer.OrdinalIgnoreCase),
+            "lastrotated" => isAsc
+                ? items.OrderBy(entry => entry.LastRotatedUtc.GetValueOrDefault(DateTimeOffset.MinValue))
+                : items.OrderByDescending(entry => entry.LastRotatedUtc.GetValueOrDefault(DateTimeOffset.MinValue)),
+            _ => isAsc
+                ? items.OrderBy(entry => entry.UpdatedUtc).ThenBy(entry => entry.ItemName, StringComparer.OrdinalIgnoreCase)
+                : items.OrderByDescending(entry => entry.UpdatedUtc).ThenBy(entry => entry.ItemName, StringComparer.OrdinalIgnoreCase)
+        };
+
+        var orderedList = ordered.ToList();
         var start = Math.Max(0, query.Start);
         var limit = Math.Clamp(query.Limit <= 0 ? 50 : query.Limit, 1, 200);
         return new PoolListResponse
         {
             Start = start,
             Limit = limit,
-            Total = ordered.Count,
-            Items = ordered.Skip(start).Take(limit).ToList()
+            Total = orderedList.Count,
+            Items = orderedList.Skip(start).Take(limit).ToList()
         };
     }
 
@@ -876,6 +904,8 @@ public sealed class PoolStore
         if (reconcileFiles)
             ReconcileFiles(metadata, poolDir);
 
+        metadata.IsLocked = File.Exists(Path.Combine(poolDir, "pool.lock"));
+
         return metadata;
     }
 
@@ -967,7 +997,8 @@ public sealed class PoolStore
             LastRotatedUtc = metadata.LastRotatedUtc,
             UpdatedUtc = metadata.UpdatedUtc,
             LastError = metadata.LastError,
-            HasErrors = !string.IsNullOrWhiteSpace(metadata.LastError)
+            HasErrors = !string.IsNullOrWhiteSpace(metadata.LastError),
+            IsLocked = metadata.IsLocked
         };
     }
 
@@ -1186,6 +1217,7 @@ public sealed class PoolMetadata
     public int LastIndex { get; set; }
     public int ImageCount { get; set; }
     public long SizeBytes { get; set; }
+    public bool IsLocked { get; set; }
     public string? LastError { get; set; }
     public PoolCurrentPosterInfo CurrentPoster { get; set; } = new();
     public List<PoolImageMetadata> Images { get; set; } = new();
@@ -1236,6 +1268,7 @@ public sealed class PoolIndexEntry
     public DateTimeOffset UpdatedUtc { get; set; }
     public bool HasErrors { get; set; }
     public string? LastError { get; set; }
+    public bool IsLocked { get; set; }
 }
 
 public sealed class PoolErrorInfo
@@ -1253,6 +1286,10 @@ public sealed class PoolListQuery
     public string? Type { get; set; }
     public bool? HasErrors { get; set; }
     public bool? IsEmpty { get; set; }
+    public bool? IsLocked { get; set; }
+    public string? Completion { get; set; }
+    public string? SortBy { get; set; }
+    public string? SortOrder { get; set; }
     public int Start { get; set; }
     public int Limit { get; set; } = 50;
 }
@@ -1313,3 +1350,17 @@ public sealed class PoolDownloadResult
     public bool LimitedByRunBudget { get; set; }
     public string Message { get; set; } = string.Empty;
 }
+
+public sealed class DownloadStatusSnapshot
+{
+    public bool IsRunning { get; set; }
+    public int ProcessedCount { get; set; }
+    public int TotalCandidates { get; set; }
+    public int CompletedPools { get; set; }
+    public int ImagesAdded { get; set; }
+    public int ErrorCount { get; set; }
+    public double ProgressPercent { get; set; }
+    public string CurrentItemName { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+}
+

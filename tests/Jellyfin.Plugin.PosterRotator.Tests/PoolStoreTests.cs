@@ -518,6 +518,68 @@ public sealed class PoolStoreTests
         }
     }
 
+    [Fact]
+    public async Task ListPoolsAsync_SupportsSortingByNameAndImages()
+    {
+        var root = CreateTempPluginDataFolder();
+        var id1 = Guid.NewGuid();
+        var id2 = Guid.NewGuid();
+
+        try
+        {
+            var store = new PoolStore(root);
+            await CreatePool(store, root, id1, "Zeta Movie", "Films");
+            await CreatePool(store, root, id2, "Alpha Movie", "Films");
+
+            var sortedAsc = await store.ListPoolsAsync(new PoolListQuery { SortBy = "name", SortOrder = "asc" }, CancellationToken.None);
+            Assert.Equal("Alpha Movie", sortedAsc.Items[0].ItemName);
+            Assert.Equal("Zeta Movie", sortedAsc.Items[1].ItemName);
+
+            var sortedDesc = await store.ListPoolsAsync(new PoolListQuery { SortBy = "name", SortOrder = "desc" }, CancellationToken.None);
+            Assert.Equal("Zeta Movie", sortedDesc.Items[0].ItemName);
+            Assert.Equal("Alpha Movie", sortedDesc.Items[1].ItemName);
+        }
+        finally
+        {
+            DeleteTempRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task ListPoolsAsync_SupportsFilteringByLocked()
+    {
+        var root = CreateTempPluginDataFolder();
+        var idLocked = Guid.NewGuid();
+        var idUnlocked = Guid.NewGuid();
+
+        try
+        {
+            var store = new PoolStore(root);
+            await CreatePool(store, root, idLocked, "Locked Movie", "Films");
+            await CreatePool(store, root, idUnlocked, "Unlocked Movie", "Films");
+
+            var lockedDir = store.TryGetPoolDirectory(idLocked, create: false)!;
+            await File.WriteAllTextAsync(Path.Combine(lockedDir, "pool.lock"), "locked");
+
+            var meta = await store.GetPoolAsync(idLocked, reconcileFiles: true, CancellationToken.None);
+            Assert.NotNull(meta);
+            Assert.True(meta.IsLocked);
+            await store.RebuildIndexAsync(CancellationToken.None);
+
+            var lockedList = await store.ListPoolsAsync(new PoolListQuery { IsLocked = true }, CancellationToken.None);
+            Assert.Single(lockedList.Items);
+            Assert.Equal("Locked Movie", lockedList.Items[0].ItemName);
+
+            var unlockedList = await store.ListPoolsAsync(new PoolListQuery { IsLocked = false }, CancellationToken.None);
+            Assert.Single(unlockedList.Items);
+            Assert.Equal("Unlocked Movie", unlockedList.Items[0].ItemName);
+        }
+        finally
+        {
+            DeleteTempRoot(root);
+        }
+    }
+
     private static async Task CreatePool(PoolStore store, string root, Guid itemId, string name, string library)
     {
         var poolDir = store.TryGetPoolDirectory(itemId, create: true)!;

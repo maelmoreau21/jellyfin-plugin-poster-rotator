@@ -55,6 +55,10 @@ public class PurgeController : ControllerBase
         [FromQuery] string? type,
         [FromQuery] bool? hasErrors,
         [FromQuery] bool? isEmpty,
+        [FromQuery] bool? isLocked,
+        [FromQuery] string? completion,
+        [FromQuery] string? sortBy,
+        [FromQuery] string? sortOrder,
         [FromQuery] int start = 0,
         [FromQuery] int limit = 50,
         CancellationToken cancellationToken = default)
@@ -67,11 +71,21 @@ public class PurgeController : ControllerBase
                 Type = type,
                 HasErrors = hasErrors,
                 IsEmpty = isEmpty,
+                IsLocked = isLocked,
+                Completion = completion,
+                SortBy = sortBy,
+                SortOrder = sortOrder,
                 Start = start,
                 Limit = limit
             },
             cancellationToken).ConfigureAwait(false);
         return Ok(result);
+    }
+
+    [HttpGet("Pools/DownloadStatus")]
+    public ActionResult<DownloadStatusSnapshot> GetDownloadStatus()
+    {
+        return Ok(_service.GetDownloadStatus());
     }
 
     [HttpPost("Pools/RebuildIndex")]

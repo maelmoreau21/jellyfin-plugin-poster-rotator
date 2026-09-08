@@ -51,6 +51,9 @@ public class Configuration : BasePluginConfiguration
     public int MaxProviderLookupsPerRun { get; set; } = 250;
     public int ProcessingBatchSize { get; set; } = 250;
     public RotationCadenceProfile CadenceProfile { get; set; } = RotationCadenceProfile.Balanced;
+    public bool EnableMoviePosters { get; set; } = true;
+    public bool EnableSeriesPosters { get; set; } = true;
+    public bool EnableBoxSetPosters { get; set; } = true;
     public bool EnableSeasonPosters { get; set; } = false;
     public bool EnableEpisodePosters { get; set; } = false;
     // Legacy compatibility setting. The current rotation path uses Jellyfin SaveImage instead of a full scan.

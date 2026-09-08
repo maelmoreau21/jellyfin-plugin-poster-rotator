@@ -12,5 +12,7 @@ public interface IPosterRotatorService
 
     Task DownloadMissingPoolsAsync(Configuration cfg, IProgress<double>? progress, CancellationToken cancellationToken);
 
+    DownloadStatusSnapshot GetDownloadStatus();
+
     Task<PurgePoolsResult> PurgeAsync(PoolPurgeRequest request, CancellationToken cancellationToken);
 }

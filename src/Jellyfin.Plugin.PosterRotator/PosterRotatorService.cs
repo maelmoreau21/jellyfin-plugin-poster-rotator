@@ -77,6 +77,28 @@ public class PosterRotatorService : IPosterRotatorService
         }
     }
 
+    private readonly object _downloadStatusLock = new();
+    private DownloadStatusSnapshot _currentDownloadStatus = new();
+
+    public DownloadStatusSnapshot GetDownloadStatus()
+    {
+        lock (_downloadStatusLock)
+        {
+            return new DownloadStatusSnapshot
+            {
+                IsRunning = _currentDownloadStatus.IsRunning,
+                ProcessedCount = _currentDownloadStatus.ProcessedCount,
+                TotalCandidates = _currentDownloadStatus.TotalCandidates,
+                CompletedPools = _currentDownloadStatus.CompletedPools,
+                ImagesAdded = _currentDownloadStatus.ImagesAdded,
+                ErrorCount = _currentDownloadStatus.ErrorCount,
+                ProgressPercent = _currentDownloadStatus.ProgressPercent,
+                CurrentItemName = _currentDownloadStatus.CurrentItemName,
+                Message = _currentDownloadStatus.Message
+            };
+        }
+    }
+
     public async Task DownloadMissingPoolsAsync(Configuration cfg, IProgress<double>? progress, CancellationToken ct)
     {
         await DownloadMissingPoolsWithResultAsync(cfg, progress, ct).ConfigureAwait(false);
@@ -101,6 +123,10 @@ public class PosterRotatorService : IPosterRotatorService
         }
         finally
         {
+            lock (_downloadStatusLock)
+            {
+                _currentDownloadStatus.IsRunning = false;
+            }
             _operationLock.Release();
         }
     }
@@ -281,6 +307,17 @@ public class PosterRotatorService : IPosterRotatorService
             total,
             total - candidateCount);
 
+        lock (_downloadStatusLock)
+        {
+            _currentDownloadStatus = new DownloadStatusSnapshot
+            {
+                IsRunning = true,
+                TotalCandidates = candidateCount,
+                ProgressPercent = 0,
+                Message = T("Message.DownloadStarting")
+            };
+        }
+
         foreach (var batch in itemIds.Chunk(batchSize))
         {
             foreach (var itemId in batch)
@@ -350,6 +387,16 @@ public class PosterRotatorService : IPosterRotatorService
                 }
 
                 progress?.Report(++done * 100.0 / Math.Max(1, total));
+
+                lock (_downloadStatusLock)
+                {
+                    _currentDownloadStatus.CurrentItemName = item?.Name ?? string.Empty;
+                    _currentDownloadStatus.ProcessedCount = processedCount;
+                    _currentDownloadStatus.CompletedPools = completedPoolCount;
+                    _currentDownloadStatus.ImagesAdded = topUpCount;
+                    _currentDownloadStatus.ErrorCount = errorCount;
+                    _currentDownloadStatus.ProgressPercent = total > 0 ? Math.Round(done * 100.0 / total, 1) : 0;
+                }
             }
 
             if (!budget.HasDownloadWorkRemaining)
@@ -375,6 +422,18 @@ public class PosterRotatorService : IPosterRotatorService
             message += T("Api.DownloadLimitedSuffix");
         }
 
+        lock (_downloadStatusLock)
+        {
+            _currentDownloadStatus.IsRunning = false;
+            _currentDownloadStatus.CurrentItemName = string.Empty;
+            _currentDownloadStatus.ProcessedCount = processedCount;
+            _currentDownloadStatus.CompletedPools = completedPoolCount;
+            _currentDownloadStatus.ImagesAdded = topUpCount;
+            _currentDownloadStatus.ErrorCount = errorCount;
+            _currentDownloadStatus.ProgressPercent = 100;
+            _currentDownloadStatus.Message = message;
+        }
+
         return new PoolDownloadResult
         {
             CandidateCount = candidateCount,
@@ -392,15 +451,20 @@ public class PosterRotatorService : IPosterRotatorService
 
     private static List<BaseItemKind> GetRotationKinds(Configuration cfg)
     {
-        var kinds = new List<BaseItemKind>
-        {
-            BaseItemKind.Movie,
-            BaseItemKind.Series,
-            BaseItemKind.BoxSet
-        };
-
+        var kinds = new List<BaseItemKind>();
+        if (cfg.EnableMoviePosters) kinds.Add(BaseItemKind.Movie);
+        if (cfg.EnableSeriesPosters) kinds.Add(BaseItemKind.Series);
+        if (cfg.EnableBoxSetPosters) kinds.Add(BaseItemKind.BoxSet);
         if (cfg.EnableSeasonPosters) kinds.Add(BaseItemKind.Season);
         if (cfg.EnableEpisodePosters) kinds.Add(BaseItemKind.Episode);
+
+        if (kinds.Count == 0)
+        {
+            kinds.Add(BaseItemKind.Movie);
+            kinds.Add(BaseItemKind.Series);
+            kinds.Add(BaseItemKind.BoxSet);
+        }
+
         return kinds;
     }
 
@@ -536,8 +600,10 @@ public class PosterRotatorService : IPosterRotatorService
         public RotationRunBudget(Configuration cfg)
         {
             _maxRotations = NormalizeRotationRunLimit(cfg.MaxRotationsPerRun, 500);
-            _maxDownloads = NormalizeRunLimit(cfg.MaxDownloadsPerRun, 250);
-            _maxProviderLookups = NormalizeRunLimit(cfg.MaxProviderLookupsPerRun, 250);
+            _maxDownloads = NormalizeDownloadRunLimit(cfg.MaxDownloadsPerRun, 250);
+            _maxProviderLookups = NormalizeDownloadRunLimit(
+                cfg.MaxProviderLookupsPerRun <= 0 && cfg.MaxDownloadsPerRun == 0 ? 0 : cfg.MaxProviderLookupsPerRun,
+                250);
         }
 
         public int Rotations { get; private set; }
@@ -589,6 +655,9 @@ public class PosterRotatorService : IPosterRotatorService
 
     internal static int NormalizeRunLimit(int value, int fallback) =>
         Math.Clamp(value <= 0 ? fallback : value, 1, 100000);
+
+    internal static int NormalizeDownloadRunLimit(int value, int fallback) =>
+        value == 0 ? int.MaxValue : NormalizeRunLimit(value, fallback);
 
     internal static int NormalizeRotationRunLimit(int value, int fallback) =>
         value == 0 ? int.MaxValue : NormalizeRunLimit(value, fallback);
@@ -1196,6 +1265,7 @@ public class PosterRotatorService : IPosterRotatorService
 
         try
         {
+            item.DateLastSaved = DateTime.UtcNow;
             await item.UpdateToRepositoryAsync(ItemUpdateType.ImageUpdate, ct).ConfigureAwait(false);
         }
         catch (Exception ex)

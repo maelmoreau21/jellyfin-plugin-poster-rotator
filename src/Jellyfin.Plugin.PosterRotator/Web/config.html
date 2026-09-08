@@ -476,6 +476,40 @@
         grid-template-columns: 1fr;
       }
     }
+
+    .posterRotatorProgressBanner {
+      background: rgba(0, 164, 220, 0.12);
+      border: 1px solid rgba(0, 164, 220, 0.35);
+      border-radius: 6px;
+      padding: 10px 14px;
+      margin-bottom: 14px;
+    }
+    .posterRotatorProgressHeader {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+      font-weight: 600;
+      font-size: 0.92em;
+    }
+    .posterRotatorProgressBar {
+      height: 8px;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 6px;
+    }
+    .posterRotatorProgressFill {
+      height: 100%;
+      background: #00a4dc;
+      border-radius: 4px;
+      transition: width 0.3s ease;
+    }
+    .posterRotatorProgressDetail {
+      font-size: 0.85em;
+      opacity: 0.85;
+      color: #bbb;
+    }
   </style>
 </head>
 
@@ -524,6 +558,16 @@
                   <strong data-i18n="Tab.Settings">Settings</strong> →
                 </button>
               </div>
+              <div id="DownloadProgressContainer" class="posterRotatorProgressBanner" style="display:none;">
+                <div class="posterRotatorProgressHeader">
+                  <span class="posterRotatorProgressTitle" data-i18n="Label.DownloadProgress">Downloading posters in progress</span>
+                  <span id="DownloadProgressText" class="posterRotatorProgressText">0%</span>
+                </div>
+                <div class="posterRotatorProgressBar">
+                  <div id="DownloadProgressFill" class="posterRotatorProgressFill" style="width: 0%;"></div>
+                </div>
+                <div id="DownloadProgressDetail" class="posterRotatorProgressDetail"></div>
+              </div>
               <h2 class="posterRotatorSectionTitle" data-i18n="Heading.PluginDataPools">PluginData pools</h2>
               <div class="posterRotatorToolbar">
                 <div class="inputContainer">
@@ -567,6 +611,38 @@
                     <option value="50" selected>50</option>
                     <option value="100">100</option>
                     <option value="200">200</option>
+                  </select>
+                </div>
+                <div class="inputContainer">
+                  <label class="selectLabel" for="PoolsCompletion" data-i18n="Label.StatusFilter">Status</label>
+                  <select id="PoolsCompletion" is="emby-select">
+                    <option value="" data-i18n="Option.AllStatuses">All pools</option>
+                    <option value="incomplete" data-i18n="Option.IncompletePools">Incomplete (&lt; Target)</option>
+                    <option value="complete" data-i18n="Option.CompletePools">Complete pools</option>
+                  </select>
+                </div>
+                <div class="inputContainer">
+                  <label class="selectLabel" for="PoolsLock" data-i18n="Label.LockFilter">Lock</label>
+                  <select id="PoolsLock" is="emby-select">
+                    <option value="" data-i18n="Option.AllLocks">All</option>
+                    <option value="locked" data-i18n="Option.LockedOnly">Locked only</option>
+                    <option value="unlocked" data-i18n="Option.UnlockedOnly">Unlocked only</option>
+                  </select>
+                </div>
+                <div class="inputContainer">
+                  <label class="selectLabel" for="PoolsSortBy" data-i18n="Label.SortBy">Sort by</label>
+                  <select id="PoolsSortBy" is="emby-select">
+                    <option value="updated" selected data-i18n="Option.SortUpdated">Date updated</option>
+                    <option value="name" data-i18n="Option.SortName">Alphabetical (A-Z)</option>
+                    <option value="images" data-i18n="Option.SortImages">Poster count</option>
+                    <option value="lastrotated" data-i18n="Option.SortLastRotated">Last rotation</option>
+                  </select>
+                </div>
+                <div class="inputContainer">
+                  <label class="selectLabel" for="PoolsSortOrder" data-i18n="Label.SortOrder">Order</label>
+                  <select id="PoolsSortOrder" is="emby-select">
+                    <option value="desc" selected data-i18n="Option.SortDesc">Descending</option>
+                    <option value="asc" data-i18n="Option.SortAsc">Ascending</option>
                   </select>
                 </div>
               </div>
@@ -653,6 +729,11 @@
                 <div class="posterRotatorDescription posterRotatorFieldHelp" data-i18n="Help.MaxRotationsPerRun">(0 = no count limit. The internal delay between changes is still respected.)</div>
                 <input id="MaxRotationsPerRun" type="number" min="0" max="100000" is="emby-input" value="500" />
               </div>
+              <div class="inputContainer">
+                <label class="inputLabel inputLabelUnfocused" for="MaxDownloadsPerRun" data-i18n="Label.MaxDownloadsPerRun">Maximum poster downloads per run</label>
+                <div class="posterRotatorDescription posterRotatorFieldHelp" data-i18n="Help.MaxDownloadsPerRun">(0 = no limit. Limits downloads per execution to prevent API rate limiting.)</div>
+                <input id="MaxDownloadsPerRun" type="number" min="0" max="100000" is="emby-input" value="250" />
+              </div>
             </div>
 
             <div class="posterRotatorFormGrid">
@@ -674,11 +755,21 @@
               </div>
             </div>
 
+            <div class="posterRotatorBand">
+              <h3 data-i18n="Heading.MediaTypes">Target media types</h3>
+              <div class="posterRotatorDescription posterRotatorFieldHelp" data-i18n="Help.MediaTypes">Choose which media kinds will have poster pools and rotations.</div>
+              <div class="posterRotatorActions">
+                <label class="emby-checkbox-label"><input id="EnableMoviePosters" type="checkbox" is="emby-checkbox" checked /><span data-i18n="Checkbox.MoviePosters">Movies</span></label>
+                <label class="emby-checkbox-label"><input id="EnableSeriesPosters" type="checkbox" is="emby-checkbox" checked /><span data-i18n="Checkbox.SeriesPosters">Series</span></label>
+                <label class="emby-checkbox-label"><input id="EnableBoxSetPosters" type="checkbox" is="emby-checkbox" checked /><span data-i18n="Checkbox.BoxSetPosters">Collections / Sagas</span></label>
+                <label class="emby-checkbox-label"><input id="EnableSeasonPosters" type="checkbox" is="emby-checkbox" /><span data-i18n="Checkbox.SeasonPosters">Seasons</span></label>
+                <label class="emby-checkbox-label"><input id="EnableEpisodePosters" type="checkbox" is="emby-checkbox" /><span data-i18n="Checkbox.EpisodePosters">Episodes</span></label>
+              </div>
+            </div>
+
             <div class="posterRotatorActions">
               <label class="emby-checkbox-label"><input id="SequentialRotation" type="checkbox" is="emby-checkbox" /><span data-i18n="Checkbox.SequentialRotation">Use posters in order</span></label>
               <label class="emby-checkbox-label"><input id="LockImagesAfterFill" type="checkbox" is="emby-checkbox" /><span data-i18n="Checkbox.LockImagesAfterFill">Lock full pools</span></label>
-              <label class="emby-checkbox-label"><input id="EnableSeasonPosters" type="checkbox" is="emby-checkbox" /><span data-i18n="Checkbox.SeasonPosters">Seasons</span></label>
-              <label class="emby-checkbox-label"><input id="EnableEpisodePosters" type="checkbox" is="emby-checkbox" /><span data-i18n="Checkbox.EpisodePosters">Episodes</span></label>
               <label class="emby-checkbox-label"><input id="BlockPrivateNetworkImageUrls" type="checkbox" is="emby-checkbox" /><span data-i18n="Checkbox.BlockPrivateUrls">Block private URLs</span></label>
               <label class="emby-checkbox-label"><input id="EnableDuplicateDetection" type="checkbox" is="emby-checkbox" /><span data-i18n="Checkbox.DuplicateDetection">Visual duplicates</span></label>
             </div>
@@ -1129,12 +1220,23 @@
           var library = textValue('PoolsLibrary', '');
           var type = byId('PoolsType') ? byId('PoolsType').value : '';
           var state = byId('PoolsState') ? byId('PoolsState').value : '';
+          var completion = byId('PoolsCompletion') ? byId('PoolsCompletion').value : '';
+          var lock = byId('PoolsLock') ? byId('PoolsLock').value : '';
+          var sortBy = byId('PoolsSortBy') ? byId('PoolsSortBy').value : 'updated';
+          var sortOrder = byId('PoolsSortOrder') ? byId('PoolsSortOrder').value : 'desc';
+
           if (query) params.push('query=' + encodeURIComponent(query));
           if (library) params.push('library=' + encodeURIComponent(library));
           if (type) params.push('type=' + encodeURIComponent(type));
           if (state === 'errors') params.push('hasErrors=true');
           if (state === 'empty') params.push('isEmpty=true');
           if (state === 'filled') params.push('isEmpty=false');
+          if (completion) params.push('completion=' + encodeURIComponent(completion));
+          if (lock === 'locked') params.push('isLocked=true');
+          if (lock === 'unlocked') params.push('isLocked=false');
+          if (sortBy) params.push('sortBy=' + encodeURIComponent(sortBy));
+          if (sortOrder) params.push('sortOrder=' + encodeURIComponent(sortOrder));
+
           params.push('start=' + encodeURIComponent(poolsState.start));
           params.push('limit=' + encodeURIComponent(poolsState.limit));
           return 'PosterRotator/Pools?' + params.join('&');
@@ -1436,11 +1538,68 @@
             });
         }
 
+        var downloadPollTimer = null;
+
+        function pollDownloadStatus() {
+          apiGet('PosterRotator/Pools/DownloadStatus')
+            .then(function (status) {
+              var isRunning = !!prop(status, 'IsRunning', 'isRunning', false);
+              var percent = Math.min(100, Math.max(0, prop(status, 'ProgressPercent', 'progressPercent', 0)));
+              var processed = prop(status, 'ProcessedCount', 'processedCount', 0);
+              var candidates = prop(status, 'TotalCandidates', 'totalCandidates', 0);
+              var images = prop(status, 'ImagesAdded', 'imagesAdded', 0);
+              var current = prop(status, 'CurrentItemName', 'currentItemName', '');
+              var banner = byId('DownloadProgressContainer');
+              var fill = byId('DownloadProgressFill');
+              var text = byId('DownloadProgressText');
+              var detail = byId('DownloadProgressDetail');
+
+              if (isRunning) {
+                if (banner) banner.style.display = 'block';
+                if (fill) fill.style.width = percent + '%';
+                if (text) text.textContent = percent + '%';
+                if (detail) {
+                  detail.textContent = tf('Status.DownloadProgress', percent, processed + ' / ' + candidates, images, current || t('Message.Unknown'));
+                }
+                setText('PoolsStatus', percent + '% (' + processed + '/' + candidates + ')');
+              } else {
+                if (downloadPollTimer) {
+                  clearInterval(downloadPollTimer);
+                  downloadPollTimer = null;
+                }
+                if (banner) banner.style.display = 'none';
+                setDisabled('DownloadMissingPoolsBtn', false);
+                Dashboard.hideLoadingMsg();
+                var message = prop(status, 'Message', 'message', '');
+                if (message) {
+                  setGlobalStatus(message);
+                  setText('PoolsStatus', message);
+                }
+                loadDiagnostics();
+                loadPools(false);
+              }
+            })
+            .catch(function () {
+              // Ignore polling failure
+            });
+        }
+
         function downloadMissingPoolsNow() {
           setDisabled('DownloadMissingPoolsBtn', true);
           setGlobalStatus(t('Message.DownloadStarting'));
           setText('PoolsStatus', t('Message.DownloadProgressive'));
-          Dashboard.showLoadingMsg();
+          var banner = byId('DownloadProgressContainer');
+          if (banner) banner.style.display = 'block';
+          var fill = byId('DownloadProgressFill');
+          if (fill) fill.style.width = '0%';
+          var text = byId('DownloadProgressText');
+          if (text) text.textContent = '0%';
+          var detail = byId('DownloadProgressDetail');
+          if (detail) detail.textContent = t('Message.DownloadStarting');
+
+          if (downloadPollTimer) clearInterval(downloadPollTimer);
+          downloadPollTimer = setInterval(pollDownloadStatus, 800);
+
           postJson('PosterRotator/Pools/DownloadMissing', {})
             .then(function (result) {
               var message = prop(result, 'Message', 'message', t('Message.DownloadFallback'));
@@ -1453,6 +1612,11 @@
               setText('PoolsStatus', t('Message.DownloadShortError'));
             })
             .finally(function () {
+              if (downloadPollTimer) {
+                clearInterval(downloadPollTimer);
+                downloadPollTimer = null;
+              }
+              if (banner) banner.style.display = 'none';
               setDisabled('DownloadMissingPoolsBtn', false);
               Dashboard.hideLoadingMsg();
             });
@@ -1485,8 +1649,12 @@
             .then(function (cfg) {
               byId('PoolStorageMode').value = String(storageModeValue(cfg.PoolStorageMode));
               byId('MaxRotationsPerRun').value = cfg.MaxRotationsPerRun ?? 500;
+              byId('MaxDownloadsPerRun').value = cfg.MaxDownloadsPerRun ?? 250;
               byId('SequentialRotation').checked = !!cfg.SequentialRotation;
               byId('LockImagesAfterFill').checked = !!cfg.LockImagesAfterFill;
+              byId('EnableMoviePosters').checked = cfg.EnableMoviePosters === undefined ? true : !!cfg.EnableMoviePosters;
+              byId('EnableSeriesPosters').checked = cfg.EnableSeriesPosters === undefined ? true : !!cfg.EnableSeriesPosters;
+              byId('EnableBoxSetPosters').checked = cfg.EnableBoxSetPosters === undefined ? true : !!cfg.EnableBoxSetPosters;
               byId('EnableSeasonPosters').checked = !!cfg.EnableSeasonPosters;
               byId('EnableEpisodePosters').checked = !!cfg.EnableEpisodePosters;
               byId('MinImageWidth').value = cfg.MinImageWidth ?? 500;
@@ -1517,8 +1685,12 @@
               cfg.InterfaceLanguage = interfaceLanguageValue(textValue('InterfaceLanguage', 'auto'));
               cfg.PoolStorageMode = storageModeValue(byId('PoolStorageMode').value);
               cfg.MaxRotationsPerRun = intValue('MaxRotationsPerRun', 500, 0, 100000);
+              cfg.MaxDownloadsPerRun = intValue('MaxDownloadsPerRun', 250, 0, 100000);
               cfg.SequentialRotation = boolValue('SequentialRotation', false);
               cfg.LockImagesAfterFill = boolValue('LockImagesAfterFill', false);
+              cfg.EnableMoviePosters = boolValue('EnableMoviePosters', true);
+              cfg.EnableSeriesPosters = boolValue('EnableSeriesPosters', true);
+              cfg.EnableBoxSetPosters = boolValue('EnableBoxSetPosters', true);
               cfg.EnableSeasonPosters = boolValue('EnableSeasonPosters', false);
               cfg.EnableEpisodePosters = boolValue('EnableEpisodePosters', false);
               cfg.MinImageWidth = intValue('MinImageWidth', 500, 0, 4000);
@@ -1706,7 +1878,7 @@
           if (purgeAllPoolsBtn) purgeAllPoolsBtn.addEventListener('click', purgeAllPools);
           var search = byId('PoolsSearch');
           if (search) search.addEventListener('input', debouncePools);
-          ['PoolsType', 'PoolsState'].forEach(function (id) {
+          ['PoolsType', 'PoolsState', 'PoolsCompletion', 'PoolsLock', 'PoolsSortBy', 'PoolsSortOrder'].forEach(function (id) {
             var el = byId(id);
             if (el) el.addEventListener('change', function () { updatePoolButtonStates(); loadPools(true); });
           });
@@ -1741,6 +1913,7 @@
 
         function load() {
           Dashboard.showLoadingMsg();
+          pollDownloadStatus();
           loadConfig()
             .then(function () { return Promise.all([loadDiagnostics(), loadPools(false)]); })
             .catch(function (err) {

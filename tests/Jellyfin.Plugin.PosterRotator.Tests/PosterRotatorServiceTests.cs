@@ -59,6 +59,27 @@ public class PosterRotatorServiceTests
     }
 
     [Fact]
+    public void RotationRunBudget_AllowsZeroDownloadLimitAsUnlimited()
+    {
+        var budget = new PosterRotatorService.RotationRunBudget(new Configuration
+        {
+            MaxRotationsPerRun = 1,
+            MaxDownloadsPerRun = 0,
+            MaxProviderLookupsPerRun = 0
+        });
+
+        for (var i = 0; i < 500; i++)
+        {
+            Assert.True(budget.TryUseDownloadSlot());
+            Assert.True(budget.TryUseProviderLookupSlot());
+        }
+
+        Assert.True(budget.HasDownloadSlots);
+        Assert.True(budget.HasProviderLookupSlots);
+        Assert.Equal(int.MaxValue, PosterRotatorService.NormalizeDownloadRunLimit(0, 250));
+    }
+
+    [Fact]
     public void RotationRunBudget_StopsDownloadWorkWhenEitherBudgetIsExhausted()
     {
         var budget = new PosterRotatorService.RotationRunBudget(new Configuration

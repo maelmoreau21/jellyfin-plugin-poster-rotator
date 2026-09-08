@@ -45,7 +45,7 @@ public sealed class WebConfigTests
         Assert.Contains("posterRotatorFieldHelp", html);
         Assert.DoesNotContain("Cadence", html);
         Assert.DoesNotContain("MaxProviderLookupsPerRun", html);
-        Assert.DoesNotContain("MaxDownloadsPerRun", html);
+        Assert.Contains("MaxDownloadsPerRun", html);
         Assert.DoesNotContain("ProcessingBatchSize", html);
         Assert.DoesNotContain("AutoCleanupOrphanedPools", html);
         Assert.DoesNotContain("CleanupIntervalDays", html);
@@ -164,6 +164,40 @@ public sealed class WebConfigTests
         Assert.Contains("cfg.Libraries = [];", html);
         Assert.Contains("getSelectedFilterLibraries", html);
         Assert.Contains("selected.push(opt.value);", html);
+    }
+
+    [Fact]
+    public void ConfigPage_SupportsJellyfin12Enhancements()
+    {
+        var html = LoadConfigHtml();
+
+        // Live progress bar
+        Assert.Contains("id=\"DownloadProgressContainer\"", html);
+        Assert.Contains("id=\"DownloadProgressFill\"", html);
+        Assert.Contains("id=\"DownloadProgressText\"", html);
+        Assert.Contains("pollDownloadStatus", html);
+        Assert.Contains("PosterRotator/Pools/DownloadStatus", html);
+
+        // Granular media types
+        Assert.Contains("id=\"EnableMoviePosters\"", html);
+        Assert.Contains("id=\"EnableSeriesPosters\"", html);
+        Assert.Contains("id=\"EnableBoxSetPosters\"", html);
+        Assert.Contains("cfg.EnableMoviePosters", html);
+        Assert.Contains("cfg.EnableSeriesPosters", html);
+        Assert.Contains("cfg.EnableBoxSetPosters", html);
+
+        // Sorting & Filtering
+        Assert.Contains("id=\"PoolsSortBy\"", html);
+        Assert.Contains("id=\"PoolsSortOrder\"", html);
+        Assert.Contains("id=\"PoolsCompletion\"", html);
+        Assert.Contains("id=\"PoolsLock\"", html);
+        Assert.Contains("params.push('sortBy='", html);
+        Assert.Contains("isLocked=true", html);
+        Assert.Contains("params.push('completion='", html);
+
+        // Download budget
+        Assert.Contains("id=\"MaxDownloadsPerRun\"", html);
+        Assert.Contains("cfg.MaxDownloadsPerRun", html);
     }
 
     private static string LoadConfigHtml()
