@@ -244,6 +244,19 @@ public class PosterRotatorService : IPosterRotatorService
             query.TopParentIds = topParentIds.ToArray();
 
         var itemIds = _library.GetItemIds(query).ToArray();
+        if (itemIds.Length == 0 && query.TopParentIds != null && query.TopParentIds.Length > 0)
+        {
+            _log.LogInformation("PosterRotator: query with TopParentIds returned 0 items; falling back to full library query.");
+            query.TopParentIds = Array.Empty<Guid>();
+            itemIds = _library.GetItemIds(query).ToArray();
+        }
+
+        if (itemIds.Length == 0)
+        {
+            _log.LogInformation("PosterRotator: query with IncludeItemTypes returned 0 items; falling back to recursive query.");
+            itemIds = _library.GetItemIds(new InternalItemsQuery { Recursive = true }).ToArray();
+        }
+
         ShuffleItemIds(itemIds);
         if (itemIds.Length == 0)
         {
@@ -291,6 +304,13 @@ public class PosterRotatorService : IPosterRotatorService
 
                 var item = TryGetItemById(itemId);
                 if (item == null)
+                {
+                    skippedCount++;
+                    progress?.Report(++done * 100.0 / Math.Max(1, total));
+                    continue;
+                }
+
+                if (!scope.Kinds.Any(kind => string.Equals(kind.ToString(), item.GetType().Name, StringComparison.OrdinalIgnoreCase)))
                 {
                     skippedCount++;
                     progress?.Report(++done * 100.0 / Math.Max(1, total));
