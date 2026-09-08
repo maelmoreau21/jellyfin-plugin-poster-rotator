@@ -394,7 +394,19 @@ public sealed class PoolStore
         var items = index.Pools.AsEnumerable();
 
         if (!string.IsNullOrWhiteSpace(query.Library))
-            items = items.Where(entry => entry.LibraryName.Equals(query.Library, StringComparison.OrdinalIgnoreCase));
+        {
+            var requestedLibraries = query.Library
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (requestedLibraries.Length > 1)
+            {
+                var librarySet = new HashSet<string>(requestedLibraries, StringComparer.OrdinalIgnoreCase);
+                items = items.Where(entry => librarySet.Contains(entry.LibraryName));
+            }
+            else
+            {
+                items = items.Where(entry => entry.LibraryName.Equals(query.Library, StringComparison.OrdinalIgnoreCase));
+            }
+        }
 
         if (!string.IsNullOrWhiteSpace(query.Type))
             items = items.Where(entry => entry.ItemType.Equals(query.Type, StringComparison.OrdinalIgnoreCase));

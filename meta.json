@@ -1,14 +1,14 @@
 {
   "category": "Metadata",
-  "changelog": "Compatibility: targets Jellyfin 12.0.0.0 stable release with plugin version 1.8.1.0. Fixes: resolves library list query in admin UI so library filtering can be configured, improves API request resilience with modern fetch fallback, and provides immediate visual loading feedback when downloading missing pools. Dependencies: updates to Jellyfin 12.0.0 stable and 10.11.11 fallback.",
+  "changelog": "Compatibility: targets Jellyfin 12.0.0.0 stable release with plugin version 1.8.2.0. Fixes: resolves library selection by replacing single-select with multi-library selection, adding select all/deselect all buttons, selected count badge, multi-library filter in pools view, and direct settings navigation. Dependencies: updates to Jellyfin 12.0.0 stable and 10.11.11 fallback.",
   "description": "Fill a local poster pool per movie from providers, then periodically rotate the Primary Poster image from the pool. This keeps Jellyfin looking fresh with rotating poster images on an interval of your choosing.",
   "guid": "7f6eea8b-0e9c-4cbd-9d2a-31f9a37ce2b7",
   "name": "Poster Rotator",
   "overview": "Pool-then-rotate posters with optional locking.",
   "owner": "Mael",
   "targetAbi": "12.0.0.0",
-  "timestamp": "2026-09-08T18:56:00Z",
-  "version": "1.8.1.0",
+  "timestamp": "2026-09-08T19:25:00Z",
+  "version": "1.8.2.0",
   "imagePath": "jellyfin-plugin-posterrotator.png",
   "assemblies": [
     "Jellyfin.Plugin.PosterRotator.dll"

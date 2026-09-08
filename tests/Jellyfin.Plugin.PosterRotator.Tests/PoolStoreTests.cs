@@ -147,6 +147,41 @@ public sealed class PoolStoreTests
     }
 
     [Fact]
+    public async Task ListPoolsAsync_FiltersMultipleLibrariesCommaSeparated()
+    {
+        var root = CreateTempPluginDataFolder();
+        var filmId = Guid.NewGuid();
+        var seriesId = Guid.NewGuid();
+        var animeId = Guid.NewGuid();
+
+        try
+        {
+            var store = new PoolStore(root);
+            await CreatePool(store, root, filmId, "Inception", "Films");
+            await CreatePool(store, root, seriesId, "Breaking Bad", "Series");
+            await CreatePool(store, root, animeId, "Attack on Titan", "Anime");
+
+            var multiple = await store.ListPoolsAsync(new PoolListQuery { Library = "Films, Series" }, CancellationToken.None);
+            var single = await store.ListPoolsAsync(new PoolListQuery { Library = "Anime" }, CancellationToken.None);
+            var all = await store.ListPoolsAsync(new PoolListQuery(), CancellationToken.None);
+
+            Assert.Equal(2, multiple.Total);
+            Assert.Contains(multiple.Items, i => i.ItemId == filmId.ToString());
+            Assert.Contains(multiple.Items, i => i.ItemId == seriesId.ToString());
+            Assert.DoesNotContain(multiple.Items, i => i.ItemId == animeId.ToString());
+
+            Assert.Single(single.Items);
+            Assert.Equal(animeId.ToString(), single.Items[0].ItemId);
+
+            Assert.Equal(3, all.Total);
+        }
+        finally
+        {
+            DeleteTempRoot(root);
+        }
+    }
+
+    [Fact]
     public async Task ListPoolsAsync_AutoRebuildsMissingIndexWhenPoolDirectoriesExist()
     {
         var root = CreateTempPluginDataFolder();

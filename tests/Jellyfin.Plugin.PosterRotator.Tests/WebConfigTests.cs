@@ -150,6 +150,22 @@ public sealed class WebConfigTests
         Assert.Contains("data-image-delete", html);
     }
 
+    [Fact]
+    public void ConfigPage_SupportsMultiLibrarySelection()
+    {
+        var html = LoadConfigHtml();
+
+        Assert.Contains("<select id=\"PoolsLibrary\" is=\"emby-select\" multiple", html);
+        Assert.Contains("id=\"PoolsLibAllBtn\"", html);
+        Assert.Contains("id=\"PoolsLibNoneBtn\"", html);
+        Assert.Contains("id=\"SelectAllLibrariesBtn\"", html);
+        Assert.Contains("id=\"DeselectAllLibrariesBtn\"", html);
+        Assert.Contains("id=\"LibrarySelectionCount\"", html);
+        Assert.Contains("cfg.Libraries = [];", html);
+        Assert.Contains("getSelectedFilterLibraries", html);
+        Assert.Contains("selected.push(opt.value);", html);
+    }
+
     private static string LoadConfigHtml()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
