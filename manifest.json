@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/maelmoreau21/jellyfin-plugin-poster-rotator/refs/heads/main/jellyfin-plugin-posterrotator.png",
     "versions": [
       {
+        "version": "1.8.3.0",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/maelmoreau21/jellyfin-plugin-poster-rotator/releases/download/v1.8.3.0/Jellyfin.Plugin.PosterRotator-1.8.3.0.zip",
+        "checksum": "e1db4211d266fedafaeb8cf7d237e085",
+        "timestamp": "2026-09-08T20:06:00Z",
+        "changelog": "Compatibility: targets Jellyfin 12.0.0.0 stable release with plugin version 1.8.3.0. Fixes: resolves library manager item resolution when TopParentIds returns empty on Jellyfin 12, ensures robust path matching against selected libraries, filters valid item kinds, and clarifies pool storage modes."
+      },
+      {
         "version": "1.8.2.0",
         "targetAbi": "12.0.0.0",
         "sourceUrl": "https://github.com/maelmoreau21/jellyfin-plugin-poster-rotator/releases/download/v1.8.2.0/Jellyfin.Plugin.PosterRotator-1.8.2.0.zip",
