@@ -681,16 +681,78 @@
         function unwrap(res) {
           return res && typeof res.json === 'function' ? res.json() : res;
         }
+        function authHeaders(headers) {
+          headers = headers || {};
+          var token = apiToken();
+          if (token) {
+            headers['Authorization'] = 'MediaBrowser Client="Jellyfin Web", Device="Jellyfin Web", DeviceId="JellyfinWeb", Version="12.0.0", Token="' + token + '"';
+          }
+          return headers;
+        }
         function apiGet(path) {
-          return ApiClient.get(ApiClient.getUrl(path)).then(unwrap);
+          var url = ApiClient.getUrl(path);
+          if (typeof ApiClient.get === 'function') {
+            return ApiClient.get(url).then(unwrap);
+          }
+          if (typeof ApiClient.fetch === 'function') {
+            return ApiClient.fetch(url).then(unwrap);
+          }
+          return fetch(url, { headers: authHeaders() }).then(function (res) {
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            return res.json();
+          });
         }
         function postJson(path, payload) {
-          return ApiClient.ajax({
-            type: 'POST',
-            url: ApiClient.getUrl(path),
-            contentType: 'application/json',
-            data: JSON.stringify(payload || {}),
-            dataType: 'json'
+          var url = ApiClient.getUrl(path);
+          if (typeof ApiClient.post === 'function') {
+            return ApiClient.post(url, payload || {});
+          }
+          if (typeof ApiClient.fetch === 'function') {
+            return ApiClient.fetch(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload || {})
+            }).then(unwrap);
+          }
+          if (typeof ApiClient.ajax === 'function') {
+            return ApiClient.ajax({
+              type: 'POST',
+              url: url,
+              contentType: 'application/json',
+              data: JSON.stringify(payload || {}),
+              dataType: 'json'
+            });
+          }
+          return fetch(url, {
+            method: 'POST',
+            headers: authHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify(payload || {})
+          }).then(function (res) {
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            return res.json();
+          });
+        }
+        function apiDelete(path) {
+          var url = ApiClient.getUrl(path);
+          if (typeof ApiClient.delete === 'function') {
+            return ApiClient.delete(url).then(unwrap);
+          }
+          if (typeof ApiClient.fetch === 'function') {
+            return ApiClient.fetch(url, { method: 'DELETE' }).then(unwrap);
+          }
+          if (typeof ApiClient.ajax === 'function') {
+            return ApiClient.ajax({
+              type: 'DELETE',
+              url: url,
+              dataType: 'json'
+            });
+          }
+          return fetch(url, {
+            method: 'DELETE',
+            headers: authHeaders()
+          }).then(function (res) {
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            return res.json().catch(function () { return {}; });
           });
         }
         function setGlobalStatus(text) {
@@ -808,10 +870,14 @@
         }
 
         function loadLibraries(cfg) {
-          return ApiClient.get('/Library/VirtualFolders')
+          var getFoldersPromise = typeof ApiClient.getVirtualFolders === 'function'
+            ? ApiClient.getVirtualFolders()
+            : apiGet('Library/VirtualFolders');
+
+          return Promise.resolve(getFoldersPromise)
             .then(unwrap)
             .then(function (res) {
-              var folders = Array.isArray(res) ? res : (res.Items || []);
+              var folders = Array.isArray(res) ? res : ((res && res.Items) || []);
               libraryNames = folders.map(getFolderName)
                 .filter(Boolean)
                 .filter(function (name, index, arr) { return arr.indexOf(name) === index; })
@@ -1075,14 +1141,28 @@
           }
           var form = new FormData();
           form.append('file', fileInput.files[0]);
-          ApiClient.ajax({
-            type: 'POST',
-            url: ApiClient.getUrl('PosterRotator/Pools/' + encodeURIComponent(poolsState.selectedItemId) + '/Images'),
-            data: form,
-            processData: false,
-            contentType: false,
-            dataType: 'json'
-          }).then(function () {
+          var url = ApiClient.getUrl('PosterRotator/Pools/' + encodeURIComponent(poolsState.selectedItemId) + '/Images');
+          var uploadPromise = typeof ApiClient.fetch === 'function'
+            ? ApiClient.fetch(url, { method: 'POST', body: form }).then(unwrap)
+            : (typeof ApiClient.ajax === 'function'
+              ? ApiClient.ajax({
+                  type: 'POST',
+                  url: url,
+                  data: form,
+                  processData: false,
+                  contentType: false,
+                  dataType: 'json'
+                })
+              : fetch(url, {
+                  method: 'POST',
+                  headers: authHeaders(),
+                  body: form
+                }).then(function (res) {
+                  if (!res.ok) throw new Error('HTTP ' + res.status);
+                  return res.json();
+                }));
+
+          uploadPromise.then(function () {
             fileInput.value = '';
             return openPool(poolsState.selectedItemId).then(function () { return loadDiagnostics(); });
           }).catch(function () {
@@ -1093,20 +1173,19 @@
         function deletePoolImage(fileName) {
           if (!poolsState.selectedItemId || !fileName) return;
           if (!confirm(t('Message.ConfirmImageDelete'))) return;
-          ApiClient.ajax({
-            type: 'DELETE',
-            url: ApiClient.getUrl('PosterRotator/Pools/' + encodeURIComponent(poolsState.selectedItemId) + '/Images/' + encodeURIComponent(fileName)),
-            dataType: 'json'
-          }).then(function () {
-            return openPool(poolsState.selectedItemId).then(function () { return loadDiagnostics(); });
-          }).catch(function () {
-            alert(t('Message.DeleteError'));
-          });
+          apiDelete('PosterRotator/Pools/' + encodeURIComponent(poolsState.selectedItemId) + '/Images/' + encodeURIComponent(fileName))
+            .then(function () {
+              return openPool(poolsState.selectedItemId).then(function () { return loadDiagnostics(); });
+            }).catch(function () {
+              alert(t('Message.DeleteError'));
+            });
         }
 
         function downloadMissingPoolsNow() {
+          setDisabled('DownloadMissingPoolsBtn', true);
           setGlobalStatus(t('Message.DownloadStarting'));
           setText('PoolsStatus', t('Message.DownloadProgressive'));
+          Dashboard.showLoadingMsg();
           postJson('PosterRotator/Pools/DownloadMissing', {})
             .then(function (result) {
               var message = prop(result, 'Message', 'message', t('Message.DownloadFallback'));
@@ -1117,6 +1196,10 @@
             .catch(function () {
               setGlobalStatus(t('Message.DownloadError'));
               setText('PoolsStatus', t('Message.DownloadShortError'));
+            })
+            .finally(function () {
+              setDisabled('DownloadMissingPoolsBtn', false);
+              Dashboard.hideLoadingMsg();
             });
         }
 

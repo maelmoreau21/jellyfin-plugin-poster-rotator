@@ -1,14 +1,14 @@
 {
   "category": "Metadata",
-  "changelog": "Compatibility: targets Jellyfin 12.0.0.0 beta with plugin version 1.8.0.0. Localization: adds a global interface language setting with Same as Jellyfin, English, and French, localizes the admin page, visible API messages, and scheduled task names/descriptions while keeping task keys stable. Interface: keeps all pool management, language filtering, security, pagination, and rotation controls from 1.7.0.0. Packaging: includes a local plugin image for manual zip installs.",
+  "changelog": "Compatibility: targets Jellyfin 12.0.0.0 stable release with plugin version 1.8.1.0. Fixes: resolves library list query in admin UI so library filtering can be configured, improves API request resilience with modern fetch fallback, and provides immediate visual loading feedback when downloading missing pools. Dependencies: updates to Jellyfin 12.0.0 stable and 10.11.11 fallback.",
   "description": "Fill a local poster pool per movie from providers, then periodically rotate the Primary Poster image from the pool. This keeps Jellyfin looking fresh with rotating poster images on an interval of your choosing.",
   "guid": "7f6eea8b-0e9c-4cbd-9d2a-31f9a37ce2b7",
   "name": "Poster Rotator",
   "overview": "Pool-then-rotate posters with optional locking.",
   "owner": "Mael",
   "targetAbi": "12.0.0.0",
-  "timestamp": "2026-05-26T18:00:21Z",
-  "version": "1.8.0.0",
+  "timestamp": "2026-09-08T18:56:00Z",
+  "version": "1.8.1.0",
   "imagePath": "jellyfin-plugin-posterrotator.png",
   "assemblies": [
     "Jellyfin.Plugin.PosterRotator.dll"
