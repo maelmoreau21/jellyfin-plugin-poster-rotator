@@ -551,13 +551,6 @@
 
           <div class="posterRotatorGrid">
             <div class="posterRotatorBand">
-              <div class="posterRotatorTipBanner">
-                <span class="posterRotatorTipIcon">💡</span>
-                <span data-i18n="Help.ConfigureLibrariesTip">To configure which libraries Poster Rotator automatically processes in the background, visit</span>
-                <button type="button" id="GoToSettingsLibrariesBtn" class="posterRotatorLinkBtn">
-                  <strong data-i18n="Tab.Settings">Settings</strong> →
-                </button>
-              </div>
               <div id="DownloadProgressContainer" class="posterRotatorProgressBanner" style="display:none;">
                 <div class="posterRotatorProgressHeader">
                   <span class="posterRotatorProgressTitle" data-i18n="Label.DownloadProgress">Downloading posters in progress</span>
@@ -596,14 +589,16 @@
                   </select>
                 </div>
                 <div class="inputContainer">
-                  <label class="selectLabel" for="PoolsState" data-i18n="Label.State">State</label>
-                  <select id="PoolsState" is="emby-select">
-                    <option value="" data-i18n="Option.AllStates">All</option>
-                    <option value="errors" data-i18n="Option.Errors">With errors</option>
+                  <label class="selectLabel" for="PoolsCompletion" data-i18n="Label.StatusFilter">Status</label>
+                  <select id="PoolsCompletion" is="emby-select">
+                    <option value="" data-i18n="Option.AllStatuses">All pools</option>
+                    <option value="complete" data-i18n="Option.CompletePools">Complete pools</option>
+                    <option value="incomplete" data-i18n="Option.IncompletePools">Incomplete (&lt; Target)</option>
                     <option value="empty" data-i18n="Option.Empty">Empty</option>
-                    <option value="filled" data-i18n="Option.Filled">With images</option>
+                    <option value="errors" data-i18n="Option.Errors">With errors</option>
                   </select>
                 </div>
+                <input type="hidden" id="PoolsState" value="" />
                 <div class="inputContainer">
                   <label class="selectLabel" for="PoolsLimit" data-i18n="Label.PageSize">Per page</label>
                   <select id="PoolsLimit" is="emby-select">
@@ -611,14 +606,6 @@
                     <option value="50" selected>50</option>
                     <option value="100">100</option>
                     <option value="200">200</option>
-                  </select>
-                </div>
-                <div class="inputContainer">
-                  <label class="selectLabel" for="PoolsCompletion" data-i18n="Label.StatusFilter">Status</label>
-                  <select id="PoolsCompletion" is="emby-select">
-                    <option value="" data-i18n="Option.AllStatuses">All pools</option>
-                    <option value="incomplete" data-i18n="Option.IncompletePools">Incomplete (&lt; Target)</option>
-                    <option value="complete" data-i18n="Option.CompletePools">Complete pools</option>
                   </select>
                 </div>
                 <div class="inputContainer">
@@ -697,6 +684,7 @@
                 <input id="PoolUploadFile" class="posterRotatorHiddenInput" type="file"
                   accept=".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif" />
                 <button id="UploadPoolImageBtn" type="button" class="raised emby-button" data-i18n="Button.Upload">Import</button>
+                <button id="DeleteCurrentPoolBtn" type="button" class="raised button-cancel emby-button" data-i18n="Button.DeleteCurrentPool">Delete this pool</button>
               </div>
               <div id="PoolImages" class="posterRotatorThumbs"></div>
             </div>
@@ -717,6 +705,16 @@
                 </select>
               </div>
               <div class="inputContainer">
+                <label class="inputLabel inputLabelUnfocused" for="PoolSize" data-i18n="Label.PoolSize">Pool size (posters per item)</label>
+                <div class="posterRotatorDescription posterRotatorFieldHelp" data-i18n="Help.PoolSize">Number of posters to collect and rotate for each item (default: 4, min: 1, max: 50).</div>
+                <input id="PoolSize" type="number" min="1" max="50" is="emby-input" value="4" />
+              </div>
+              <div class="inputContainer">
+                <label class="inputLabel inputLabelUnfocused" for="MinHoursBetweenSwitches" data-i18n="Label.MinHoursBetweenSwitches">Minimum delay between rotations (hours)</label>
+                <div class="posterRotatorDescription posterRotatorFieldHelp" data-i18n="Help.MinHoursBetweenSwitches">Cooldown before a poster can rotate again (default: 72 hours / 3 days. Set to 0 to allow rotation at every run).</div>
+                <input id="MinHoursBetweenSwitches" type="number" min="0" max="8760" is="emby-input" value="72" />
+              </div>
+              <div class="inputContainer">
                 <label class="selectLabel" for="PoolStorageMode" data-i18n="Label.PoolStorage">Pool storage</label>
                 <select id="PoolStorageMode" is="emby-select">
                   <option value="0">PluginData</option>
@@ -724,6 +722,9 @@
                 </select>
                 <div class="posterRotatorDescription posterRotatorFieldHelp" data-i18n="Help.PoolStorage">PluginData (recommended) stores posters centrally and enables dashboard browsing and management. Media folders stores posters in .poster_pool next to video files (not displayed in the web dashboard list).</div>
               </div>
+            </div>
+
+            <div class="posterRotatorFormGrid">
               <div class="inputContainer">
                 <label class="inputLabel inputLabelUnfocused" for="MaxRotationsPerRun" data-i18n="Label.MaxRotationsPerRun">Maximum posters to change per run</label>
                 <div class="posterRotatorDescription posterRotatorFieldHelp" data-i18n="Help.MaxRotationsPerRun">(0 = no count limit. The internal delay between changes is still respected.)</div>
@@ -733,25 +734,6 @@
                 <label class="inputLabel inputLabelUnfocused" for="MaxDownloadsPerRun" data-i18n="Label.MaxDownloadsPerRun">Maximum poster downloads per run</label>
                 <div class="posterRotatorDescription posterRotatorFieldHelp" data-i18n="Help.MaxDownloadsPerRun">(0 = no limit. Limits downloads per execution to prevent API rate limiting.)</div>
                 <input id="MaxDownloadsPerRun" type="number" min="0" max="100000" is="emby-input" value="250" />
-              </div>
-            </div>
-
-            <div class="posterRotatorFormGrid">
-              <div class="inputContainer">
-                <label class="inputLabel inputLabelUnfocused" for="MaxDownloadMegabytes" data-i18n="Label.MaxImageSize">Max image size (MB)</label>
-                <input id="MaxDownloadMegabytes" type="number" min="1" max="200" is="emby-input" value="25" />
-              </div>
-              <div class="inputContainer">
-                <label class="inputLabel inputLabelUnfocused" for="MinImageWidth" data-i18n="Label.MinWidth">Minimum width</label>
-                <input id="MinImageWidth" type="number" min="0" max="4000" is="emby-input" value="500" />
-              </div>
-              <div class="inputContainer">
-                <label class="inputLabel inputLabelUnfocused" for="MinImageHeight" data-i18n="Label.MinHeight">Minimum height</label>
-                <input id="MinImageHeight" type="number" min="0" max="4000" is="emby-input" value="750" />
-              </div>
-              <div class="inputContainer">
-                <label class="inputLabel inputLabelUnfocused" for="ExtraPosterPatterns" data-i18n="Label.ExtraPatterns">Additional patterns</label>
-                <input id="ExtraPosterPatterns" type="text" is="emby-input" placeholder="folder.jpg, alt-*.png" />
               </div>
             </div>
 
@@ -791,34 +773,54 @@
             </div>
 
             <div class="posterRotatorBand">
-              <h3 data-i18n="Heading.PosterLanguages">Poster languages</h3>
-              <label class="emby-checkbox-label"><input id="EnableLanguageFilter" type="checkbox" is="emby-checkbox" /><span data-i18n="Checkbox.FilterByLanguage">Filter by language</span></label>
+              <h3 data-i18n="Heading.ImageQuality">Image Quality &amp; Downloads</h3>
               <div class="posterRotatorFormGrid">
                 <div class="inputContainer">
-                  <label class="inputLabel inputLabelUnfocused" for="PreferredLanguage" data-i18n="Label.PreferredLanguage">Preferred language</label>
-                  <input id="PreferredLanguage" type="text" is="emby-input" value="fr" placeholder="fr" />
+                  <label class="inputLabel inputLabelUnfocused" for="MaxDownloadMegabytes" data-i18n="Label.MaxImageSize">Max image size (MB)</label>
+                  <input id="MaxDownloadMegabytes" type="number" min="1" max="200" is="emby-input" value="25" />
                 </div>
                 <div class="inputContainer">
-                  <label class="inputLabel inputLabelUnfocused" for="MaxPreferredLanguageImages" data-i18n="Label.MaxPreferredLanguageImages">Max preferred-language posters per pool</label>
-                  <input id="MaxPreferredLanguageImages" type="number" min="0" max="10" is="emby-input" value="2" />
+                  <label class="inputLabel inputLabelUnfocused" for="MinImageWidth" data-i18n="Label.MinWidth">Minimum width</label>
+                  <input id="MinImageWidth" type="number" min="0" max="4000" is="emby-input" value="500" />
                 </div>
                 <div class="inputContainer">
-                  <label class="inputLabel inputLabelUnfocused" for="FallbackLanguage" data-i18n="Label.FallbackLanguage">Fallback language</label>
-                  <input id="FallbackLanguage" type="text" is="emby-input" value="en" placeholder="en" />
-                </div>
-                <div class="inputContainer">
-                  <label class="selectLabel" for="FallbackMode" data-i18n="Label.FallbackMode">Fallback order</label>
-                  <select id="FallbackMode" is="emby-select">
-                    <option value="0" data-i18n="Option.OriginalThenConfigured">Original language, then fallback</option>
-                    <option value="1" data-i18n="Option.ConfiguredThenOriginal">Fallback, then original language</option>
-                    <option value="2" data-i18n="Option.OriginalOnly">Original language only</option>
-                    <option value="3" data-i18n="Option.ConfiguredOnly">Fallback only</option>
-                  </select>
+                  <label class="inputLabel inputLabelUnfocused" for="MinImageHeight" data-i18n="Label.MinHeight">Minimum height</label>
+                  <input id="MinImageHeight" type="number" min="0" max="4000" is="emby-input" value="750" />
                 </div>
               </div>
-              <div class="posterRotatorActions">
-                <label class="emby-checkbox-label"><input id="IncludeUnknownLanguage" type="checkbox" is="emby-checkbox" /><span data-i18n="Checkbox.IncludeUnknownLanguage">Include images without language</span></label>
-                <label class="emby-checkbox-label"><input id="AllowAnyLanguageFallback" type="checkbox" is="emby-checkbox" /><span data-i18n="Checkbox.AllowAnyLanguageFallback">Allow any language as a last resort</span></label>
+            </div>
+
+            <div class="posterRotatorBand">
+              <h3 data-i18n="Heading.PosterLanguages">Poster languages</h3>
+              <label class="emby-checkbox-label"><input id="EnableLanguageFilter" type="checkbox" is="emby-checkbox" /><span data-i18n="Checkbox.FilterByLanguage">Filter by language</span></label>
+              <div id="LanguageFilterOptions">
+                <div class="posterRotatorFormGrid">
+                  <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="PreferredLanguage" data-i18n="Label.PreferredLanguage">Preferred language</label>
+                    <input id="PreferredLanguage" type="text" is="emby-input" value="fr" placeholder="fr" />
+                  </div>
+                  <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="MaxPreferredLanguageImages" data-i18n="Label.MaxPreferredLanguageImages">Max preferred-language posters per pool</label>
+                    <input id="MaxPreferredLanguageImages" type="number" min="0" max="10" is="emby-input" value="2" />
+                  </div>
+                  <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="FallbackLanguage" data-i18n="Label.FallbackLanguage">Fallback language</label>
+                    <input id="FallbackLanguage" type="text" is="emby-input" value="en" placeholder="en" />
+                  </div>
+                  <div class="inputContainer">
+                    <label class="selectLabel" for="FallbackMode" data-i18n="Label.FallbackMode">Fallback order</label>
+                    <select id="FallbackMode" is="emby-select">
+                      <option value="0" data-i18n="Option.OriginalThenConfigured">Original language, then fallback</option>
+                      <option value="1" data-i18n="Option.ConfiguredThenOriginal">Fallback, then original language</option>
+                      <option value="2" data-i18n="Option.OriginalOnly">Original language only</option>
+                      <option value="3" data-i18n="Option.ConfiguredOnly">Fallback only</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="posterRotatorActions">
+                  <label class="emby-checkbox-label"><input id="IncludeUnknownLanguage" type="checkbox" is="emby-checkbox" /><span data-i18n="Checkbox.IncludeUnknownLanguage">Include images without language</span></label>
+                  <label class="emby-checkbox-label"><input id="AllowAnyLanguageFallback" type="checkbox" is="emby-checkbox" /><span data-i18n="Checkbox.AllowAnyLanguageFallback">Allow any language as a last resort</span></label>
+                </div>
               </div>
             </div>
 
@@ -1228,10 +1230,10 @@
           if (query) params.push('query=' + encodeURIComponent(query));
           if (library) params.push('library=' + encodeURIComponent(library));
           if (type) params.push('type=' + encodeURIComponent(type));
-          if (state === 'errors') params.push('hasErrors=true');
-          if (state === 'empty') params.push('isEmpty=true');
+          if (completion === 'errors' || state === 'errors') params.push('hasErrors=true');
+          if (completion === 'empty' || state === 'empty') params.push('isEmpty=true');
           if (state === 'filled') params.push('isEmpty=false');
-          if (completion) params.push('completion=' + encodeURIComponent(completion));
+          if (completion === 'complete' || completion === 'incomplete') params.push('completion=' + encodeURIComponent(completion));
           if (lock === 'locked') params.push('isLocked=true');
           if (lock === 'unlocked') params.push('isLocked=false');
           if (sortBy) params.push('sortBy=' + encodeURIComponent(sortBy));
@@ -1252,6 +1254,7 @@
           setDisabled('PurgeItemBtn', !hasSelectedPool);
           setDisabled('RotatePoolBtn', !hasSelectedPool);
           setDisabled('UploadPoolImageBtn', !hasSelectedPool);
+          setDisabled('DeleteCurrentPoolBtn', !hasSelectedPool);
         }
 
         function markSelectedPoolRow() {
@@ -1408,6 +1411,20 @@
             .catch(function () { alert(t('Message.RotatePoolError')); });
         }
 
+        function deleteCurrentPool() {
+          if (!poolsState.selectedItemId) return;
+          if (!confirm(t('Message.ConfirmDeleteCurrentPool'))) return;
+          postJson('PosterRotator/Purge', { Scope: 'item', ItemId: poolsState.selectedItemId })
+            .then(function (result) {
+              alert(tf('Message.PurgeResult', prop(result, 'DeletedCount', 'deletedCount', 0)));
+              var detail = byId('PoolDetail');
+              if (detail) detail.style.display = 'none';
+              poolsState.selectedItemId = null;
+              return refreshAll(true);
+            })
+            .catch(function () { alert(t('Message.PurgeError')); });
+        }
+
         function rotateLibrary() {
           var selectedLibs = getSelectedFilterLibraries();
           if (!selectedLibs.length) {
@@ -1415,8 +1432,12 @@
             if (raw) selectedLibs = raw.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
           }
           if (!selectedLibs.length) {
-            alert(t('Message.SelectLibrary'));
-            return;
+            if (libraryNames.length && confirm(t('Message.RotateAllLibrariesConfirm'))) {
+              selectedLibs = libraryNames.slice();
+            } else {
+              alert(t('Message.SelectLibrary'));
+              return;
+            }
           }
           setDisabled('RotateLibraryBtn', true);
           Dashboard.showLoadingMsg();
@@ -1638,6 +1659,15 @@
             });
         }
 
+        function updateLanguageFilterVisibility() {
+          var enabled = boolValue('EnableLanguageFilter', false);
+          var group = byId('LanguageFilterOptions');
+          if (group) {
+            group.style.opacity = enabled ? '1' : '0.45';
+            group.style.pointerEvents = enabled ? 'auto' : 'none';
+          }
+        }
+
         function loadConfig() {
           return ApiClient.getPluginConfiguration(pluginId)
             .then(function (cfg) {
@@ -1648,6 +1678,8 @@
             })
             .then(function (cfg) {
               byId('PoolStorageMode').value = String(storageModeValue(cfg.PoolStorageMode));
+              byId('PoolSize').value = cfg.PoolSize ?? 4;
+              byId('MinHoursBetweenSwitches').value = cfg.MinHoursBetweenSwitches ?? 72;
               byId('MaxRotationsPerRun').value = cfg.MaxRotationsPerRun ?? 500;
               byId('MaxDownloadsPerRun').value = cfg.MaxDownloadsPerRun ?? 250;
               byId('SequentialRotation').checked = !!cfg.SequentialRotation;
@@ -1663,6 +1695,7 @@
               byId('BlockPrivateNetworkImageUrls').checked = cfg.BlockPrivateNetworkImageUrls === undefined ? true : !!cfg.BlockPrivateNetworkImageUrls;
               byId('EnableDuplicateDetection').checked = cfg.EnableDuplicateDetection === undefined ? true : !!cfg.EnableDuplicateDetection;
               byId('EnableLanguageFilter').checked = !!cfg.EnableLanguageFilter;
+              updateLanguageFilterVisibility();
               byId('PreferredLanguage').value = cfg.PreferredLanguage ?? 'fr';
               byId('MaxPreferredLanguageImages').value = cfg.MaxPreferredLanguageImages ?? 2;
               byId('FallbackLanguage').value = cfg.FallbackLanguage ?? 'en';
@@ -1671,7 +1704,6 @@
               byId('FallbackMode').value = String(fallbackModeValue(fallbackMode));
               byId('IncludeUnknownLanguage').checked = cfg.IncludeUnknownLanguage === undefined ? true : !!cfg.IncludeUnknownLanguage;
               byId('AllowAnyLanguageFallback').checked = cfg.AllowAnyLanguageFallback === undefined ? true : !!cfg.AllowAnyLanguageFallback;
-              byId('ExtraPosterPatterns').value = Array.isArray(cfg.ExtraPosterPatterns) ? cfg.ExtraPosterPatterns.join(', ') : '';
               return loadLibraries(cfg);
             });
         }
@@ -1684,6 +1716,8 @@
               cfg = cfg || {};
               cfg.InterfaceLanguage = interfaceLanguageValue(textValue('InterfaceLanguage', 'auto'));
               cfg.PoolStorageMode = storageModeValue(byId('PoolStorageMode').value);
+              cfg.PoolSize = intValue('PoolSize', 4, 1, 50);
+              cfg.MinHoursBetweenSwitches = intValue('MinHoursBetweenSwitches', 72, 0, 8760);
               cfg.MaxRotationsPerRun = intValue('MaxRotationsPerRun', 500, 0, 100000);
               cfg.MaxDownloadsPerRun = intValue('MaxDownloadsPerRun', 250, 0, 100000);
               cfg.SequentialRotation = boolValue('SequentialRotation', false);
@@ -1705,10 +1739,6 @@
               cfg.FallbackMode = fallbackModeValue(byId('FallbackMode').value);
               cfg.IncludeUnknownLanguage = boolValue('IncludeUnknownLanguage', true);
               cfg.AllowAnyLanguageFallback = boolValue('AllowAnyLanguageFallback', true);
-              cfg.ExtraPosterPatterns = textValue('ExtraPosterPatterns', '')
-                .split(',')
-                .map(function (value) { return value.trim(); })
-                .filter(Boolean);
               cfg.ManualLibraryRoots = [];
               cfg.LibraryRules = [];
               cfg.Libraries = [];
@@ -1909,6 +1939,10 @@
           if (purgeLibraryBtn) purgeLibraryBtn.addEventListener('click', function () { purge('library'); });
           var purgeItemBtn = byId('PurgeItemBtn');
           if (purgeItemBtn) purgeItemBtn.addEventListener('click', function () { purge('item'); });
+          var deleteCurrentPoolBtn = byId('DeleteCurrentPoolBtn');
+          if (deleteCurrentPoolBtn) deleteCurrentPoolBtn.addEventListener('click', deleteCurrentPool);
+          var enableLanguageFilter = byId('EnableLanguageFilter');
+          if (enableLanguageFilter) enableLanguageFilter.addEventListener('change', updateLanguageFilterVisibility);
         }
 
         function load() {

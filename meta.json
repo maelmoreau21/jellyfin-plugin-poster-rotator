@@ -1,14 +1,14 @@
 {
   "category": "Metadata",
-  "changelog": "Compatibility: targets Jellyfin 12.0.0.0 stable release with plugin version 1.8.4.0. Features: live download progress tracking with status polling, download budget configuration, granular media type selection (movies, series, collections), advanced pool sorting and completion filtering, and image preview cache busting.",
+  "changelog": "Release 1.8.4.1: Targets Jellyfin 12.0.0.0 directly. Removes legacy backwards compatibility constraints and older manifest lines. Adds UI setting for pool size (1-50 posters per item), direct pool deletion from media details, and clean single-version manifest.",
   "description": "Fill a local poster pool per movie from providers, then periodically rotate the Primary Poster image from the pool. This keeps Jellyfin looking fresh with rotating poster images on an interval of your choosing.",
   "guid": "7f6eea8b-0e9c-4cbd-9d2a-31f9a37ce2b7",
   "name": "Poster Rotator",
   "overview": "Pool-then-rotate posters with optional locking.",
   "owner": "Mael",
   "targetAbi": "12.0.0.0",
-  "timestamp": "2026-09-09T06:45:00Z",
-  "version": "1.8.4.0",
+  "timestamp": "2026-09-09T13:58:00Z",
+  "version": "1.8.4.1",
   "imagePath": "jellyfin-plugin-posterrotator.png",
   "assemblies": [
     "Jellyfin.Plugin.PosterRotator.dll"

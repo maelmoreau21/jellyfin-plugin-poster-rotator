@@ -9,60 +9,12 @@
     "imageUrl": "https://raw.githubusercontent.com/maelmoreau21/jellyfin-plugin-poster-rotator/refs/heads/main/jellyfin-plugin-posterrotator.png",
     "versions": [
       {
-        "version": "1.8.4.0",
+        "version": "1.8.4.1",
         "targetAbi": "12.0.0.0",
-        "sourceUrl": "https://github.com/maelmoreau21/jellyfin-plugin-poster-rotator/releases/download/v1.8.4.0/Jellyfin.Plugin.PosterRotator-1.8.4.0.zip",
-        "checksum": "f525f83159a45bd22dac026396a984c6",
-        "timestamp": "2026-09-09T08:56:57Z",
-        "changelog": "Compatibility: targets Jellyfin 12.0.0.0 stable release with plugin version 1.8.4.0. Features: live download progress tracking with status polling, download budget configuration, granular media type selection (movies, series, collections), advanced pool sorting and completion filtering, and image preview cache busting."
-      },
-      {
-        "version": "1.8.3.0",
-        "targetAbi": "12.0.0.0",
-        "sourceUrl": "https://github.com/maelmoreau21/jellyfin-plugin-poster-rotator/releases/download/v1.8.3.0/Jellyfin.Plugin.PosterRotator-1.8.3.0.zip",
-        "checksum": "d8c12acf2197231045f0dc3ba7a2654c",
-        "timestamp": "2026-09-08T20:08:51Z",
-        "changelog": "Compatibility: targets Jellyfin 12.0.0.0 stable release with plugin version 1.8.3.0. Fixes: resolves library manager item resolution when TopParentIds returns empty on Jellyfin 12, ensures robust path matching against selected libraries, filters valid item kinds, and clarifies pool storage modes."
-      },
-      {
-        "version": "1.8.2.0",
-        "targetAbi": "12.0.0.0",
-        "sourceUrl": "https://github.com/maelmoreau21/jellyfin-plugin-poster-rotator/releases/download/v1.8.2.0/Jellyfin.Plugin.PosterRotator-1.8.2.0.zip",
-        "checksum": "4d622a5804d1f8fe7865c179dcc69972",
-        "timestamp": "2026-09-08T19:59:19Z",
-        "changelog": "Compatibility: targets Jellyfin 12.0.0.0 stable release with plugin version 1.8.2.0. Fixes: resolves library selection by replacing single-select with multi-library selection, adding select all/deselect all buttons, selected count badge, multi-library filter in pools view, and direct settings navigation. Dependencies: updates to Jellyfin 12.0.0 stable and 10.11.11 fallback."
-      },
-      {
-        "version": "1.8.1.0",
-        "targetAbi": "12.0.0.0",
-        "sourceUrl": "https://github.com/maelmoreau21/jellyfin-plugin-poster-rotator/releases/download/v1.8.1.0/Jellyfin.Plugin.PosterRotator-1.8.1.0.zip",
-        "checksum": "73aa6330c367e4f9b6947abbc79b95d1",
-        "timestamp": "2026-09-08T19:09:19Z",
-        "changelog": "Compatibility: targets Jellyfin 12.0.0.0 stable release with plugin version 1.8.1.0. Fixes: resolves library list query in admin UI so library filtering can be configured, improves API request resilience with modern fetch fallback, and provides immediate visual loading feedback when downloading missing pools. Dependencies: updates to Jellyfin 12.0.0 stable and 10.11.11 fallback."
-      },
-      {
-        "version": "1.8.0.0",
-        "targetAbi": "12.0.0.0",
-        "sourceUrl": "https://github.com/maelmoreau21/jellyfin-plugin-poster-rotator/releases/download/v1.8.0.0/Jellyfin.Plugin.PosterRotator-1.8.0.0.zip",
-        "checksum": "ccb0fcd3ef1e3da20cd453e731aabdc1",
-        "timestamp": "2026-07-09T20:16:59Z",
-        "changelog": "Compatibility: targets Jellyfin 12.0.0.0 beta with plugin version 1.8.0.0. Localization: adds a global interface language setting with Same as Jellyfin, English, and French, localizes the admin page, visible API messages, and scheduled task names/descriptions while keeping task keys stable. Interface: preserves all 1.7.0.0 pool management, language filtering, security, pagination, and rotation controls. Packaging: includes meta.json and a local plugin image for manual zip installs."
-      },
-      {
-        "version": "1.7.0.0",
-        "targetAbi": "12.0.0.0",
-        "sourceUrl": "https://github.com/maelmoreau21/jellyfin-plugin-poster-rotator/releases/download/v1.7.0.0/Jellyfin.Plugin.PosterRotator-1.7.0.0.zip",
-        "checksum": "91275bdb3f518868a04353105cd34cb0",
-        "timestamp": "2026-05-26T17:16:51Z",
-        "changelog": "Compatibility: targets Jellyfin 12.0.0.0 beta while keeping plugin version 1.7.0.0. Scheduler: separates Download missing pools from Rotate pools; Rotate pools keeps the stable PosterRotator.RotatePostersTask key and only rotates existing indexed pools, while PosterRotator.DownloadMissingPoolsTask fills missing or incomplete pools first. Fix: Download missing pools ignores legacy hidden ManualLibraryRoots, reports progressive run limits, and writes strictly through Jellyfin.Plugin.PosterRotator.pools. Performance: uses index-only listing for very large libraries, cached pagination, deferred index writes, and automatic index rebuild only when the pool index is missing or corrupt. Interface: removes the visible repair button, adds Telecharger les pools manquants, groups pool actions, adds 25/50/100/200 page sizes, disables unavailable actions, accepts enum names for FallbackMode, explains sequential rotation, shows the current poster badge, and keeps compact wrapped poster cards. Security: validates redirect targets for remote image downloads and rejects oversized uploads before opening the stream. Packaging: includes meta.json and a local plugin image for manual zip installs."
-      },
-      {
-        "version": "1.6.0.0",
-        "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://github.com/maelmoreau21/jellyfin-plugin-poster-rotator/releases/download/v1.6.0.0/Jellyfin.Plugin.PosterRotator-1.6.0.0.zip",
-        "checksum": "8405d18cb4f5719fe46520dbe5f94c17",
-        "timestamp": "2026-04-29T19:07:00Z",
-        "changelog": "Compatibility: target Jellyfin 10.11.0.0 for the full 10.11.x line. Security: bounded image downloads, safer URL validation, safe purge, and serialized rotation/purge operations. Performance: plugin-data pool storage with migration from media-folder .poster_pool directories and Jellyfin SaveImage rotation."
+        "sourceUrl": "https://github.com/maelmoreau21/jellyfin-plugin-poster-rotator/releases/download/v1.8.4.1/Jellyfin.Plugin.PosterRotator-1.8.4.1.zip",
+        "checksum": "daac91d7ea652b63056d29f2c94fdc2d",
+        "timestamp": "2026-09-09T13:58:00Z",
+        "changelog": "Release 1.8.4.1: Targets Jellyfin 12.0.0.0 directly. Removes legacy backwards compatibility constraints and prior manifest lines. Adds UI configuration for pool size (1-50 posters per item) and direct pool deletion."
       }
     ]
   }

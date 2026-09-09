@@ -2,14 +2,14 @@
 
 ## Goal of Branch 1.8
 
-Prepare Poster Rotator `1.8.4.0` for Jellyfin `12.0.0.0`.
+Prepare Poster Rotator `1.8.4.1` for Jellyfin `12.0.0.0`.
 
+- Backwards compatibility is not required or maintained: the only goal is to work seamlessly with the current version on Jellyfin 12 (`12.0.0.0`).
+- Do not maintain legacy Jellyfin lines (Jellyfin 10.11 / 1.6.0.0) or previous Jellyfin 12 iterations.
 - Do not add raw SQL access.
 - Do not use `SQLiteConnection`, `DbConnection`, `FromSql`, `ExecuteSql`, or raw textual queries.
 - Use injected Jellyfin services (`ILibraryManager`, `IProviderManager`, etc.).
 - Keep `CS0618` as an error to block `[Obsolete]` APIs.
-- Keep `1.6.0.0` as the compatible line for Jellyfin `10.11.x`.
-- Keep `1.7.0.0`, `1.8.0.0`, `1.8.1.0`, `1.8.2.0`, and `1.8.3.0` as the previous Jellyfin 12 lines.
 - Keep the plugin interface localizable in English and French, falling back to English.
 
 ## Pool Storage
@@ -59,8 +59,10 @@ Duplicate detection must use a hash calculated after normalization by `IImagePro
 
 All `PosterRotator/*` routes must remain protected by `RequiresElevation`.
 
+- `GET /PosterRotator/Localization?language=`
 - `GET /PosterRotator/Diagnostics`
-- `GET /PosterRotator/Pools?library=&query=&type=&hasErrors=&isEmpty=&start=&limit=`
+- `GET /PosterRotator/Pools?library=&query=&type=&hasErrors=&isEmpty=&completion=&isLocked=&sortBy=&sortOrder=&start=&limit=`
+- `GET /PosterRotator/Pools/DownloadStatus`
 - `POST /PosterRotator/Pools/RebuildIndex` (internal/admin, no visible button)
 - `POST /PosterRotator/Pools/DownloadMissing`
 - `GET /PosterRotator/Pools/{itemId}`
@@ -71,6 +73,7 @@ All `PosterRotator/*` routes must remain protected by `RequiresElevation`.
 - `POST /PosterRotator/Pools/{itemId}/Images`
 - `DELETE /PosterRotator/Pools/{itemId}/Images/{fileName}`
 - `POST /PosterRotator/Purge`
+- `POST /PosterRotator/PurgeAllPools`
 
 The `GET /PosterRotator/Pools/{itemId}` response also exposes the current poster:
 
@@ -101,8 +104,12 @@ The interface uses two true ARIA tabs: `Pools` and `Parameters`.
 - `auto` follows Jellyfin's `ServerConfiguration.UICulture`, and any unsupported language falls back to English;
 - `Pools` is active by default, with `SettingsPanel` hidden by `hidden`;
 - Search and filters only in the `Pools` tab;
-- Library filter as a dropdown loaded from `/Library/VirtualFolders`;
-- Compact statistics;
+- Multi-library filter (`PoolsLibrary`) loaded from `/Library/VirtualFolders` with "Select all" (`#PoolsLibAllBtn`) and "Deselect all" (`#PoolsLibNoneBtn`) shortcuts;
+- Status filter unified into `PoolsCompletion` (`all`, `complete`, `incomplete`, `empty`, `errors`), consolidating completion states and error states while eliminating redundant state dropdowns;
+- Lock filter (`PoolsLock`: `all`, `locked`, `unlocked`);
+- Sorting controls: `PoolsSortBy` (`updated`, `name`, `images`, `lastrotated`) and `PoolsSortOrder` (`desc`, `asc`);
+- Live download progress banner with percentage indicator and fill bar, polling `GET /PosterRotator/Pools/DownloadStatus`;
+- Compact statistics (Pools count, Disk space, Orphans count, Current page);
 - Paged table of pools with size `25 / 50 / 100 / 200`;
 - Dense result table with name, path, or ID, and readable type/library badges;
 - JS request token to prevent an older search from overwriting a newer one;
@@ -113,18 +120,28 @@ The interface uses two true ARIA tabs: `Pools` and `Parameters`.
 - Image cards must remain small, about `104x156`, to view multiple posters on screen;
 - Poster file names must wrap to 2 or 3 lines using `overflow-wrap:anywhere`;
 - The current poster must display an `Active` badge;
-- Delete/import images;
+- Delete/import images individually;
+- Action `Delete this pool` (`#DeleteCurrentPoolBtn`) directly in the media detail panel calling `POST /PosterRotator/Purge` with scope `item`;
 - Main action `Download missing pools` which calls `POST /PosterRotator/Pools/DownloadMissing`;
 - Do not display a `Repair pool list` button; index repair is automatic or reserved for the admin endpoint;
 - Action `Delete all pools` which calls `POST /PosterRotator/PurgeAllPools` after confirmation;
-- Buttons `Previous`, `Next`, `Library rotation`, `Purge library`, and `Purge media` must be disabled when their action is unavailable;
-- The `Parameters` tab exposes only settings useful on a daily basis;
-- The field `Maximum number of posters to change per run` accepts `0` for no count limit, with help text in the same `inputContainer` just below the label;
-- Languages expose a configurable fallback order: original then configured, configured then original, original only, or configured only;
+- Buttons `Previous` and `Next` must be disabled at pagination bounds; `Purge library` is disabled when no library is selected; `Purge media` and `Delete this pool` are disabled when no pool is selected; `Library rotation` rotates the selected library or falls back to rotating all libraries if none is selected;
+- The `Parameters` tab exposes only settings useful on a daily basis:
+  - `InterfaceLanguage` (`auto`, `en`, `fr`);
+  - `PoolSize`: target number of posters per media (1 to 50, default `4`);
+  - `MinHoursBetweenSwitches`: minimum delay in hours before a poster can rotate again (0 to 8760, default `72`);
+  - `PoolStorageMode`: storage location (PluginData or Media folders);
+  - `MaxRotationsPerRun`: maximum number of posters to change per run (accepts `0` for no count limit, with help text in the same `inputContainer` just below the label);
+  - `MaxDownloadsPerRun`: maximum poster downloads per run (accepts `0` for no limit, default `250`);
+  - Target media types checkboxes: Movies, Series, Collections / Sagas, Seasons, Episodes;
+  - Behavior checkboxes: `Sequential rotation` (labeled `Browse posters in order` with help text: `Enabled: takes the next image from the pool on each rotation. Disabled: chooses a poster at random. Does not change the delay between two rotations.`), `Lock full pools`, `Block private URLs`, `Visual duplicates`;
+  - Configurable library selection with Select All / Deselect All shortcuts and selection counter badge;
+  - Image quality and download limits: `MaxDownloadMegabytes`, `MinImageWidth`, `MinImageHeight`;
+  - Language filtering: `EnableLanguageFilter`, `PreferredLanguage`, `MaxPreferredLanguageImages` (0 to 10), `FallbackLanguage`, configurable fallback order (`OriginalThenConfigured`, `ConfiguredThenOriginal`, `OriginalOnly`, `ConfiguredOnly`), `IncludeUnknownLanguage`, and `AllowAnyLanguageFallback`;
+  - Dynamic opacity/dimming on language filter options when language filtering is disabled;
 - The JS helper `fallbackModeValue` must accept `0..3` and the names `OriginalThenConfigured`, `ConfiguredThenOriginal`, `OriginalOnly`, `ConfiguredOnly`;
-- `Sequential rotation` must be labeled `Browse posters in order` with the help text: `Enabled: takes the next image from the pool on each rotation. Disabled: chooses a poster at random. Does not change the delay between two rotations.`;
-- Last resort all languages can be enabled separately;
-- Do not display `CadenceProfile`, `PoolSize`, `MinHoursBetweenSwitches`, `MaxProviderLookupsPerRun`, `MaxDownloadsPerRun`, `ProcessingBatchSize`, `AutoCleanupOrphanedPools`, or `CleanupIntervalDays`;
+- The dead field `ExtraPosterPatterns` must not be displayed in the interface;
+- Do not display technical or internal fields: `CadenceProfile`, `MaxProviderLookupsPerRun`, `ProcessingBatchSize`, `AutoCleanupOrphanedPools`, or `CleanupIntervalDays`;
 - Do not display `ManualLibraryRoots`; clear this list when saving from the interface.
 
 ## Local Build
@@ -148,23 +165,44 @@ dotnet test .\jellyfin-plugin-poster-rotator.sln -c Release --no-restore -p:Jell
 Public fallback to verify the code without GitHub Packages access:
 
 ```powershell
-dotnet build .\jellyfin-plugin-poster-rotator.sln -c Release -p:JellyfinPackageVersion=10.11.10 -warnaserror:CS0618
-dotnet test .\jellyfin-plugin-poster-rotator.sln -c Release -p:JellyfinPackageVersion=10.11.10 -warnaserror:CS0618
+dotnet build .\jellyfin-plugin-poster-rotator.sln -c Release -p:JellyfinPackageVersion=10.11.11 -warnaserror:CS0618
+dotnet test .\jellyfin-plugin-poster-rotator.sln -c Release -p:JellyfinPackageVersion=10.11.11 -warnaserror:CS0618
 ```
 
-## Release
+## Release and Main Branch Protocol
 
-1. Verify that `Version`, `AssemblyVersion`, and `FileVersion` are `1.8.4.0`.
-2. Compile in `Release` against the authenticated Jellyfin 12 package.
-3. Run tests.
-4. Create `Jellyfin.Plugin.PosterRotator-1.8.4.0.zip` containing:
-   - `Jellyfin.Plugin.PosterRotator.dll`
-   - `Jellyfin.Plugin.PosterRotator.deps.json`
-   - `Jellyfin.Plugin.PosterRotator.pdb`
-   - `jellyfin-plugin-posterrotator.png`
-   - `meta.json`
-5. Calculate the MD5 of the zip and report it in `manifest.json`.
-6. Keep the `1.8.3.0`, `1.8.2.0`, `1.8.1.0`, `1.8.0.0`, `1.7.0.0`, and `1.6.0.0` manifest entries for previous lines.
+Whenever instructed to push or send changes to the `main` branch (e.g. "envoie dans la branche main", "push sur main", "fais la release") or when preparing a release:
+
+1. **Version consistency**: Ensure the version number (e.g., `1.8.4.0`) is updated consistently across:
+   - `src/Jellyfin.Plugin.PosterRotator/Jellyfin.Plugin.PosterRotator.csproj` (`Version`, `AssemblyVersion`, `FileVersion`)
+   - `meta.json` (`version`)
+   - Documentation (`instructions.md`, `README.md`)
+2. **Build and Test**:
+   - Compile in `Release` for Jellyfin 12: `dotnet build .\jellyfin-plugin-poster-rotator.sln -c Release -warnaserror:CS0618`
+   - Run tests: `dotnet test .\jellyfin-plugin-poster-rotator.sln -c Release -warnaserror:CS0618`
+3. **Packaging**:
+   - Create the release zip `Jellyfin.Plugin.PosterRotator-<version>.zip` at the repository root containing:
+     - `Jellyfin.Plugin.PosterRotator.dll`
+     - `Jellyfin.Plugin.PosterRotator.deps.json`
+     - `Jellyfin.Plugin.PosterRotator.pdb`
+     - `jellyfin-plugin-posterrotator.png`
+     - `meta.json`
+4. **Manifest update**:
+   - Calculate the MD5 checksum of the zip.
+   - Update `manifest.json`:
+     - Update `version` to the new version.
+     - Update `sourceUrl` (`https://github.com/maelmoreau21/jellyfin-plugin-poster-rotator/releases/download/v<version>/Jellyfin.Plugin.PosterRotator-<version>.zip`).
+     - Update `checksum` with the MD5 hash.
+     - Update `timestamp` (UTC ISO 8601).
+     - Update `changelog` with the summary of changes.
+     - Only keep the current version in `manifest.json` (do not keep previous lines; backwards compatibility is not maintained).
+5. **Clean obsolete archives**:
+   - Delete any older zip files from the repository root and `artifacts/` (only the current release zip matching `manifest.json` may remain).
+6. **Git & GitHub Release**:
+   - Commit all changes (code, manifest, instructions, meta, etc.).
+   - Push commits to the `main` branch.
+   - Tag the release: `git tag -a v<version> -m "Release v<version>"` and push the tag: `git push origin v<version>`.
+   - Publish the GitHub Release with the zip asset attached (e.g. using `gh release create v<version> .\Jellyfin.Plugin.PosterRotator-<version>.zip --title "v<version>" --notes "..."`).
 
 ## Cleanup
 

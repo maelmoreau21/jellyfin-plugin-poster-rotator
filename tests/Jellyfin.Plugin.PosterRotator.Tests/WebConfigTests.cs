@@ -200,6 +200,41 @@ public sealed class WebConfigTests
         Assert.Contains("cfg.MaxDownloadsPerRun", html);
     }
 
+    [Fact]
+    public void ConfigPage_ExposesPoolSizeAndMinHoursBetweenSwitches()
+    {
+        var html = LoadConfigHtml();
+
+        // PoolSize
+        Assert.Contains("id=\"PoolSize\"", html);
+        Assert.Contains("data-i18n=\"Label.PoolSize\"", html);
+        Assert.Contains("data-i18n=\"Help.PoolSize\"", html);
+        Assert.Contains("cfg.PoolSize = intValue('PoolSize', 4, 1, 50);", html);
+        Assert.Contains("byId('PoolSize').value = cfg.PoolSize", html);
+
+        // MinHoursBetweenSwitches
+        Assert.Contains("id=\"MinHoursBetweenSwitches\"", html);
+        Assert.Contains("data-i18n=\"Label.MinHoursBetweenSwitches\"", html);
+        Assert.Contains("data-i18n=\"Help.MinHoursBetweenSwitches\"", html);
+        Assert.Contains("cfg.MinHoursBetweenSwitches = intValue('MinHoursBetweenSwitches', 72, 0, 8760);", html);
+        Assert.Contains("byId('MinHoursBetweenSwitches').value = cfg.MinHoursBetweenSwitches", html);
+
+        // Non-functional ExtraPosterPatterns input removed
+        Assert.DoesNotContain("<input id=\"ExtraPosterPatterns\"", html);
+    }
+
+    [Fact]
+    public void ConfigPage_ExposesDirectPoolDeletion()
+    {
+        var html = LoadConfigHtml();
+
+        Assert.Contains("id=\"DeleteCurrentPoolBtn\"", html);
+        Assert.Contains("data-i18n=\"Button.DeleteCurrentPool\"", html);
+        Assert.Contains("deleteCurrentPool", html);
+        Assert.Contains("Scope: 'item'", html);
+        Assert.Contains("setDisabled('DeleteCurrentPoolBtn', !hasSelectedPool);", html);
+    }
+
     private static string LoadConfigHtml()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
