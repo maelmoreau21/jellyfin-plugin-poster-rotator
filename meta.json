@@ -1,14 +1,14 @@
 {
   "category": "Metadata",
-  "changelog": "Release 1.8.4.3: Completely eliminates library and locking controls from Pools tab toolbar and action bar. Libraries are managed exclusively in Settings, and rotation intervals are handled by the Jellyfin task scheduler.",
+  "changelog": "Release 1.8.4.4: Adds visual loading state and confirmation banner to the Refresh action in Pools tab. Fully confirms persistent pool storage across updates.",
   "description": "Fill a local poster pool per movie from providers, then periodically rotate the Primary Poster image from the pool. This keeps Jellyfin looking fresh with rotating poster images on an interval of your choosing.",
   "guid": "7f6eea8b-0e9c-4cbd-9d2a-31f9a37ce2b7",
   "name": "Poster Rotator",
   "overview": "Pool-then-rotate posters with optional locking.",
   "owner": "Mael",
   "targetAbi": "12.0.0.0",
-  "timestamp": "2026-09-09T15:00:00Z",
-  "version": "1.8.4.3",
+  "timestamp": "2026-09-09T15:15:00Z",
+  "version": "1.8.4.4",
   "imagePath": "jellyfin-plugin-posterrotator.png",
   "assemblies": [
     "Jellyfin.Plugin.PosterRotator.dll"

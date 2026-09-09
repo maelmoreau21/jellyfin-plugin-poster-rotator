@@ -1304,8 +1304,17 @@
         }
 
         function refreshAll(resetStart) {
-          setGlobalStatus('');
-          return Promise.all([loadDiagnostics(), loadPools(!!resetStart)]);
+          Dashboard.showLoadingMsg();
+          return Promise.all([loadDiagnostics(), loadPools(!!resetStart)])
+            .then(function () {
+              setGlobalStatus(t('Message.Refreshed'));
+            })
+            .catch(function () {
+              setGlobalStatus(t('Message.LoadError'));
+            })
+            .finally(function () {
+              Dashboard.hideLoadingMsg();
+            });
         }
 
         function rotateSelectedPool() {
@@ -1651,7 +1660,7 @@
             });
           }
           var refreshAllBtn = byId('RefreshAllBtn');
-          if (refreshAllBtn) refreshAllBtn.addEventListener('click', function () { refreshAll(false); });
+          if (refreshAllBtn) refreshAllBtn.addEventListener('click', function () { refreshAll(true); });
           var downloadMissingPoolsBtn = byId('DownloadMissingPoolsBtn');
           if (downloadMissingPoolsBtn) downloadMissingPoolsBtn.addEventListener('click', downloadMissingPoolsNow);
           var interfaceLanguage = byId('InterfaceLanguage');
