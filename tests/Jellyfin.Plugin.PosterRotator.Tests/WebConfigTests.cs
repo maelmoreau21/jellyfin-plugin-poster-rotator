@@ -82,7 +82,7 @@ public sealed class WebConfigTests
         Assert.Contains("function updatePoolButtonStates()", html);
         Assert.Contains("setDisabled('PrevPoolsBtn', poolsState.start <= 0);", html);
         Assert.Contains("setDisabled('NextPoolsBtn', poolsState.start + poolsState.limit >= poolsState.total);", html);
-        Assert.Contains("setDisabled('RotateLibraryBtn'", html);
+        Assert.DoesNotContain("id=\"RotateLibraryBtn\"", html);
         Assert.Contains("setDisabled('PurgeItemBtn', !hasSelectedPool);", html);
         Assert.Contains("function markSelectedPoolRow()", html);
         Assert.DoesNotContain("return loadPools(false);", html);

@@ -9,12 +9,12 @@
     "imageUrl": "https://raw.githubusercontent.com/maelmoreau21/jellyfin-plugin-poster-rotator/refs/heads/main/jellyfin-plugin-posterrotator.png",
     "versions": [
       {
-        "version": "1.8.4.2",
+        "version": "1.8.4.3",
         "targetAbi": "12.0.0.0",
-        "sourceUrl": "https://github.com/maelmoreau21/jellyfin-plugin-poster-rotator/releases/download/v1.8.4.2/Jellyfin.Plugin.PosterRotator-1.8.4.2.zip",
-        "checksum": "ec664143893bf86739a8e1d628a5b551",
-        "timestamp": "2026-09-09T14:43:09Z",
-        "changelog": "Release 1.8.4.2: Streamlines UI by removing redundant library filter in Pools toolbar in favor of Settings tab library management. Delegates rotation timing directly to Jellyfin task scheduler (MinHoursBetweenSwitches defaults to 0). Removes confusing locking filters and options from the interface."
+        "sourceUrl": "https://github.com/maelmoreau21/jellyfin-plugin-poster-rotator/releases/download/v1.8.4.3/Jellyfin.Plugin.PosterRotator-1.8.4.3.zip",
+        "checksum": "3c1983f0c8f05d7e0c51e7b82ff85972",
+        "timestamp": "2026-09-09T15:01:00Z",
+        "changelog": "Release 1.8.4.3: Completely eliminates library and locking controls from Pools tab toolbar and action bar. Libraries are managed exclusively in Settings, and rotation intervals are handled by the Jellyfin task scheduler."
       }
     ]
   }

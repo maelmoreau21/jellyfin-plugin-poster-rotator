@@ -594,10 +594,7 @@
                   <button id="RefreshAllBtn" type="button" class="raised emby-button" data-i18n="Button.Refresh">Refresh</button>
                   <button id="DownloadMissingPoolsBtn" type="button" class="raised button-submit emby-button" data-i18n="Button.DownloadMissingPools">Download missing pools</button>
                 </div>
-                <div class="posterRotatorActionGroup">
-                  <div class="posterRotatorActionGroupTitle" data-i18n="Group.Rotation">Rotation</div>
-                  <button id="RotateLibraryBtn" type="button" class="raised emby-button" data-i18n="Button.RotateLibrary">Rotate library</button>
-                </div>
+
                 <div class="posterRotatorActionGroup">
                   <div class="posterRotatorActionGroupTitle" data-i18n="Group.Purge">Purge</div>
                   <button id="PurgeAllPoolsBtn" type="button" class="raised button-cancel emby-button" data-i18n="Button.PurgeAllPools">Delete all pools</button>
@@ -1332,36 +1329,6 @@
             .catch(function () { alert(t('Message.PurgeError')); });
         }
 
-        function rotateLibrary() {
-          var selectedLibs = [];
-          document.querySelectorAll('#LibraryRulesContainer input[type="checkbox"]:checked').forEach(function (cb) {
-            if (cb.dataset.libraryName) selectedLibs.push(cb.dataset.libraryName);
-          });
-          if (!selectedLibs.length) selectedLibs = libraryNames.slice();
-          if (!selectedLibs.length) {
-            alert(t('Message.NoLibraries'));
-            return;
-          }
-          if (!confirm(t('Message.RotateAllLibrariesConfirm'))) return;
-          setDisabled('RotateLibraryBtn', true);
-          Dashboard.showLoadingMsg();
-          Promise.all(selectedLibs.map(function (lib) {
-            return postJson('PosterRotator/Libraries/' + encodeURIComponent(lib) + '/RotateNow', {});
-          }))
-            .then(function (results) {
-              var count = results.length;
-              var msg = count === 1
-                ? prop(results[0], 'Message', 'message', t('Message.RotateLibraryFallback'))
-                : 'Rotation terminée pour ' + count + ' bibliothèque(s) (' + selectedLibs.join(', ') + ')';
-              alert(msg);
-              return refreshAll(false);
-            })
-            .catch(function () { alert(t('Message.RotateLibraryError')); })
-            .finally(function () {
-              setDisabled('RotateLibraryBtn', false);
-              Dashboard.hideLoadingMsg();
-            });
-        }
 
         function purge(scope) {
           var payload = { Scope: scope };
@@ -1729,8 +1696,7 @@
           if (rotatePoolBtn) rotatePoolBtn.addEventListener('click', rotateSelectedPool);
           var uploadPoolImageBtn = byId('UploadPoolImageBtn');
           if (uploadPoolImageBtn) uploadPoolImageBtn.addEventListener('click', uploadPoolImage);
-          var rotateLibraryBtn = byId('RotateLibraryBtn');
-          if (rotateLibraryBtn) rotateLibraryBtn.addEventListener('click', rotateLibrary);
+
           var purgeItemBtn = byId('PurgeItemBtn');
           if (purgeItemBtn) purgeItemBtn.addEventListener('click', function () { purge('item'); });
           var deleteCurrentPoolBtn = byId('DeleteCurrentPoolBtn');

@@ -2,7 +2,7 @@
 
 ## Goal of Branch 1.8
 
-Prepare Poster Rotator `1.8.4.2` for Jellyfin `12.0.0.0`.
+Prepare Poster Rotator `1.8.4.3` for Jellyfin `12.0.0.0`.
 
 - Backwards compatibility is not required or maintained: the only goal is to work seamlessly with the current version on Jellyfin 12 (`12.0.0.0`).
 - Do not maintain legacy Jellyfin lines (Jellyfin 10.11 / 1.6.0.0) or previous Jellyfin 12 iterations.
@@ -125,7 +125,7 @@ The interface uses two true ARIA tabs: `Pools` and `Parameters`.
 - Main action `Download missing pools` which calls `POST /PosterRotator/Pools/DownloadMissing`;
 - Do not display a `Repair pool list` button; index repair is automatic or reserved for the admin endpoint;
 - Action `Delete all pools` which calls `POST /PosterRotator/PurgeAllPools` after confirmation;
-- Buttons `Previous` and `Next` must be disabled at pagination bounds; `Purge media` and `Delete this pool` are disabled when no pool is selected; `Library rotation` rotates libraries configured in parameters;
+- Buttons `Previous` and `Next` must be disabled at pagination bounds; `Purge media` and `Delete this pool` are disabled when no pool is selected;
 - The `Parameters` tab exposes only settings useful on a daily basis:
   - `InterfaceLanguage` (`auto`, `en`, `fr`);
   - `PoolSize`: target number of posters per media (1 to 50, default `4`);
