@@ -424,39 +424,6 @@
       color: #5bc0de;
     }
 
-    .posterRotatorMultiSelectWrap {
-      position: relative;
-    }
-
-    select.posterRotatorMultiSelect {
-      min-height: 86px;
-      max-height: 120px;
-      padding: 4px;
-      background: rgba(0, 0, 0, 0.25);
-      border: 1px solid rgba(255, 255, 255, 0.18);
-      border-radius: 4px;
-      color: #eee;
-      box-sizing: border-box;
-      width: 100%;
-    }
-
-    select.posterRotatorMultiSelect option {
-      padding: 4px 8px;
-      border-radius: 3px;
-      margin-bottom: 2px;
-    }
-
-    select.posterRotatorMultiSelect option:checked {
-      background: #00a4dc linear-gradient(0deg, #00a4dc 0%, #00a4dc 100%);
-      color: #fff;
-    }
-
-    .posterRotatorMultiSelectQuickActions {
-      display: flex;
-      justify-content: space-between;
-      padding-top: 4px;
-    }
-
     .posterRotatorTextBtn {
       background: none;
       border: none;
@@ -567,16 +534,6 @@
                   <label class="inputLabel inputLabelUnfocused" for="PoolsSearch" data-i18n="Label.Search">Search</label>
                   <input id="PoolsSearch" type="text" is="emby-input" />
                 </div>
-                <div class="inputContainer posterRotatorMultiSelectWrap">
-                  <label class="selectLabel" for="PoolsLibrary" data-i18n="Label.Library">Library</label>
-                  <select id="PoolsLibrary" is="emby-select" multiple size="4" class="posterRotatorMultiSelect">
-                    <option value="" selected data-i18n="Option.AllLibraries">All</option>
-                  </select>
-                  <div class="posterRotatorMultiSelectQuickActions">
-                    <button id="PoolsLibAllBtn" type="button" class="posterRotatorTextBtn" data-i18n="Button.SelectAll">Select all</button>
-                    <button id="PoolsLibNoneBtn" type="button" class="posterRotatorTextBtn" data-i18n="Button.DeselectAll">Deselect all</button>
-                  </div>
-                </div>
                 <div class="inputContainer">
                   <label class="selectLabel" for="PoolsType" data-i18n="Label.Type">Type</label>
                   <select id="PoolsType" is="emby-select">
@@ -606,14 +563,6 @@
                     <option value="50" selected>50</option>
                     <option value="100">100</option>
                     <option value="200">200</option>
-                  </select>
-                </div>
-                <div class="inputContainer">
-                  <label class="selectLabel" for="PoolsLock" data-i18n="Label.LockFilter">Lock</label>
-                  <select id="PoolsLock" is="emby-select">
-                    <option value="" data-i18n="Option.AllLocks">All</option>
-                    <option value="locked" data-i18n="Option.LockedOnly">Locked only</option>
-                    <option value="unlocked" data-i18n="Option.UnlockedOnly">Unlocked only</option>
                   </select>
                 </div>
                 <div class="inputContainer">
@@ -652,7 +601,6 @@
                 <div class="posterRotatorActionGroup">
                   <div class="posterRotatorActionGroupTitle" data-i18n="Group.Purge">Purge</div>
                   <button id="PurgeAllPoolsBtn" type="button" class="raised button-cancel emby-button" data-i18n="Button.PurgeAllPools">Delete all pools</button>
-                  <button id="PurgeLibraryBtn" type="button" class="raised button-cancel emby-button" data-i18n="Button.PurgeLibrary">Purge library</button>
                   <button id="PurgeItemBtn" type="button" class="raised button-cancel emby-button" data-i18n="Button.PurgeItem">Purge media</button>
                 </div>
               </div>
@@ -710,11 +658,6 @@
                 <input id="PoolSize" type="number" min="1" max="50" is="emby-input" value="4" />
               </div>
               <div class="inputContainer">
-                <label class="inputLabel inputLabelUnfocused" for="MinHoursBetweenSwitches" data-i18n="Label.MinHoursBetweenSwitches">Minimum delay between rotations (hours)</label>
-                <div class="posterRotatorDescription posterRotatorFieldHelp" data-i18n="Help.MinHoursBetweenSwitches">Cooldown before a poster can rotate again (default: 72 hours / 3 days. Set to 0 to allow rotation at every run).</div>
-                <input id="MinHoursBetweenSwitches" type="number" min="0" max="8760" is="emby-input" value="72" />
-              </div>
-              <div class="inputContainer">
                 <label class="selectLabel" for="PoolStorageMode" data-i18n="Label.PoolStorage">Pool storage</label>
                 <select id="PoolStorageMode" is="emby-select">
                   <option value="0">PluginData</option>
@@ -751,7 +694,6 @@
 
             <div class="posterRotatorActions">
               <label class="emby-checkbox-label"><input id="SequentialRotation" type="checkbox" is="emby-checkbox" /><span data-i18n="Checkbox.SequentialRotation">Use posters in order</span></label>
-              <label class="emby-checkbox-label"><input id="LockImagesAfterFill" type="checkbox" is="emby-checkbox" /><span data-i18n="Checkbox.LockImagesAfterFill">Lock full pools</span></label>
               <label class="emby-checkbox-label"><input id="BlockPrivateNetworkImageUrls" type="checkbox" is="emby-checkbox" /><span data-i18n="Checkbox.BlockPrivateUrls">Block private URLs</span></label>
               <label class="emby-checkbox-label"><input id="EnableDuplicateDetection" type="checkbox" is="emby-checkbox" /><span data-i18n="Checkbox.DuplicateDetection">Visual duplicates</span></label>
             </div>
@@ -1087,31 +1029,6 @@
           return folder.Name || folder.DisplayName || (folder.Path ? folder.Path.split(/[\\/]/).pop() : t('Message.Unknown'));
         }
 
-        function getSelectedFilterLibraries() {
-          var select = byId('PoolsLibrary');
-          if (!select) return [];
-          var selected = [];
-          for (var i = 0; i < select.options.length; i++) {
-            var opt = select.options[i];
-            if (opt.selected && opt.value) {
-              selected.push(opt.value);
-            }
-          }
-          return selected;
-        }
-
-        function populatePoolLibraryFilter(names) {
-          var select = byId('PoolsLibrary');
-          if (!select) return;
-          var prev = getSelectedFilterLibraries();
-          var optionsHtml = '<option value=""' + (prev.length === 0 ? ' selected' : '') + ' data-i18n="Option.AllLibraries">' + escapeHtml(t('Option.AllLibraries')) + '</option>';
-          optionsHtml += names.map(function (name) {
-            var isSel = prev.indexOf(name) >= 0 ? ' selected' : '';
-            return '<option value="' + escapeHtml(name) + '"' + isSel + '>' + escapeHtml(name) + '</option>';
-          }).join('');
-          select.innerHTML = optionsHtml;
-        }
-
         function updateLibrarySelectionCount() {
           var checkboxes = document.querySelectorAll('#LibraryRulesContainer input[type="checkbox"]');
           var total = checkboxes.length;
@@ -1191,12 +1108,10 @@
                 .filter(Boolean)
                 .filter(function (name, index, arr) { return arr.indexOf(name) === index; })
                 .sort(function (a, b) { return a.localeCompare(b); });
-              populatePoolLibraryFilter(libraryNames);
               renderLibraryRules(cfg || {}, libraryNames);
             })
             .catch(function () {
               libraryNames = ((cfg && cfg.LibraryRules) || []).map(function (rule) { return rule.Name; }).filter(Boolean);
-              populatePoolLibraryFilter(libraryNames);
               renderLibraryRules(cfg || {}, libraryNames);
               setGlobalStatus(t('Message.LibrariesUnavailable'));
             });
@@ -1219,23 +1134,18 @@
           poolsState.limit = intValue('PoolsLimit', poolsState.limit || 50, 25, 200);
           var params = [];
           var query = textValue('PoolsSearch', '');
-          var library = textValue('PoolsLibrary', '');
           var type = byId('PoolsType') ? byId('PoolsType').value : '';
           var state = byId('PoolsState') ? byId('PoolsState').value : '';
           var completion = byId('PoolsCompletion') ? byId('PoolsCompletion').value : '';
-          var lock = byId('PoolsLock') ? byId('PoolsLock').value : '';
           var sortBy = byId('PoolsSortBy') ? byId('PoolsSortBy').value : 'updated';
           var sortOrder = byId('PoolsSortOrder') ? byId('PoolsSortOrder').value : 'desc';
 
           if (query) params.push('query=' + encodeURIComponent(query));
-          if (library) params.push('library=' + encodeURIComponent(library));
           if (type) params.push('type=' + encodeURIComponent(type));
           if (completion === 'errors' || state === 'errors') params.push('hasErrors=true');
           if (completion === 'empty' || state === 'empty') params.push('isEmpty=true');
           if (state === 'filled') params.push('isEmpty=false');
           if (completion === 'complete' || completion === 'incomplete') params.push('completion=' + encodeURIComponent(completion));
-          if (lock === 'locked') params.push('isLocked=true');
-          if (lock === 'unlocked') params.push('isLocked=false');
           if (sortBy) params.push('sortBy=' + encodeURIComponent(sortBy));
           if (sortOrder) params.push('sortOrder=' + encodeURIComponent(sortOrder));
 
@@ -1245,12 +1155,9 @@
         }
 
         function updatePoolButtonStates() {
-          var hasLibrary = !!textValue('PoolsLibrary', '');
           var hasSelectedPool = !!poolsState.selectedItemId;
           setDisabled('PrevPoolsBtn', poolsState.start <= 0);
           setDisabled('NextPoolsBtn', poolsState.start + poolsState.limit >= poolsState.total);
-          setDisabled('RotateLibraryBtn', !hasLibrary);
-          setDisabled('PurgeLibraryBtn', !hasLibrary);
           setDisabled('PurgeItemBtn', !hasSelectedPool);
           setDisabled('RotatePoolBtn', !hasSelectedPool);
           setDisabled('UploadPoolImageBtn', !hasSelectedPool);
@@ -1426,19 +1333,16 @@
         }
 
         function rotateLibrary() {
-          var selectedLibs = getSelectedFilterLibraries();
+          var selectedLibs = [];
+          document.querySelectorAll('#LibraryRulesContainer input[type="checkbox"]:checked').forEach(function (cb) {
+            if (cb.dataset.libraryName) selectedLibs.push(cb.dataset.libraryName);
+          });
+          if (!selectedLibs.length) selectedLibs = libraryNames.slice();
           if (!selectedLibs.length) {
-            var raw = textValue('PoolsLibrary', '');
-            if (raw) selectedLibs = raw.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+            alert(t('Message.NoLibraries'));
+            return;
           }
-          if (!selectedLibs.length) {
-            if (libraryNames.length && confirm(t('Message.RotateAllLibrariesConfirm'))) {
-              selectedLibs = libraryNames.slice();
-            } else {
-              alert(t('Message.SelectLibrary'));
-              return;
-            }
-          }
+          if (!confirm(t('Message.RotateAllLibrariesConfirm'))) return;
           setDisabled('RotateLibraryBtn', true);
           Dashboard.showLoadingMsg();
           Promise.all(selectedLibs.map(function (lib) {
@@ -1460,36 +1364,6 @@
         }
 
         function purge(scope) {
-          if (scope === 'library') {
-            var selectedLibs = getSelectedFilterLibraries();
-            if (!selectedLibs.length) {
-              var raw = textValue('PoolsLibrary', '');
-              if (raw) selectedLibs = raw.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
-            }
-            if (!selectedLibs.length) {
-              alert(t('Message.SelectLibrary'));
-              return;
-            }
-            if (!confirm(tf('Message.ConfirmPurge', selectedLibs.join(', ')))) return;
-            setDisabled('PurgeLibraryBtn', true);
-            Dashboard.showLoadingMsg();
-            Promise.all(selectedLibs.map(function (lib) {
-              return postJson('PosterRotator/Purge', { Scope: 'library', LibraryName: lib });
-            }))
-              .then(function () {
-                alert('Purge terminée pour: ' + selectedLibs.join(', '));
-                var detail = byId('PoolDetail');
-                if (detail) detail.style.display = 'none';
-                poolsState.selectedItemId = null;
-                return refreshAll(true);
-              })
-              .catch(function () { alert(t('Message.PurgeError')); })
-              .finally(function () {
-                setDisabled('PurgeLibraryBtn', false);
-                Dashboard.hideLoadingMsg();
-              });
-            return;
-          }
           var payload = { Scope: scope };
           if (scope === 'item') {
             payload.ItemId = poolsState.selectedItemId;
@@ -1679,11 +1553,9 @@
             .then(function (cfg) {
               byId('PoolStorageMode').value = String(storageModeValue(cfg.PoolStorageMode));
               byId('PoolSize').value = cfg.PoolSize ?? 4;
-              byId('MinHoursBetweenSwitches').value = cfg.MinHoursBetweenSwitches ?? 72;
               byId('MaxRotationsPerRun').value = cfg.MaxRotationsPerRun ?? 500;
               byId('MaxDownloadsPerRun').value = cfg.MaxDownloadsPerRun ?? 250;
               byId('SequentialRotation').checked = !!cfg.SequentialRotation;
-              byId('LockImagesAfterFill').checked = !!cfg.LockImagesAfterFill;
               byId('EnableMoviePosters').checked = cfg.EnableMoviePosters === undefined ? true : !!cfg.EnableMoviePosters;
               byId('EnableSeriesPosters').checked = cfg.EnableSeriesPosters === undefined ? true : !!cfg.EnableSeriesPosters;
               byId('EnableBoxSetPosters').checked = cfg.EnableBoxSetPosters === undefined ? true : !!cfg.EnableBoxSetPosters;
@@ -1717,11 +1589,11 @@
               cfg.InterfaceLanguage = interfaceLanguageValue(textValue('InterfaceLanguage', 'auto'));
               cfg.PoolStorageMode = storageModeValue(byId('PoolStorageMode').value);
               cfg.PoolSize = intValue('PoolSize', 4, 1, 50);
-              cfg.MinHoursBetweenSwitches = intValue('MinHoursBetweenSwitches', 72, 0, 8760);
+              cfg.MinHoursBetweenSwitches = 0;
               cfg.MaxRotationsPerRun = intValue('MaxRotationsPerRun', 500, 0, 100000);
               cfg.MaxDownloadsPerRun = intValue('MaxDownloadsPerRun', 250, 0, 100000);
               cfg.SequentialRotation = boolValue('SequentialRotation', false);
-              cfg.LockImagesAfterFill = boolValue('LockImagesAfterFill', false);
+              cfg.LockImagesAfterFill = false;
               cfg.EnableMoviePosters = boolValue('EnableMoviePosters', true);
               cfg.EnableSeriesPosters = boolValue('EnableSeriesPosters', true);
               cfg.EnableBoxSetPosters = boolValue('EnableBoxSetPosters', true);
@@ -1811,81 +1683,6 @@
               updateLibrarySelectionCount();
             });
           }
-          var poolsLibrary = byId('PoolsLibrary');
-          if (poolsLibrary) {
-            poolsLibrary.addEventListener('mousedown', function (e) {
-              var opt = e.target;
-              if (!opt || opt.tagName !== 'OPTION') return;
-              e.preventDefault();
-
-              if (opt.value === '') {
-                for (var i = 0; i < poolsLibrary.options.length; i++) {
-                  poolsLibrary.options[i].selected = (poolsLibrary.options[i] === opt);
-                }
-              } else {
-                opt.selected = !opt.selected;
-                var allOpt = poolsLibrary.querySelector('option[value=""]');
-                if (allOpt) allOpt.selected = false;
-
-                var anySelected = false;
-                for (var j = 0; j < poolsLibrary.options.length; j++) {
-                  if (poolsLibrary.options[j].selected && poolsLibrary.options[j].value) {
-                    anySelected = true;
-                    break;
-                  }
-                }
-                if (!anySelected && allOpt) {
-                  allOpt.selected = true;
-                }
-              }
-
-              var evt = document.createEvent('HTMLEvents');
-              evt.initEvent('change', true, true);
-              poolsLibrary.dispatchEvent(evt);
-            });
-
-            poolsLibrary.addEventListener('change', function () {
-              var selectedLibs = getSelectedFilterLibraries();
-              var allOpt = poolsLibrary.querySelector('option[value=""]');
-              if (selectedLibs.length > 0 && allOpt && allOpt.selected) {
-                allOpt.selected = false;
-              } else if (selectedLibs.length === 0 && allOpt && !allOpt.selected) {
-                allOpt.selected = true;
-              }
-              updatePoolButtonStates();
-              loadPools(true);
-            });
-          }
-
-          var filterAllBtn = byId('PoolsLibAllBtn');
-          if (filterAllBtn && poolsLibrary) {
-            filterAllBtn.addEventListener('click', function (e) {
-              e.preventDefault();
-              var allOpt = poolsLibrary.querySelector('option[value=""]');
-              if (allOpt) allOpt.selected = false;
-              for (var i = 0; i < poolsLibrary.options.length; i++) {
-                if (poolsLibrary.options[i].value) {
-                  poolsLibrary.options[i].selected = true;
-                }
-              }
-              var evt = document.createEvent('HTMLEvents');
-              evt.initEvent('change', true, true);
-              poolsLibrary.dispatchEvent(evt);
-            });
-          }
-
-          var filterNoneBtn = byId('PoolsLibNoneBtn');
-          if (filterNoneBtn && poolsLibrary) {
-            filterNoneBtn.addEventListener('click', function (e) {
-              e.preventDefault();
-              for (var i = 0; i < poolsLibrary.options.length; i++) {
-                poolsLibrary.options[i].selected = (poolsLibrary.options[i].value === '');
-              }
-              var evt = document.createEvent('HTMLEvents');
-              evt.initEvent('change', true, true);
-              poolsLibrary.dispatchEvent(evt);
-            });
-          }
           var refreshAllBtn = byId('RefreshAllBtn');
           if (refreshAllBtn) refreshAllBtn.addEventListener('click', function () { refreshAll(false); });
           var downloadMissingPoolsBtn = byId('DownloadMissingPoolsBtn');
@@ -1897,7 +1694,6 @@
                 return { Name: checkbox.dataset.libraryName || '', Enabled: !!checkbox.checked };
               });
               loadLocalization(interfaceLanguage.value).then(function () {
-                populatePoolLibraryFilter(libraryNames);
                 renderLibraryRules({ LibraryRules: previousRules }, libraryNames);
                 loadPools(false);
                 if (poolsState.selectedItemId) openPool(poolsState.selectedItemId);
@@ -1908,7 +1704,7 @@
           if (purgeAllPoolsBtn) purgeAllPoolsBtn.addEventListener('click', purgeAllPools);
           var search = byId('PoolsSearch');
           if (search) search.addEventListener('input', debouncePools);
-          ['PoolsType', 'PoolsState', 'PoolsCompletion', 'PoolsLock', 'PoolsSortBy', 'PoolsSortOrder'].forEach(function (id) {
+          ['PoolsType', 'PoolsState', 'PoolsCompletion', 'PoolsSortBy', 'PoolsSortOrder'].forEach(function (id) {
             var el = byId(id);
             if (el) el.addEventListener('change', function () { updatePoolButtonStates(); loadPools(true); });
           });
@@ -1935,8 +1731,6 @@
           if (uploadPoolImageBtn) uploadPoolImageBtn.addEventListener('click', uploadPoolImage);
           var rotateLibraryBtn = byId('RotateLibraryBtn');
           if (rotateLibraryBtn) rotateLibraryBtn.addEventListener('click', rotateLibrary);
-          var purgeLibraryBtn = byId('PurgeLibraryBtn');
-          if (purgeLibraryBtn) purgeLibraryBtn.addEventListener('click', function () { purge('library'); });
           var purgeItemBtn = byId('PurgeItemBtn');
           if (purgeItemBtn) purgeItemBtn.addEventListener('click', function () { purge('item'); });
           var deleteCurrentPoolBtn = byId('DeleteCurrentPoolBtn');

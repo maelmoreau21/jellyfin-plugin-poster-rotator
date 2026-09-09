@@ -2,7 +2,7 @@
 
 ## Goal of Branch 1.8
 
-Prepare Poster Rotator `1.8.4.1` for Jellyfin `12.0.0.0`.
+Prepare Poster Rotator `1.8.4.2` for Jellyfin `12.0.0.0`.
 
 - Backwards compatibility is not required or maintained: the only goal is to work seamlessly with the current version on Jellyfin 12 (`12.0.0.0`).
 - Do not maintain legacy Jellyfin lines (Jellyfin 10.11 / 1.6.0.0) or previous Jellyfin 12 iterations.
@@ -46,7 +46,7 @@ Scheduled tasks must remain suitable for libraries with over 200,000 media items
 Default values:
 
 - `PoolSize`: `4`
-- `MinHoursBetweenSwitches`: `72`
+- `MinHoursBetweenSwitches`: `0` (managed by scheduler, 0 = rotation allowed on each run)
 - `MaxRotationsPerRun`: `500`
 - `MaxProviderLookupsPerRun`: `250`
 - `MaxDownloadsPerRun`: `250`
@@ -103,10 +103,10 @@ The interface uses two true ARIA tabs: `Pools` and `Parameters`.
 - The first control in the `Parameters` tab is the global interface language `InterfaceLanguage`: `auto`, `en`, `fr`;
 - `auto` follows Jellyfin's `ServerConfiguration.UICulture`, and any unsupported language falls back to English;
 - `Pools` is active by default, with `SettingsPanel` hidden by `hidden`;
-- Search and filters only in the `Pools` tab;
-- Multi-library filter (`PoolsLibrary`) loaded from `/Library/VirtualFolders` with "Select all" (`#PoolsLibAllBtn`) and "Deselect all" (`#PoolsLibNoneBtn`) shortcuts;
+- Search and filters only in the `Pools` tab (search keyword, media type, completion status, page size, sort by, and sort order);
+- Libraries are configured in the `Parameters` tab; do not display a library multiselect filter in the `Pools` tab toolbar;
 - Status filter unified into `PoolsCompletion` (`all`, `complete`, `incomplete`, `empty`, `errors`), consolidating completion states and error states while eliminating redundant state dropdowns;
-- Lock filter (`PoolsLock`: `all`, `locked`, `unlocked`);
+- Do not display locking controls or lock filters in the interface (`PoolsLock` and `Lock full pools` are eliminated);
 - Sorting controls: `PoolsSortBy` (`updated`, `name`, `images`, `lastrotated`) and `PoolsSortOrder` (`desc`, `asc`);
 - Live download progress banner with percentage indicator and fill bar, polling `GET /PosterRotator/Pools/DownloadStatus`;
 - Compact statistics (Pools count, Disk space, Orphans count, Current page);
@@ -125,23 +125,22 @@ The interface uses two true ARIA tabs: `Pools` and `Parameters`.
 - Main action `Download missing pools` which calls `POST /PosterRotator/Pools/DownloadMissing`;
 - Do not display a `Repair pool list` button; index repair is automatic or reserved for the admin endpoint;
 - Action `Delete all pools` which calls `POST /PosterRotator/PurgeAllPools` after confirmation;
-- Buttons `Previous` and `Next` must be disabled at pagination bounds; `Purge library` is disabled when no library is selected; `Purge media` and `Delete this pool` are disabled when no pool is selected; `Library rotation` rotates the selected library or falls back to rotating all libraries if none is selected;
+- Buttons `Previous` and `Next` must be disabled at pagination bounds; `Purge media` and `Delete this pool` are disabled when no pool is selected; `Library rotation` rotates libraries configured in parameters;
 - The `Parameters` tab exposes only settings useful on a daily basis:
   - `InterfaceLanguage` (`auto`, `en`, `fr`);
   - `PoolSize`: target number of posters per media (1 to 50, default `4`);
-  - `MinHoursBetweenSwitches`: minimum delay in hours before a poster can rotate again (0 to 8760, default `72`);
   - `PoolStorageMode`: storage location (PluginData or Media folders);
   - `MaxRotationsPerRun`: maximum number of posters to change per run (accepts `0` for no count limit, with help text in the same `inputContainer` just below the label);
   - `MaxDownloadsPerRun`: maximum poster downloads per run (accepts `0` for no limit, default `250`);
   - Target media types checkboxes: Movies, Series, Collections / Sagas, Seasons, Episodes;
-  - Behavior checkboxes: `Sequential rotation` (labeled `Browse posters in order` with help text: `Enabled: takes the next image from the pool on each rotation. Disabled: chooses a poster at random. Does not change the delay between two rotations.`), `Lock full pools`, `Block private URLs`, `Visual duplicates`;
+  - Behavior checkboxes: `Sequential rotation` (labeled `Browse posters in order` with help text: `Enabled: takes the next image from the pool on each rotation. Disabled: chooses a poster at random. Does not change the delay between two rotations.`), `Block private URLs`, `Visual duplicates`;
   - Configurable library selection with Select All / Deselect All shortcuts and selection counter badge;
   - Image quality and download limits: `MaxDownloadMegabytes`, `MinImageWidth`, `MinImageHeight`;
   - Language filtering: `EnableLanguageFilter`, `PreferredLanguage`, `MaxPreferredLanguageImages` (0 to 10), `FallbackLanguage`, configurable fallback order (`OriginalThenConfigured`, `ConfiguredThenOriginal`, `OriginalOnly`, `ConfiguredOnly`), `IncludeUnknownLanguage`, and `AllowAnyLanguageFallback`;
   - Dynamic opacity/dimming on language filter options when language filtering is disabled;
 - The JS helper `fallbackModeValue` must accept `0..3` and the names `OriginalThenConfigured`, `ConfiguredThenOriginal`, `OriginalOnly`, `ConfiguredOnly`;
 - The dead field `ExtraPosterPatterns` must not be displayed in the interface;
-- Do not display technical or internal fields: `CadenceProfile`, `MaxProviderLookupsPerRun`, `ProcessingBatchSize`, `AutoCleanupOrphanedPools`, or `CleanupIntervalDays`;
+- Do not display technical or internal fields: `MinHoursBetweenSwitches` (rotation timing is managed by the Jellyfin task scheduler), `LockImagesAfterFill`, `CadenceProfile`, `MaxProviderLookupsPerRun`, `ProcessingBatchSize`, `AutoCleanupOrphanedPools`, or `CleanupIntervalDays`;
 - Do not display `ManualLibraryRoots`; clear this list when saving from the interface.
 
 ## Local Build

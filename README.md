@@ -15,16 +15,16 @@
 
 ## Overview
 
-Poster Rotator keeps the Jellyfin interface alive by creating a pool of posters per media, then periodically rotating the primary image. The `1.8.4.1` line is optimized for large libraries, including indexes with `200,000+` pools, targets Jellyfin 12 stable, and adds a bilingual English/French interface with full multi-library selection.
+Poster Rotator keeps the Jellyfin interface alive by creating a pool of posters per media, then periodically rotating the primary image. The `1.8.4.2` line is optimized for large libraries, including indexes with `200,000+` pools, targets Jellyfin 12 stable, and adds a bilingual English/French interface with full multi-library selection.
 
 ## Compatibility
 
-- Plugin version: `1.8.4.1`
+- Plugin version: `1.8.4.2`
 - Target ABI: Jellyfin `12.0.0.0`
 - Jellyfin packages: `12.0.0` (stable)
 - Runtime: `.NET 10`
 
-Version `1.8.4.1` does not make raw SQL access. It uses Jellyfin services (`ILibraryManager`, `IProviderManager`) and stores its state in the plugin's data folder.
+Version `1.8.4.2` does not make raw SQL access. It uses Jellyfin services (`ILibraryManager`, `IProviderManager`) and stores its state in the plugin's data folder.
 
 ## Features
 
@@ -58,7 +58,7 @@ https://raw.githubusercontent.com/maelmoreau21/jellyfin-plugin-poster-rotator/re
 
 Then install **Poster Rotator** from the plugin catalog and restart Jellyfin.
 
-For a manual zip install, the `Jellyfin.Plugin.PosterRotator-1.8.4.1.zip` archive also contains `meta.json` and `jellyfin-plugin-posterrotator.png`, so that Jellyfin's plugin page can display the plugin image.
+For a manual zip install, the `Jellyfin.Plugin.PosterRotator-1.8.4.2.zip` archive also contains `meta.json` and `jellyfin-plugin-posterrotator.png`, so that Jellyfin's plugin page can display the plugin image.
 
 ## Usage
 

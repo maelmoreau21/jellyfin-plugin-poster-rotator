@@ -15,6 +15,7 @@ public class PosterRotatorServiceTests
         Assert.False(PosterRotatorService.IsRotationDue(now.AddHours(-12), now, 72));
         Assert.True(PosterRotatorService.IsRotationDue(now.AddHours(-72), now, 72));
         Assert.True(PosterRotatorService.IsRotationDue(null, now, 72));
+        Assert.True(PosterRotatorService.IsRotationDue(now.AddHours(-1), now, 0));
     }
 
     [Fact]

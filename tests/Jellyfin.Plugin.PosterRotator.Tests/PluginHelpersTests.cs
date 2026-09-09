@@ -14,7 +14,7 @@ public class PluginHelpersTests
 
         Assert.Equal(PoolStorageMode.PluginData, cfg.PoolStorageMode);
         Assert.Equal(4, cfg.PoolSize);
-        Assert.Equal(72, cfg.MinHoursBetweenSwitches);
+        Assert.Equal(0, cfg.MinHoursBetweenSwitches);
         Assert.Equal(500, cfg.MaxRotationsPerRun);
         Assert.Equal(250, cfg.MaxDownloadsPerRun);
         Assert.Equal(250, cfg.MaxProviderLookupsPerRun);

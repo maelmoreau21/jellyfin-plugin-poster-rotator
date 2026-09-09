@@ -5,7 +5,7 @@ namespace Jellyfin.Plugin.PosterRotator.Tests;
 public sealed class WebConfigTests
 {
     [Fact]
-    public void ConfigPage_UsesTwoPanelsAndLibrarySelect()
+    public void ConfigPage_UsesTwoPanels()
     {
         var html = LoadConfigHtml();
 
@@ -20,8 +20,7 @@ public sealed class WebConfigTests
         Assert.Contains("id=\"SettingsPanel\" class=\"posterRotatorPanel\" role=\"tabpanel\" aria-labelledby=\"SettingsTab\" aria-hidden=\"true\" hidden", html);
         Assert.Contains(".posterRotatorPanel[hidden]", html);
         Assert.Contains("panel.hidden = !active;", html);
-        Assert.Contains("<select id=\"PoolsLibrary\"", html);
-        Assert.DoesNotContain("<input id=\"PoolsLibrary\"", html);
+        Assert.DoesNotContain("<select id=\"PoolsLibrary\"", html);
     }
 
     [Fact]
@@ -83,7 +82,7 @@ public sealed class WebConfigTests
         Assert.Contains("function updatePoolButtonStates()", html);
         Assert.Contains("setDisabled('PrevPoolsBtn', poolsState.start <= 0);", html);
         Assert.Contains("setDisabled('NextPoolsBtn', poolsState.start + poolsState.limit >= poolsState.total);", html);
-        Assert.Contains("setDisabled('RotateLibraryBtn', !hasLibrary);", html);
+        Assert.Contains("setDisabled('RotateLibraryBtn'", html);
         Assert.Contains("setDisabled('PurgeItemBtn', !hasSelectedPool);", html);
         Assert.Contains("function markSelectedPoolRow()", html);
         Assert.DoesNotContain("return loadPools(false);", html);
@@ -155,15 +154,11 @@ public sealed class WebConfigTests
     {
         var html = LoadConfigHtml();
 
-        Assert.Contains("<select id=\"PoolsLibrary\" is=\"emby-select\" multiple", html);
-        Assert.Contains("id=\"PoolsLibAllBtn\"", html);
-        Assert.Contains("id=\"PoolsLibNoneBtn\"", html);
+        Assert.DoesNotContain("<select id=\"PoolsLibrary\"", html);
         Assert.Contains("id=\"SelectAllLibrariesBtn\"", html);
         Assert.Contains("id=\"DeselectAllLibrariesBtn\"", html);
         Assert.Contains("id=\"LibrarySelectionCount\"", html);
         Assert.Contains("cfg.Libraries = [];", html);
-        Assert.Contains("getSelectedFilterLibraries", html);
-        Assert.Contains("selected.push(opt.value);", html);
     }
 
     [Fact]
@@ -190,9 +185,8 @@ public sealed class WebConfigTests
         Assert.Contains("id=\"PoolsSortBy\"", html);
         Assert.Contains("id=\"PoolsSortOrder\"", html);
         Assert.Contains("id=\"PoolsCompletion\"", html);
-        Assert.Contains("id=\"PoolsLock\"", html);
+        Assert.DoesNotContain("id=\"PoolsLock\"", html);
         Assert.Contains("params.push('sortBy='", html);
-        Assert.Contains("isLocked=true", html);
         Assert.Contains("params.push('completion='", html);
 
         // Download budget
@@ -201,7 +195,7 @@ public sealed class WebConfigTests
     }
 
     [Fact]
-    public void ConfigPage_ExposesPoolSizeAndMinHoursBetweenSwitches()
+    public void ConfigPage_ExposesPoolSize()
     {
         var html = LoadConfigHtml();
 
@@ -212,15 +206,10 @@ public sealed class WebConfigTests
         Assert.Contains("cfg.PoolSize = intValue('PoolSize', 4, 1, 50);", html);
         Assert.Contains("byId('PoolSize').value = cfg.PoolSize", html);
 
-        // MinHoursBetweenSwitches
-        Assert.Contains("id=\"MinHoursBetweenSwitches\"", html);
-        Assert.Contains("data-i18n=\"Label.MinHoursBetweenSwitches\"", html);
-        Assert.Contains("data-i18n=\"Help.MinHoursBetweenSwitches\"", html);
-        Assert.Contains("cfg.MinHoursBetweenSwitches = intValue('MinHoursBetweenSwitches', 72, 0, 8760);", html);
-        Assert.Contains("byId('MinHoursBetweenSwitches').value = cfg.MinHoursBetweenSwitches", html);
-
-        // Non-functional ExtraPosterPatterns input removed
+        // MinHoursBetweenSwitches handled by task scheduler, not in UI
+        Assert.DoesNotContain("id=\"MinHoursBetweenSwitches\"", html);
         Assert.DoesNotContain("<input id=\"ExtraPosterPatterns\"", html);
+        Assert.DoesNotContain("id=\"LockImagesAfterFill\"", html);
     }
 
     [Fact]

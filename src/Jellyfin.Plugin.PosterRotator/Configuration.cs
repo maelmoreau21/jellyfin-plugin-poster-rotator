@@ -45,7 +45,7 @@ public class Configuration : BasePluginConfiguration
     public bool LockImagesAfterFill { get; set; } = false;
     public PoolStorageMode PoolStorageMode { get; set; } = PoolStorageMode.PluginData;
     public List<string> ExtraPosterPatterns { get; set; } = new();
-    public int MinHoursBetweenSwitches { get; set; } = 72;
+    public int MinHoursBetweenSwitches { get; set; } = 0;
     public int MaxRotationsPerRun { get; set; } = 500;
     public int MaxDownloadsPerRun { get; set; } = 250;
     public int MaxProviderLookupsPerRun { get; set; } = 250;

@@ -648,7 +648,7 @@ public class PosterRotatorService : IPosterRotatorService
         Math.Clamp(value <= 0 ? 4 : value, 1, 50);
 
     internal static int NormalizeMinHours(int value) =>
-        Math.Clamp(value <= 0 ? 72 : value, 1, 24 * 365);
+        value <= 0 ? 0 : Math.Clamp(value, 0, 24 * 365);
 
     internal static int NormalizeProcessingBatchSize(int value) =>
         Math.Clamp(value <= 0 ? 250 : value, 10, 5000);
@@ -666,7 +666,7 @@ public class PosterRotatorService : IPosterRotatorService
         Math.Clamp(value < 0 ? 0 : value, 0, 50);
 
     internal static bool IsRotationDue(DateTimeOffset? lastRotatedUtc, DateTimeOffset now, int minHoursBetweenSwitches) =>
-        !lastRotatedUtc.HasValue || now - lastRotatedUtc.Value >= TimeSpan.FromHours(NormalizeMinHours(minHoursBetweenSwitches));
+        minHoursBetweenSwitches <= 0 || !lastRotatedUtc.HasValue || now - lastRotatedUtc.Value >= TimeSpan.FromHours(NormalizeMinHours(minHoursBetweenSwitches));
 
     internal static void ShuffleItemIds(Guid[] itemIds)
     {
