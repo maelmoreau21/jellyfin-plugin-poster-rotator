@@ -2,14 +2,14 @@
 
 ## Goal of Branch 1.8
 
-Prepare Poster Rotator `1.8.3.0` for Jellyfin `12.0.0.0`.
+Prepare Poster Rotator `1.8.4.0` for Jellyfin `12.0.0.0`.
 
 - Do not add raw SQL access.
 - Do not use `SQLiteConnection`, `DbConnection`, `FromSql`, `ExecuteSql`, or raw textual queries.
 - Use injected Jellyfin services (`ILibraryManager`, `IProviderManager`, etc.).
 - Keep `CS0618` as an error to block `[Obsolete]` APIs.
 - Keep `1.6.0.0` as the compatible line for Jellyfin `10.11.x`.
-- Keep `1.7.0.0`, `1.8.0.0`, `1.8.1.0`, and `1.8.2.0` as the previous Jellyfin 12 lines.
+- Keep `1.7.0.0`, `1.8.0.0`, `1.8.1.0`, `1.8.2.0`, and `1.8.3.0` as the previous Jellyfin 12 lines.
 - Keep the plugin interface localizable in English and French, falling back to English.
 
 ## Pool Storage
@@ -154,17 +154,17 @@ dotnet test .\jellyfin-plugin-poster-rotator.sln -c Release -p:JellyfinPackageVe
 
 ## Release
 
-1. Verify that `Version`, `AssemblyVersion`, and `FileVersion` are `1.8.3.0`.
+1. Verify that `Version`, `AssemblyVersion`, and `FileVersion` are `1.8.4.0`.
 2. Compile in `Release` against the authenticated Jellyfin 12 package.
 3. Run tests.
-4. Create `Jellyfin.Plugin.PosterRotator-1.8.3.0.zip` containing:
+4. Create `Jellyfin.Plugin.PosterRotator-1.8.4.0.zip` containing:
    - `Jellyfin.Plugin.PosterRotator.dll`
    - `Jellyfin.Plugin.PosterRotator.deps.json`
    - `Jellyfin.Plugin.PosterRotator.pdb`
    - `jellyfin-plugin-posterrotator.png`
    - `meta.json`
 5. Calculate the MD5 of the zip and report it in `manifest.json`.
-6. Keep the `1.8.2.0`, `1.8.1.0`, `1.8.0.0`, `1.7.0.0`, and `1.6.0.0` manifest entries for previous lines.
+6. Keep the `1.8.3.0`, `1.8.2.0`, `1.8.1.0`, `1.8.0.0`, `1.7.0.0`, and `1.6.0.0` manifest entries for previous lines.
 
 ## Cleanup
 

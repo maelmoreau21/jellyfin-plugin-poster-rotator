@@ -15,18 +15,18 @@
 
 ## Overview
 
-Poster Rotator keeps the Jellyfin interface alive by creating a pool of posters per media, then periodically rotating the primary image. The `1.8.3.0` line is optimized for large libraries, including indexes with `200,000+` pools, targets Jellyfin 12 stable, and adds a bilingual English/French interface with full multi-library selection.
+Poster Rotator keeps the Jellyfin interface alive by creating a pool of posters per media, then periodically rotating the primary image. The `1.8.4.0` line is optimized for large libraries, including indexes with `200,000+` pools, targets Jellyfin 12 stable, and adds a bilingual English/French interface with full multi-library selection.
 
 ## Compatibility
 
-- Plugin version: `1.8.3.0`
+- Plugin version: `1.8.4.0`
 - Target ABI: Jellyfin `12.0.0.0`
 - Jellyfin packages: `12.0.0` (stable) with `10.11.11` fallback
 - Runtime: `.NET 10` (with `.NET 9` compatibility)
-- Previous Jellyfin 12 lines: `1.8.2.0`, `1.8.1.0`, `1.8.0.0`, `1.7.0.0`
+- Previous Jellyfin 12 lines: `1.8.3.0`, `1.8.2.0`, `1.8.1.0`, `1.8.0.0`, `1.7.0.0`
 - Jellyfin 10.11 line: `1.6.0.0`
 
-Version `1.8.3.0` does not make raw SQL access. It uses Jellyfin services (`ILibraryManager`, `IProviderManager`) and stores its state in the plugin's data folder.
+Version `1.8.4.0` does not make raw SQL access. It uses Jellyfin services (`ILibraryManager`, `IProviderManager`) and stores its state in the plugin's data folder.
 
 ## Features
 
@@ -60,7 +60,7 @@ https://raw.githubusercontent.com/maelmoreau21/jellyfin-plugin-poster-rotator/re
 
 Then install **Poster Rotator** from the plugin catalog and restart Jellyfin.
 
-For a manual zip install, the `Jellyfin.Plugin.PosterRotator-1.8.3.0.zip` archive also contains `meta.json` and `jellyfin-plugin-posterrotator.png`, so that Jellyfin's plugin page can display the plugin image.
+For a manual zip install, the `Jellyfin.Plugin.PosterRotator-1.8.4.0.zip` archive also contains `meta.json` and `jellyfin-plugin-posterrotator.png`, so that Jellyfin's plugin page can display the plugin image.
 
 ## Usage
 
@@ -103,13 +103,13 @@ Build, test, and release instructions are in [instructions.md](./instructions.md
 
 Releases are published automatically via GitHub Actions:
 - Whenever code is pushed or merged to `main`, the `.github/workflows/release.yml` workflow restores, builds, and runs the entire test suite against Jellyfin 12 (`net10.0`) and fallback (`net9.0`).
-- If tests pass, it packages `Jellyfin.Plugin.PosterRotator-<version>.zip`, updates `manifest.json` and `meta.json` with the new MD5 checksum and timestamp, commits the manifest updates to `main`, and creates or updates the GitHub Release tag (e.g. `v1.8.3.0`) with the release ZIP attached.
+- If tests pass, it packages `Jellyfin.Plugin.PosterRotator-<version>.zip`, updates `manifest.json` and `meta.json` with the new MD5 checksum and timestamp, commits the manifest updates to `main`, and creates or updates the GitHub Release tag (e.g. `v1.8.4.0`) with the release ZIP attached.
 
 For manual releases or validation:
-1. Follow the build/package steps in [instructions.md](./instructions.md) to generate the release zip (e.g., `Jellyfin.Plugin.PosterRotator-1.8.3.0.zip`).
+1. Follow the build/package steps in [instructions.md](./instructions.md) to generate the release zip (e.g., `Jellyfin.Plugin.PosterRotator-1.8.4.0.zip`).
 2. Calculate its MD5 checksum and update `manifest.json`.
-3. Create the matching release tag (e.g., `v1.8.3.0`) on GitHub and attach `Jellyfin.Plugin.PosterRotator-1.8.3.0.zip`.
-4. Ensure the download URL defined in `manifest.json` (`https://github.com/.../releases/download/v1.8.3.0/Jellyfin.Plugin.PosterRotator-1.8.3.0.zip`) matches.
+3. Create the matching release tag (e.g., `v1.8.4.0`) on GitHub and attach `Jellyfin.Plugin.PosterRotator-1.8.4.0.zip`.
+4. Ensure the download URL defined in `manifest.json` (`https://github.com/.../releases/download/v1.8.4.0/Jellyfin.Plugin.PosterRotator-1.8.4.0.zip`) matches.
 
 ## License
 
