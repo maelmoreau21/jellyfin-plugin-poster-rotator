@@ -146,7 +146,7 @@ public class PosterRotatorService : IPosterRotatorService
         }
     }
 
-    private (Dictionary<string, List<string>> LibraryMap, SelectedRoots Selection, List<BaseItemKind> Kinds) ResolveRunScope(Configuration cfg)
+    internal (Dictionary<string, List<string>> LibraryMap, SelectedRoots Selection, List<BaseItemKind> Kinds) ResolveRunScope(Configuration cfg)
     {
         var kinds = GetRotationKinds(cfg);
         var libraryMap = GetLibraryRootPaths();
@@ -601,7 +601,7 @@ public class PosterRotatorService : IPosterRotatorService
         paths.AddRange(unique);
     }
 
-    private sealed class SelectedRoots
+    internal sealed class SelectedRoots
     {
         public List<string> Paths { get; } = new();
         public HashSet<string> LibraryNames { get; } = new(StringComparer.OrdinalIgnoreCase);
@@ -979,7 +979,7 @@ public class PosterRotatorService : IPosterRotatorService
         return PoolStorageMode.MediaFolders;
     }
 
-    private string? ResolvePoolDirectory(BaseItem item, PoolStorageMode mode, string? legacyPoolDir)
+    internal string? ResolvePoolDirectory(BaseItem item, PoolStorageMode mode, string? legacyPoolDir)
     {
         if (mode == PoolStorageMode.MediaFolders)
             return legacyPoolDir;
@@ -1353,7 +1353,7 @@ public class PosterRotatorService : IPosterRotatorService
         return true;
     }
 
-    private async Task<bool> IsAllowedRemoteImageUrlAsync(string url, Configuration cfg, CancellationToken ct)
+    internal async Task<bool> IsAllowedRemoteImageUrlAsync(string url, Configuration cfg, CancellationToken ct)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
             return false;
@@ -1380,7 +1380,7 @@ public class PosterRotatorService : IPosterRotatorService
         }
     }
 
-    private async Task<HttpResponseMessage> SendRemoteImageRequestAsync(
+    internal async Task<HttpResponseMessage> SendRemoteImageRequestAsync(
         HttpClient client,
         string initialUrl,
         Configuration cfg,

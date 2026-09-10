@@ -2,7 +2,7 @@
 
 ## Goal of Branch 1.8
 
-Prepare Poster Rotator `1.8.5.1` for Jellyfin `12.0.0.0`.
+Prepare Poster Rotator `1.8.5.2` for Jellyfin `12.0.0.0`.
 
 - Backwards compatibility is not required or maintained: the only goal is to work seamlessly with the current version on Jellyfin 12 (`12.0.0.0`).
 - Do not maintain legacy Jellyfin lines (Jellyfin 10.11 / 1.6.0.0) or previous Jellyfin 12 iterations.
@@ -173,7 +173,7 @@ dotnet test .\jellyfin-plugin-poster-rotator.sln -c Release --no-restore -warnas
 
 Whenever instructed to push or send changes to the `main` branch (e.g. "envoie dans la branche main", "push sur main", "fais la release") or when preparing a release:
 
-1. **Version consistency**: Ensure the version number (e.g., `1.8.5.1`) is updated consistently across:
+1. **Version consistency**: Ensure the version number (e.g., `1.8.5.2`) is updated consistently across:
    - `src/Jellyfin.Plugin.PosterRotator/Jellyfin.Plugin.PosterRotator.csproj` (`Version`, `AssemblyVersion`, `FileVersion`)
    - `meta.json` (`version`)
    - Documentation (`instructions.md`, `README.md`)

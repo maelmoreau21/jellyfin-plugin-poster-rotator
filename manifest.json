@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/maelmoreau21/jellyfin-plugin-poster-rotator/refs/heads/main/jellyfin-plugin-posterrotator.png",
     "versions": [
       {
+        "version": "1.8.5.2",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/maelmoreau21/jellyfin-plugin-poster-rotator/releases/download/v1.8.5.2/Jellyfin.Plugin.PosterRotator-1.8.5.2.zip",
+        "checksum": "5b90d1a9c439af69720e5e7b313b2e69",
+        "timestamp": "2026-09-10T20:07:00Z",
+        "changelog": "Release 1.8.5.2: Replace source-scraping tests with real behavioral security tests (redirect SSRF revalidation, upload limit verification, dedicated pool directory creation, controller routing reflection, legacy roots ignoring)."
+      },
+      {
         "version": "1.8.5.1",
         "targetAbi": "12.0.0.0",
         "sourceUrl": "https://github.com/maelmoreau21/jellyfin-plugin-poster-rotator/releases/download/v1.8.5.1/Jellyfin.Plugin.PosterRotator-1.8.5.1.zip",
