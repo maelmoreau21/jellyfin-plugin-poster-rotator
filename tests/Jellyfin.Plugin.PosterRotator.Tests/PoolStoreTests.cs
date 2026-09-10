@@ -580,6 +580,150 @@ public sealed class PoolStoreTests
         }
     }
 
+    [Fact]
+    public async Task DeduplicatePoolAsync_RemovesDuplicateImagesAndUpdatesIndex()
+    {
+        var root = CreateTempPluginDataFolder();
+        var itemId = Guid.NewGuid();
+
+        try
+        {
+            var store = new PoolStore(root);
+            var poolDir = store.TryGetPoolDirectory(itemId, create: true)!;
+            var snapshot = new PoolItemSnapshot(itemId, "Dup Movie", "Movie", "Films", null);
+            await store.EnsurePoolAsync(snapshot, poolDir, CancellationToken.None);
+
+            // Image 1: bytes pattern A
+            var img1Path = Path.Combine(poolDir, "img1.png");
+            var bytesA = Enumerable.Range(0, 100).Select(i => (byte)i).ToArray();
+            await File.WriteAllBytesAsync(img1Path, bytesA);
+            await store.RecordImageAsync(snapshot, poolDir, img1Path, "upload", "fr", null, "image/png", 100, 150, 0, CancellationToken.None);
+
+            // Image 2: duplicate of Image 1 (identical bytes)
+            var img2Path = Path.Combine(poolDir, "img2.png");
+            await File.WriteAllBytesAsync(img2Path, bytesA);
+            await store.RecordImageAsync(snapshot, poolDir, img2Path, "upload", "fr", null, "image/png", 100, 150, 0, CancellationToken.None);
+
+            // Image 3: completely different image
+            var img3Path = Path.Combine(poolDir, "img3.png");
+            var bytesB = Enumerable.Range(0, 100).Select(i => (byte)(255 - i)).ToArray();
+            await File.WriteAllBytesAsync(img3Path, bytesB);
+            await store.RecordImageAsync(snapshot, poolDir, img3Path, "upload", "fr", null, "image/png", 100, 150, 0, CancellationToken.None);
+
+            var poolBefore = await store.GetPoolAsync(itemId, reconcileFiles: false, CancellationToken.None);
+            Assert.NotNull(poolBefore);
+            Assert.Equal(3, poolBefore.Images.Count);
+
+            var deleted = await store.DeduplicatePoolAsync(itemId, threshold: 5, CancellationToken.None);
+            Assert.Equal(1, deleted);
+
+            var poolAfter = await store.GetPoolAsync(itemId, reconcileFiles: false, CancellationToken.None);
+            Assert.NotNull(poolAfter);
+            Assert.Equal(2, poolAfter.Images.Count);
+            Assert.True(File.Exists(img1Path));
+            Assert.False(File.Exists(img2Path));
+            Assert.True(File.Exists(img3Path));
+
+            // Index was also updated
+            var list = await store.ListPoolsAsync(new PoolListQuery(), CancellationToken.None);
+            var entry = list.Items.First(p => Guid.Parse(p.ItemId) == itemId);
+            Assert.Equal(2, entry.ImageCount);
+        }
+        finally
+        {
+            DeleteTempRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task DeduplicatePoolAsync_ProtectsActiveImage()
+    {
+        var root = CreateTempPluginDataFolder();
+        var itemId = Guid.NewGuid();
+
+        try
+        {
+            var store = new PoolStore(root);
+            var poolDir = store.TryGetPoolDirectory(itemId, create: true)!;
+            var snapshot = new PoolItemSnapshot(itemId, "Active Movie", "Movie", "Films", null);
+            await store.EnsurePoolAsync(snapshot, poolDir, CancellationToken.None);
+
+            var bytes = Enumerable.Range(0, 100).Select(i => (byte)i).ToArray();
+
+            var img1Path = Path.Combine(poolDir, "img1.png");
+            await File.WriteAllBytesAsync(img1Path, bytes);
+            await store.RecordImageAsync(snapshot, poolDir, img1Path, "upload", "fr", null, "image/png", 100, 150, 0, CancellationToken.None);
+
+            var img2Path = Path.Combine(poolDir, "img2.png");
+            await File.WriteAllBytesAsync(img2Path, bytes);
+            await store.RecordImageAsync(snapshot, poolDir, img2Path, "upload", "fr", null, "image/png", 100, 150, 0, CancellationToken.None);
+
+            // Mark img2 as active/applied via RecordRotationAsync
+            await store.RecordRotationAsync(snapshot, poolDir, img2Path, 0, DateTimeOffset.UtcNow, CancellationToken.None);
+
+            var deleted = await store.DeduplicatePoolAsync(itemId, threshold: 5, CancellationToken.None);
+            Assert.Equal(1, deleted);
+
+            var poolAfter = await store.GetPoolAsync(itemId, reconcileFiles: false, CancellationToken.None);
+            Assert.NotNull(poolAfter);
+            Assert.Single(poolAfter.Images);
+            // img2 was preserved because it was active, img1 was deleted
+            Assert.Equal("img2.png", poolAfter.Images[0].FileName);
+            Assert.False(File.Exists(img1Path));
+            Assert.True(File.Exists(img2Path));
+        }
+        finally
+        {
+            DeleteTempRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task DeduplicateAllPoolsAsync_ProcessesMultiplePools()
+    {
+        var root = CreateTempPluginDataFolder();
+        var item1Id = Guid.NewGuid();
+        var item2Id = Guid.NewGuid();
+
+        try
+        {
+            var store = new PoolStore(root);
+
+            // Pool 1: has duplicate
+            var poolDir1 = store.TryGetPoolDirectory(item1Id, create: true)!;
+            var snap1 = new PoolItemSnapshot(item1Id, "Movie 1", "Movie", "Films", null);
+            await store.EnsurePoolAsync(snap1, poolDir1, CancellationToken.None);
+            var bytes1 = Enumerable.Range(0, 100).Select(i => (byte)i).ToArray();
+            var p1Img1 = Path.Combine(poolDir1, "a.png");
+            var p1Img2 = Path.Combine(poolDir1, "b.png");
+            await File.WriteAllBytesAsync(p1Img1, bytes1);
+            await File.WriteAllBytesAsync(p1Img2, bytes1);
+            await store.RecordImageAsync(snap1, poolDir1, p1Img1, "upload", "fr", null, "image/png", 100, 150, 0, CancellationToken.None);
+            await store.RecordImageAsync(snap1, poolDir1, p1Img2, "upload", "fr", null, "image/png", 100, 150, 0, CancellationToken.None);
+
+            // Pool 2: has distinct images
+            var poolDir2 = store.TryGetPoolDirectory(item2Id, create: true)!;
+            var snap2 = new PoolItemSnapshot(item2Id, "Movie 2", "Movie", "Films", null);
+            await store.EnsurePoolAsync(snap2, poolDir2, CancellationToken.None);
+            var p2Img1 = Path.Combine(poolDir2, "c.png");
+            var p2Img2 = Path.Combine(poolDir2, "d.png");
+            await File.WriteAllBytesAsync(p2Img1, bytes1);
+            var bytesAlt = Enumerable.Range(0, 100).Select(i => (byte)(i % 2 == 0 ? 255 : 0)).ToArray();
+            await File.WriteAllBytesAsync(p2Img2, bytesAlt);
+            await store.RecordImageAsync(snap2, poolDir2, p2Img1, "upload", "fr", null, "image/png", 100, 150, 0, CancellationToken.None);
+            await store.RecordImageAsync(snap2, poolDir2, p2Img2, "upload", "fr", null, "image/png", 100, 150, 0, CancellationToken.None);
+
+            var result = await store.DeduplicateAllPoolsAsync(threshold: 5, CancellationToken.None);
+            Assert.Equal(1, result.DeletedCount);
+            Assert.Equal(1, result.PoolsAffected);
+            Assert.Equal(2, result.TotalPools);
+        }
+        finally
+        {
+            DeleteTempRoot(root);
+        }
+    }
+
     private static async Task CreatePool(PoolStore store, string root, Guid itemId, string name, string library)
     {
         var poolDir = store.TryGetPoolDirectory(itemId, create: true)!;

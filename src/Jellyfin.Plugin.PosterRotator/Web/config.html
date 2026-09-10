@@ -646,6 +646,7 @@
                   <div class="posterRotatorActionGroupTitle" data-i18n="Group.Refresh">Refresh</div>
                   <button id="RefreshAllBtn" type="button" class="raised emby-button" data-i18n="Button.Refresh">Refresh</button>
                   <button id="DownloadMissingPoolsBtn" type="button" class="raised button-submit emby-button" data-i18n="Button.DownloadMissingPools">Download missing pools</button>
+                  <button id="DeduplicateAllPoolsBtn" type="button" class="raised emby-button" data-i18n="Button.DeduplicateAll">Deduplicate pools</button>
                 </div>
 
                 <div class="posterRotatorActionGroup">
@@ -686,6 +687,7 @@
                 <input id="PoolUploadFile" class="posterRotatorHiddenInput" type="file"
                   accept=".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif" />
                 <button id="UploadPoolImageBtn" type="button" class="raised emby-button" data-i18n="Button.Upload">Import</button>
+                <button id="DeduplicatePoolBtn" type="button" class="raised emby-button" data-i18n="Button.Deduplicate">Deduplicate</button>
                 <button id="DeleteCurrentPoolBtn" type="button" class="raised button-cancel emby-button" data-i18n="Button.DeleteCurrentPool">Delete this pool</button>
               </div>
               <div id="PoolImages" class="posterRotatorThumbs"></div>
@@ -752,6 +754,12 @@
               <label class="emby-checkbox-label"><input id="EnableDuplicateDetection" type="checkbox" is="emby-checkbox" /><span data-i18n="Checkbox.DuplicateDetection">Visual duplicates</span></label>
             </div>
             <div class="posterRotatorDescription posterRotatorFieldHelp" data-i18n="Help.SequentialRotation">Enabled: uses the next image from the pool at each rotation. Disabled: picks a random poster. Does not change the delay between rotations.</div>
+
+            <div id="DuplicateThresholdContainer" class="inputContainer" style="margin-top: 10px; max-width: 320px;">
+              <label class="inputLabel inputLabelUnfocused" for="DuplicateThreshold" data-i18n="Label.DuplicateThreshold">Duplicate detection threshold</label>
+              <input id="DuplicateThreshold" type="number" min="0" max="30" step="1" is="emby-input" value="10" />
+              <div class="posterRotatorDescription posterRotatorFieldHelp" data-i18n="Help.DuplicateThreshold">Hamming distance (0 to 30, default 10). Lower values are stricter (near identical only). Higher values eliminate minor variations.</div>
+            </div>
 
             <div class="posterRotatorBand">
               <div class="posterRotatorFlexBetween">
@@ -1398,6 +1406,48 @@
             .catch(function () { alert(t('Message.RotatePoolError')); });
         }
 
+        function deduplicateCurrentPool() {
+          if (!poolsState.selectedItemId) return;
+          Dashboard.showLoadingMsg();
+          postJson('PosterRotator/Pools/Deduplicate', { ItemId: poolsState.selectedItemId })
+            .then(function (result) {
+              Dashboard.hideLoadingMsg();
+              var count = prop(result, 'DeletedCount', 'deletedCount', 0);
+              if (count > 0) {
+                alert(tf('Message.DeduplicateItemResult', count));
+                openPool(poolsState.selectedItemId);
+                refreshAll(true);
+              } else {
+                alert(t('Message.NoDuplicatesFound'));
+              }
+            })
+            .catch(function (err) {
+              Dashboard.hideLoadingMsg();
+              alert(t('Message.ActionFailed') + (err && err.message ? ' ' + err.message : ''));
+            });
+        }
+
+        function deduplicateAllPools() {
+          if (!confirm(t('Message.ConfirmDeduplicateAll'))) return;
+          Dashboard.showLoadingMsg();
+          postJson('PosterRotator/Pools/Deduplicate', {})
+            .then(function (result) {
+              Dashboard.hideLoadingMsg();
+              var count = prop(result, 'DeletedCount', 'deletedCount', 0);
+              var affected = prop(result, 'PoolsAffected', 'poolsAffected', 0);
+              if (count > 0) {
+                alert(tf('Message.DeduplicateAllResult', count, affected));
+              } else {
+                alert(t('Message.NoDuplicatesFound'));
+              }
+              return refreshAll(true);
+            })
+            .catch(function (err) {
+              Dashboard.hideLoadingMsg();
+              alert(t('Message.ActionFailed') + (err && err.message ? ' ' + err.message : ''));
+            });
+        }
+
         function deleteCurrentPool() {
           if (!poolsState.selectedItemId) return;
           if (!confirm(t('Message.ConfirmDeleteCurrentPool'))) return;
@@ -1589,6 +1639,17 @@
           }
         }
 
+        function updateDuplicateThresholdVisibility() {
+          var enabled = byId('EnableDuplicateDetection') && byId('EnableDuplicateDetection').checked;
+          var container = byId('DuplicateThresholdContainer');
+          var input = byId('DuplicateThreshold');
+          if (container) {
+            container.style.opacity = enabled ? '1' : '0.45';
+            container.style.pointerEvents = enabled ? 'auto' : 'none';
+          }
+          if (input) input.disabled = !enabled;
+        }
+
         function loadConfig() {
           return ApiClient.getPluginConfiguration(pluginId)
             .then(function (cfg) {
@@ -1613,6 +1674,8 @@
               byId('MaxDownloadMegabytes').value = cfg.MaxDownloadMegabytes ?? 25;
               byId('BlockPrivateNetworkImageUrls').checked = cfg.BlockPrivateNetworkImageUrls === undefined ? true : !!cfg.BlockPrivateNetworkImageUrls;
               byId('EnableDuplicateDetection').checked = cfg.EnableDuplicateDetection === undefined ? true : !!cfg.EnableDuplicateDetection;
+              byId('DuplicateThreshold').value = cfg.DuplicateThreshold ?? 10;
+              updateDuplicateThresholdVisibility();
               byId('EnableLanguageFilter').checked = !!cfg.EnableLanguageFilter;
               updateLanguageFilterVisibility();
               byId('PreferredLanguage').value = cfg.PreferredLanguage ?? 'fr';
@@ -1651,6 +1714,7 @@
               cfg.MaxDownloadMegabytes = intValue('MaxDownloadMegabytes', 25, 1, 200);
               cfg.BlockPrivateNetworkImageUrls = boolValue('BlockPrivateNetworkImageUrls', true);
               cfg.EnableDuplicateDetection = boolValue('EnableDuplicateDetection', true);
+              cfg.DuplicateThreshold = intValue('DuplicateThreshold', 10, 0, 30);
               cfg.EnableLanguageFilter = boolValue('EnableLanguageFilter', false);
               cfg.PreferredLanguage = textValue('PreferredLanguage', 'fr');
               cfg.MaxPreferredLanguageImages = intValue('MaxPreferredLanguageImages', 2, 0, 10);
@@ -1781,6 +1845,10 @@
           if (purgeItemBtn) purgeItemBtn.addEventListener('click', function () { purge('item'); });
           var deleteCurrentPoolBtn = byId('DeleteCurrentPoolBtn');
           if (deleteCurrentPoolBtn) deleteCurrentPoolBtn.addEventListener('click', deleteCurrentPool);
+          var deduplicatePoolBtn = byId('DeduplicatePoolBtn');
+          if (deduplicatePoolBtn) deduplicatePoolBtn.addEventListener('click', deduplicateCurrentPool);
+          var deduplicateAllPoolsBtn = byId('DeduplicateAllPoolsBtn');
+          if (deduplicateAllPoolsBtn) deduplicateAllPoolsBtn.addEventListener('click', deduplicateAllPools);
           var poolDrawerCloseBtn = byId('PoolDrawerCloseBtn');
           if (poolDrawerCloseBtn) poolDrawerCloseBtn.addEventListener('click', closePoolDrawer);
           var poolDrawerOverlay = byId('PoolDrawerOverlay');
@@ -1793,6 +1861,8 @@
               }
             }
           });
+          var enableDuplicateDetection = byId('EnableDuplicateDetection');
+          if (enableDuplicateDetection) enableDuplicateDetection.addEventListener('change', updateDuplicateThresholdVisibility);
           var enableLanguageFilter = byId('EnableLanguageFilter');
           if (enableLanguageFilter) enableLanguageFilter.addEventListener('change', updateLanguageFilterVisibility);
         }

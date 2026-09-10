@@ -1218,7 +1218,8 @@ public class PosterRotatorService : IPosterRotatorService
                     hash = await ImageHash.ComputeNormalizedHashAsync(finalPath, _imageProcessor, ct).ConfigureAwait(false);
                     if (hash != 0)
                     {
-                        if (ImageHash.IsDuplicate(hash, knownHashes))
+                        var threshold = Configuration.NormalizeDuplicateThreshold(cfg.DuplicateThreshold);
+                        if (ImageHash.IsDuplicate(hash, knownHashes, threshold))
                         {
                             _log.LogInformation("PosterRotator: rejected {Name} - visually duplicate", Path.GetFileName(finalPath));
                             TryDeleteFile(finalPath);
@@ -2129,6 +2130,28 @@ public class PosterRotatorService : IPosterRotatorService
 
     public Task<PurgePoolsResult> PurgeAsync(PoolPurgeRequest request, CancellationToken cancellationToken) =>
         _poolStore.PurgeAsync(request, ItemExists, cancellationToken);
+
+    public async Task<PoolDeduplicateResult> DeduplicatePoolsAsync(
+        Guid? itemId,
+        int? threshold,
+        CancellationToken cancellationToken)
+    {
+        var cfg = Plugin.Instance?.Configuration ?? new Configuration();
+        var effectiveThreshold = Configuration.NormalizeDuplicateThreshold(threshold ?? cfg.DuplicateThreshold);
+
+        if (itemId.HasValue && itemId.Value != Guid.Empty)
+        {
+            var deleted = await _poolStore.DeduplicatePoolAsync(itemId.Value, effectiveThreshold, cancellationToken).ConfigureAwait(false);
+            return new PoolDeduplicateResult
+            {
+                DeletedCount = deleted,
+                PoolsAffected = deleted > 0 ? 1 : 0,
+                TotalPools = 1
+            };
+        }
+
+        return await _poolStore.DeduplicateAllPoolsAsync(effectiveThreshold, cancellationToken).ConfigureAwait(false);
+    }
 
     private bool ItemExists(Guid itemId) => TryGetItemById(itemId) != null;
 

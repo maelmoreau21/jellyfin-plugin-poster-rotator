@@ -270,4 +270,16 @@ public class PurgeController : ControllerBase
         var result = await _service.PurgeAllPoolsAsync(cancellationToken).ConfigureAwait(false);
         return Ok(result);
     }
+
+    [HttpPost("Pools/Deduplicate")]
+    public async Task<ActionResult<PoolDeduplicateResult>> DeduplicatePools(
+        [FromBody] PoolDeduplicateRequest? request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _service.DeduplicatePoolsAsync(
+            request?.ItemId,
+            request?.Threshold,
+            cancellationToken).ConfigureAwait(false);
+        return Ok(result);
+    }
 }

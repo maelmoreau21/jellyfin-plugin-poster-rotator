@@ -124,6 +124,8 @@ public sealed class PosterRotatorLocalization : IPosterRotatorLocalization
             ["Button.Upload"] = "Import",
             ["Button.Open"] = "Open",
             ["Button.Close"] = "Close",
+            ["Button.Deduplicate"] = "Deduplicate",
+            ["Button.DeduplicateAll"] = "Deduplicate pools",
             ["Button.Delete"] = "Delete",
             ["Button.Save"] = "Save",
             ["Table.Media"] = "Media",
@@ -200,7 +202,13 @@ public sealed class PosterRotatorLocalization : IPosterRotatorLocalization
             ["Api.NoFileReceived"] = "No file received.",
             ["Api.ImageTooLarge"] = "Image is too large.",
             ["Api.RotateEmptyPoolError"] = "Immediate rotation unavailable: empty pool.",
-            ["Api.RotateSaveImageError"] = "Immediate rotation unavailable: SaveImage failed."
+            ["Api.RotateSaveImageError"] = "Immediate rotation unavailable: SaveImage failed.",
+            ["Label.DuplicateThreshold"] = "Duplicate detection threshold",
+            ["Help.DuplicateThreshold"] = "Hamming distance threshold (0 to 30, default 10). Lower values are stricter (near exact match). Higher values eliminate subtle compression or color variations.",
+            ["Message.ConfirmDeduplicateAll"] = "Scan all pools and remove visual duplicates based on the configured threshold?",
+            ["Message.DeduplicateItemResult"] = "Removed {0} duplicate image(s) from this pool.",
+            ["Message.DeduplicateAllResult"] = "Removed {0} duplicate image(s) across {1} pool(s).",
+            ["Message.NoDuplicatesFound"] = "No duplicate images found."
         },
         ["fr"] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -306,6 +314,8 @@ public sealed class PosterRotatorLocalization : IPosterRotatorLocalization
             ["Button.Upload"] = "Importer",
             ["Button.Open"] = "Ouvrir",
             ["Button.Close"] = "Fermer",
+            ["Button.Deduplicate"] = "Nettoyer les doublons",
+            ["Button.DeduplicateAll"] = "Nettoyer les doublons",
             ["Button.Delete"] = "Supprimer",
             ["Button.Save"] = "Enregistrer",
             ["Table.Media"] = "Media",
@@ -382,7 +392,13 @@ public sealed class PosterRotatorLocalization : IPosterRotatorLocalization
             ["Api.NoFileReceived"] = "Aucun fichier recu.",
             ["Api.ImageTooLarge"] = "Image trop volumineuse.",
             ["Api.RotateEmptyPoolError"] = "Rotation immediate impossible: pool vide.",
-            ["Api.RotateSaveImageError"] = "Rotation immediate impossible: SaveImage a echoue."
+            ["Api.RotateSaveImageError"] = "Rotation immediate impossible: SaveImage a echoue.",
+            ["Label.DuplicateThreshold"] = "Seuil de détection des doublons",
+            ["Help.DuplicateThreshold"] = "Distance de Hamming (0 à 30, défaut 10). Une valeur basse est plus stricte (images identiques). Une valeur haute élimine les variations mineures.",
+            ["Message.ConfirmDeduplicateAll"] = "Rechercher et supprimer les doublons visuels dans tous les pools selon le seuil configuré ?",
+            ["Message.DeduplicateItemResult"] = "{0} image(s) en double supprimée(s) de ce pool.",
+            ["Message.DeduplicateAllResult"] = "{0} image(s) en double supprimée(s) sur {1} pool(s).",
+            ["Message.NoDuplicatesFound"] = "Aucun doublon trouvé."
         }
     };
 

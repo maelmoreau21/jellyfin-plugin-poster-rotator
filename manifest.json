@@ -9,12 +9,12 @@
     "imageUrl": "https://raw.githubusercontent.com/maelmoreau21/jellyfin-plugin-poster-rotator/refs/heads/main/jellyfin-plugin-posterrotator.png",
     "versions": [
       {
-        "version": "1.8.4.5",
+        "version": "1.8.5.0",
         "targetAbi": "12.0.0.0",
-        "sourceUrl": "https://github.com/maelmoreau21/jellyfin-plugin-poster-rotator/releases/download/v1.8.4.5/Jellyfin.Plugin.PosterRotator-1.8.4.5.zip",
-        "checksum": "53896b3d642642e35ed594cf04c0e06d",
-        "timestamp": "2026-09-10T12:54:37Z",
-        "changelog": "Release 1.8.4.5: Uncapped download budget when MaxDownloadsPerRun=0 with empty-pool priority, all providers enabled for diversity, perceptual difference hash (dHash) for duplicate detection, and slide-in drawer detail panel."
+        "sourceUrl": "https://github.com/maelmoreau21/jellyfin-plugin-poster-rotator/releases/download/v1.8.5.0/Jellyfin.Plugin.PosterRotator-1.8.5.0.zip",
+        "checksum": "ab068c8e6991916e5a978e0384c26a8e",
+        "timestamp": "2026-09-10T13:15:00Z",
+        "changelog": "Release 1.8.5.0: Configurable DuplicateThreshold for perceptual hashing and deduplication tool to clean duplicates from existing pools (per-pool and library-wide)."
       }
     ]
   }

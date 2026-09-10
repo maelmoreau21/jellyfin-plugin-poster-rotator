@@ -142,4 +142,18 @@ public class Configuration : BasePluginConfiguration
     /// Utilise un hash perceptuel pour eviter les images quasi-identiques.
     /// </summary>
     public bool EnableDuplicateDetection { get; set; } = true;
+
+    /// <summary>
+    /// Seuil de distance de Hamming pour la detection de doublons (0 a 30, defaut 10).
+    /// Plus le seuil est bas, plus la comparaison est stricte.
+    /// </summary>
+    public int DuplicateThreshold { get; set; } = 10;
+
+    /// <summary>
+    /// Normalise le seuil de detection de doublons entre 0 et 30 (defaut 10).
+    /// </summary>
+    public static int NormalizeDuplicateThreshold(int value)
+    {
+        return value is < 0 or > 30 ? 10 : value;
+    }
 }

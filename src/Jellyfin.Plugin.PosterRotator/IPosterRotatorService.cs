@@ -15,4 +15,6 @@ public interface IPosterRotatorService
     DownloadStatusSnapshot GetDownloadStatus();
 
     Task<PurgePoolsResult> PurgeAsync(PoolPurgeRequest request, CancellationToken cancellationToken);
+
+    Task<PoolDeduplicateResult> DeduplicatePoolsAsync(Guid? itemId, int? threshold, CancellationToken cancellationToken);
 }

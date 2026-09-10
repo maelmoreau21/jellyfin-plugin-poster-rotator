@@ -135,6 +135,18 @@ public class PosterRotatorServiceTests
         Assert.Equal(completeId, prioritized[3]);
     }
 
+    [Theory]
+    [InlineData(-1, 10)]
+    [InlineData(0, 0)]
+    [InlineData(10, 10)]
+    [InlineData(30, 30)]
+    [InlineData(31, 10)]
+    [InlineData(100, 10)]
+    public void NormalizeDuplicateThreshold_ClampsToSafeRange(int input, int expected)
+    {
+        Assert.Equal(expected, Configuration.NormalizeDuplicateThreshold(input));
+    }
+
     [Fact]
     public void RotationRunBudget_StopsDownloadWorkWhenEitherBudgetIsExhausted()
     {

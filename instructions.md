@@ -2,7 +2,7 @@
 
 ## Goal of Branch 1.8
 
-Prepare Poster Rotator `1.8.4.5` for Jellyfin `12.0.0.0`.
+Prepare Poster Rotator `1.8.5.0` for Jellyfin `12.0.0.0`.
 
 - Backwards compatibility is not required or maintained: the only goal is to work seamlessly with the current version on Jellyfin 12 (`12.0.0.0`).
 - Do not maintain legacy Jellyfin lines (Jellyfin 10.11 / 1.6.0.0) or previous Jellyfin 12 iterations.

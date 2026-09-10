@@ -314,7 +314,8 @@ public sealed class PoolStore
             if (cfg.EnableDuplicateDetection && hash != 0)
             {
                 var existingHashes = await GetImageHashesAsync(item, poolDir, cancellationToken).ConfigureAwait(false);
-                if (ImageHash.IsDuplicate(hash, existingHashes))
+                var threshold = Configuration.NormalizeDuplicateThreshold(cfg.DuplicateThreshold);
+                if (ImageHash.IsDuplicate(hash, existingHashes, threshold))
                     throw new InvalidDataException("Duplicate image.");
             }
 
@@ -371,6 +372,105 @@ public sealed class PoolStore
         }
 
         return image;
+    }
+
+    public async Task<int> DeduplicatePoolAsync(Guid itemId, int threshold, CancellationToken cancellationToken)
+    {
+        using var poolLock = await LockPoolAsync(itemId, cancellationToken).ConfigureAwait(false);
+        var poolDir = TryGetPoolDirectory(itemId, create: false);
+        if (poolDir == null || !Directory.Exists(poolDir) || ContainsReparsePoint(poolDir))
+            return 0;
+
+        var metadata = await GetPoolAsync(itemId, reconcileFiles: true, cancellationToken).ConfigureAwait(false);
+        if (metadata == null || metadata.Images.Count <= 1)
+            return 0;
+
+        // 1. Recompute or update dHash for all existing files
+        foreach (var img in metadata.Images)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var filePath = ResolveImagePath(poolDir, img.FileName, requireExists: false);
+            if (File.Exists(filePath))
+            {
+                img.Hash = await ImageHash.ComputeNormalizedHashAsync(filePath, _imageProcessor, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        // 2. Identify the active / most recently applied poster to protect it
+        var activeImage = metadata.Images
+            .Where(img => img.LastAppliedUtc.HasValue)
+            .OrderByDescending(img => img.LastAppliedUtc!.Value)
+            .FirstOrDefault();
+
+        // 3. Partition into kept and duplicate images
+        var kept = new List<PoolImageMetadata>();
+        var duplicates = new List<PoolImageMetadata>();
+
+        if (activeImage != null)
+        {
+            kept.Add(activeImage);
+        }
+
+        foreach (var img in metadata.Images)
+        {
+            if (img == activeImage)
+                continue;
+
+            if (img.Hash != 0 && ImageHash.IsDuplicate(img.Hash, kept.Select(k => k.Hash).Where(h => h != 0), threshold))
+            {
+                duplicates.Add(img);
+            }
+            else
+            {
+                kept.Add(img);
+            }
+        }
+
+        if (duplicates.Count == 0)
+            return 0;
+
+        // 4. Delete duplicate files and remove from pool metadata
+        foreach (var dup in duplicates)
+        {
+            var filePath = ResolveImagePath(poolDir, dup.FileName, requireExists: false);
+            try
+            {
+                if (File.Exists(filePath))
+                    File.Delete(filePath);
+            }
+            catch (Exception ex)
+            {
+                _log?.LogWarning(ex, "Failed to delete duplicate image {Path}", filePath);
+            }
+
+            metadata.Images.Remove(dup);
+        }
+
+        metadata.UpdatedUtc = DateTimeOffset.UtcNow;
+        await SavePoolAsync(metadata, poolDir, cancellationToken).ConfigureAwait(false);
+        return duplicates.Count;
+    }
+
+    public async Task<PoolDeduplicateResult> DeduplicateAllPoolsAsync(int threshold, CancellationToken cancellationToken)
+    {
+        var index = await LoadIndexAsync(cancellationToken).ConfigureAwait(false);
+        var result = new PoolDeduplicateResult { TotalPools = index.Pools.Count };
+
+        foreach (var entry in index.Pools.ToArray())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (entry.ImageCount <= 1 || !Guid.TryParse(entry.ItemId, out var itemId))
+                continue;
+
+            var deleted = await DeduplicatePoolAsync(itemId, threshold, cancellationToken).ConfigureAwait(false);
+            if (deleted > 0)
+            {
+                result.DeletedCount += deleted;
+                result.PoolsAffected++;
+            }
+        }
+
+        return result;
     }
 
     public async Task<PoolImageFile> GetImageFileAsync(Guid itemId, string fileName, CancellationToken cancellationToken)
@@ -1362,5 +1462,18 @@ public sealed class DownloadStatusSnapshot
     public double ProgressPercent { get; set; }
     public string CurrentItemName { get; set; } = string.Empty;
     public string Message { get; set; } = string.Empty;
+}
+
+public sealed class PoolDeduplicateRequest
+{
+    public Guid? ItemId { get; set; }
+    public int? Threshold { get; set; }
+}
+
+public sealed class PoolDeduplicateResult
+{
+    public int DeletedCount { get; set; }
+    public int PoolsAffected { get; set; }
+    public int TotalPools { get; set; }
 }
 

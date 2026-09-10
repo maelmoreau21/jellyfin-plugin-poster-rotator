@@ -112,6 +112,9 @@ public sealed class ScheduledTaskTests
             LastPurgeRequest = request;
             return Task.FromResult(new PurgePoolsResult());
         }
+
+        public Task<PoolDeduplicateResult> DeduplicatePoolsAsync(Guid? itemId, int? threshold, CancellationToken cancellationToken) =>
+            Task.FromResult(new PoolDeduplicateResult());
     }
 
     private static string FindRepoFile(string fileName)
