@@ -12,8 +12,8 @@
         "version": "1.8.5.1",
         "targetAbi": "12.0.0.0",
         "sourceUrl": "https://github.com/maelmoreau21/jellyfin-plugin-poster-rotator/releases/download/v1.8.5.1/Jellyfin.Plugin.PosterRotator-1.8.5.1.zip",
-        "checksum": "2be52eb3b88559e8c9ca852f6e6d9014",
-        "timestamp": "2026-09-10T14:25:00Z",
+        "checksum": "17b52753360f203b27cf1a58aa6b17cb",
+        "timestamp": "2026-09-10T14:33:28Z",
         "changelog": "Release 1.8.5.1: Fix pool refilling and deduplication lock issues; refund download slots on duplicate rejections; fix UI download status race condition."
       },
       {
