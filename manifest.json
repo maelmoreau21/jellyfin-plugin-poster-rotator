@@ -12,8 +12,8 @@
         "version": "1.8.4.5",
         "targetAbi": "12.0.0.0",
         "sourceUrl": "https://github.com/maelmoreau21/jellyfin-plugin-poster-rotator/releases/download/v1.8.4.5/Jellyfin.Plugin.PosterRotator-1.8.4.5.zip",
-        "checksum": "40a027eecac99889c7fec57d802d9e44",
-        "timestamp": "2026-09-10T12:50:00Z",
+        "checksum": "53896b3d642642e35ed594cf04c0e06d",
+        "timestamp": "2026-09-10T12:54:37Z",
         "changelog": "Release 1.8.4.5: Uncapped download budget when MaxDownloadsPerRun=0 with empty-pool priority, all providers enabled for diversity, perceptual difference hash (dHash) for duplicate detection, and slide-in drawer detail panel."
       }
     ]
