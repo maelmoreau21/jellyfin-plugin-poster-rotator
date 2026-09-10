@@ -42,6 +42,26 @@ public class PosterRotatorServiceTests
     }
 
     [Fact]
+    public void RotationRunBudget_RefundDownloadSlot_RefundsSlotWhenDownloadRejected()
+    {
+        var budget = new PosterRotatorService.RotationRunBudget(new Configuration
+        {
+            MaxDownloadsPerRun = 2,
+            MaxProviderLookupsPerRun = 10
+        });
+
+        Assert.True(budget.TryUseDownloadSlot());
+        Assert.True(budget.TryUseDownloadSlot());
+        Assert.False(budget.HasDownloadSlots);
+
+        // Refund one rejected download slot
+        budget.RefundDownloadSlot();
+        Assert.True(budget.HasDownloadSlots);
+        Assert.True(budget.TryUseDownloadSlot());
+        Assert.False(budget.HasDownloadSlots);
+    }
+
+    [Fact]
     public void RotationRunBudget_AllowsZeroRotationLimitAsUnlimited()
     {
         var budget = new PosterRotatorService.RotationRunBudget(new Configuration

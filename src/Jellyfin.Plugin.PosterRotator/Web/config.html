@@ -1532,6 +1532,7 @@
         }
 
         var downloadPollTimer = null;
+        var downloadInFlight = false;
 
         function pollDownloadStatus() {
           apiGet('PosterRotator/Pools/DownloadStatus')
@@ -1555,7 +1556,7 @@
                   detail.textContent = tf('Status.DownloadProgress', percent, processed + ' / ' + candidates, images, current || t('Message.Unknown'));
                 }
                 setText('PoolsStatus', percent + '% (' + processed + '/' + candidates + ')');
-              } else {
+              } else if (!downloadInFlight) {
                 if (downloadPollTimer) {
                   clearInterval(downloadPollTimer);
                   downloadPollTimer = null;
@@ -1579,6 +1580,7 @@
 
         function downloadMissingPoolsNow() {
           setDisabled('DownloadMissingPoolsBtn', true);
+          downloadInFlight = true;
           setGlobalStatus(t('Message.DownloadStarting'));
           setText('PoolsStatus', t('Message.DownloadProgressive'));
           var banner = byId('DownloadProgressContainer');
@@ -1605,6 +1607,7 @@
               setText('PoolsStatus', t('Message.DownloadShortError'));
             })
             .finally(function () {
+              downloadInFlight = false;
               if (downloadPollTimer) {
                 clearInterval(downloadPollTimer);
                 downloadPollTimer = null;

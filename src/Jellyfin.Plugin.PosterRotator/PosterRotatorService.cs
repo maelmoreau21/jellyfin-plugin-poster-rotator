@@ -115,6 +115,21 @@ public class PosterRotatorService : IPosterRotatorService
         IProgress<double>? progress,
         CancellationToken ct)
     {
+        lock (_downloadStatusLock)
+        {
+            _currentDownloadStatus = new DownloadStatusSnapshot
+            {
+                IsRunning = true,
+                TotalCandidates = 0,
+                ProcessedCount = 0,
+                CompletedPools = 0,
+                ImagesAdded = 0,
+                ErrorCount = 0,
+                ProgressPercent = 0,
+                Message = T("Message.DownloadStarting")
+            };
+        }
+
         await _operationLock.WaitAsync(ct).ConfigureAwait(false);
         try
         {
@@ -638,6 +653,12 @@ public class PosterRotatorService : IPosterRotatorService
             return true;
         }
 
+        public void RefundDownloadSlot()
+        {
+            if (Downloads > 0)
+                Downloads--;
+        }
+
         public bool TryUseProviderLookupSlot()
         {
             if (!HasProviderLookupSlots)
@@ -859,6 +880,13 @@ public class PosterRotatorService : IPosterRotatorService
             var rotationDue = IsRotationDue(lastRotated, now, minHours);
             var allowTopUp = mode == PoolProcessingMode.DownloadOnly && budget.HasDownloadWorkRemaining;
 
+            if (poolIsLocked && (!cfg.LockImagesAfterFill || local.Count < poolSize))
+            {
+                TryDeleteFile(lockFile);
+                poolIsLocked = false;
+                _log.LogInformation("PosterRotator: unlocked incomplete pool for \"{Item}\" ({Count}/{Target}).", item.Name, local.Count, poolSize);
+            }
+
             if (_log.IsEnabled(LogLevel.Debug))
             {
                 _log.LogDebug(
@@ -907,12 +935,6 @@ public class PosterRotatorService : IPosterRotatorService
                     poolIsLocked = true;
                     _log.LogInformation("PosterRotator: locked pool for \"{Item}\" at size {Size}.", item.Name, local.Count);
                 }
-            }
-            else if (poolIsLocked && !cfg.LockImagesAfterFill)
-            {
-                TryDeleteFile(lockFile);
-                poolIsLocked = false;
-                _log.LogInformation("PosterRotator: unlocked pool for \"{Item}\" (config changed).", item.Name);
             }
 
             if (mode == PoolProcessingMode.DownloadOnly)
@@ -1281,6 +1303,11 @@ public class PosterRotatorService : IPosterRotatorService
             }
             finally
             {
+                if (string.IsNullOrWhiteSpace(finalPath) || !added.Contains(finalPath))
+                {
+                    budget.RefundDownloadSlot();
+                }
+
                 if (createdDirectory && IsDirectoryEmpty(dir))
                     TryDeleteDirectory(dir);
             }

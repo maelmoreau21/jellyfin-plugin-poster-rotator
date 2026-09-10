@@ -724,6 +724,52 @@ public sealed class PoolStoreTests
         }
     }
 
+    [Fact]
+    public async Task DeduplicatePoolAsync_RemovesDuplicates_AndDeletesPoolLockAndClearsIsLocked()
+    {
+        var root = CreateTempPluginDataFolder();
+        var itemId = Guid.NewGuid();
+
+        try
+        {
+            var store = new PoolStore(root);
+            var poolDir = store.TryGetPoolDirectory(itemId, create: true)!;
+            var img1 = Path.Combine(poolDir, "img1.png");
+            var img2 = Path.Combine(poolDir, "img2.png");
+            await File.WriteAllBytesAsync(img1, Png1x1);
+            await File.WriteAllBytesAsync(img2, Png1x1);
+
+            var snapshot = new PoolItemSnapshot(itemId, "Movie A", "Movie", "Films", null);
+            await store.EnsurePoolAsync(snapshot, poolDir, CancellationToken.None);
+            await store.RecordImageAsync(snapshot, poolDir, img1, "remote", "fr", "url1", "image/png", 1, 1, 100, CancellationToken.None);
+            await store.RecordImageAsync(snapshot, poolDir, img2, "remote", "fr", "url2", "image/png", 1, 1, 100, CancellationToken.None);
+
+            // Simulate pool was locked
+            var lockFilePath = Path.Combine(poolDir, "pool.lock");
+            await File.WriteAllTextAsync(lockFilePath, "locked");
+
+            var poolBefore = await store.GetPoolAsync(itemId, reconcileFiles: true, CancellationToken.None);
+            Assert.NotNull(poolBefore);
+            Assert.True(poolBefore.IsLocked);
+            Assert.Equal(2, poolBefore.Images.Count);
+
+            // Deduplicate with threshold 10 (hashes are identical 100 vs 100)
+            var deleted = await store.DeduplicatePoolAsync(itemId, 10, CancellationToken.None);
+
+            Assert.Equal(1, deleted);
+            Assert.False(File.Exists(lockFilePath));
+
+            var poolAfter = await store.GetPoolAsync(itemId, reconcileFiles: true, CancellationToken.None);
+            Assert.NotNull(poolAfter);
+            Assert.False(poolAfter.IsLocked);
+            Assert.Single(poolAfter.Images);
+        }
+        finally
+        {
+            DeleteTempRoot(root);
+        }
+    }
+
     private static async Task CreatePool(PoolStore store, string root, Guid itemId, string name, string library)
     {
         var poolDir = store.TryGetPoolDirectory(itemId, create: true)!;

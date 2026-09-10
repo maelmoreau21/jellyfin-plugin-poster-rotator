@@ -1,14 +1,14 @@
 {
   "category": "Metadata",
-  "changelog": "Release 1.8.5.0: Configurable DuplicateThreshold for perceptual hashing and deduplication tool to clean duplicates from existing pools (per-pool and library-wide).",
+  "changelog": "Release 1.8.5.1: Fix pool refilling and deduplication lock issues; refund download slots on duplicate rejections; fix UI download status race condition.",
   "description": "Fill a local poster pool per movie from providers, then periodically rotate the Primary Poster image from the pool. This keeps Jellyfin looking fresh with rotating poster images on an interval of your choosing.",
   "guid": "7f6eea8b-0e9c-4cbd-9d2a-31f9a37ce2b7",
   "name": "Poster Rotator",
   "overview": "Pool-then-rotate posters with optional locking.",
   "owner": "Mael",
   "targetAbi": "12.0.0.0",
-  "timestamp": "2026-09-10T13:15:00Z",
-  "version": "1.8.5.0",
+  "timestamp": "2026-09-10T14:25:00Z",
+  "version": "1.8.5.1",
   "imagePath": "jellyfin-plugin-posterrotator.png",
   "assemblies": [
     "Jellyfin.Plugin.PosterRotator.dll"

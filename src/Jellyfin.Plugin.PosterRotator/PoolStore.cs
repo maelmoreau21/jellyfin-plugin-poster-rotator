@@ -447,6 +447,20 @@ public sealed class PoolStore
         }
 
         metadata.UpdatedUtc = DateTimeOffset.UtcNow;
+        var lockFilePath = Path.Combine(poolDir, "pool.lock");
+        if (File.Exists(lockFilePath))
+        {
+            try
+            {
+                File.Delete(lockFilePath);
+            }
+            catch (Exception ex)
+            {
+                _log?.LogWarning(ex, "Failed to delete lock file {Path} after deduplication", lockFilePath);
+            }
+        }
+
+        metadata.IsLocked = false;
         await SavePoolAsync(metadata, poolDir, cancellationToken).ConfigureAwait(false);
         return duplicates.Count;
     }
