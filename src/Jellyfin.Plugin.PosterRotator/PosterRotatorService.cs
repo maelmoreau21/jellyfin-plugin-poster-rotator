@@ -283,7 +283,6 @@ public class PosterRotatorService : IPosterRotatorService
             itemIds = _library.GetItemIds(new InternalItemsQuery { Recursive = true }).ToArray();
         }
 
-        ShuffleItemIds(itemIds);
         if (itemIds.Length == 0)
         {
             _log.LogWarning("PosterRotator: no items returned by library manager; aborting run.");
@@ -300,6 +299,10 @@ public class PosterRotatorService : IPosterRotatorService
         var poolSize = NormalizePoolSize(cfg.PoolSize);
         var budget = new RotationRunBudget(cfg);
         var indexedCounts = await GetIndexedImageCountsAsync(ct).ConfigureAwait(false);
+
+        // Prioritize: empty pools first, then incomplete, then complete (shuffle within each group)
+        itemIds = PrioritizeItemIdsForDownload(itemIds, indexedCounts, poolSize);
+
         var candidateCount = itemIds.Count(itemId => !indexedCounts.TryGetValue(itemId, out var count) || count < poolSize);
         _log.LogInformation(
             "PosterRotator: missing-pool download found {CandidateCount}/{Total} candidate item(s); {CompleteCount} already complete.",
@@ -601,9 +604,13 @@ public class PosterRotatorService : IPosterRotatorService
         {
             _maxRotations = NormalizeRotationRunLimit(cfg.MaxRotationsPerRun, 500);
             _maxDownloads = NormalizeDownloadRunLimit(cfg.MaxDownloadsPerRun, 250);
-            _maxProviderLookups = NormalizeDownloadRunLimit(
-                cfg.MaxProviderLookupsPerRun <= 0 && cfg.MaxDownloadsPerRun == 0 ? 0 : cfg.MaxProviderLookupsPerRun,
-                250);
+            // When downloads are unlimited (0), provider lookups must also be unlimited
+            // so the run can process the entire library in a single pass.
+            _maxProviderLookups = cfg.MaxDownloadsPerRun == 0
+                ? int.MaxValue
+                : NormalizeDownloadRunLimit(
+                    cfg.MaxProviderLookupsPerRun <= 0 ? 0 : cfg.MaxProviderLookupsPerRun,
+                    250);
         }
 
         public int Rotations { get; private set; }
@@ -683,6 +690,48 @@ public class PosterRotatorService : IPosterRotatorService
         {
             var j = Random.Shared.Next(i + 1);
             (entries[i], entries[j]) = (entries[j], entries[i]);
+        }
+    }
+
+    /// <summary>
+    /// Prioritize items for download: empty pools (no images) first, then incomplete
+    /// pools (some images but below target), then complete pools last. Within each
+    /// priority group the order is shuffled for fairness.
+    /// </summary>
+    internal static Guid[] PrioritizeItemIdsForDownload(Guid[] itemIds, Dictionary<Guid, int> indexedCounts, int poolSize)
+    {
+        var empty = new List<Guid>();
+        var incomplete = new List<Guid>();
+        var complete = new List<Guid>();
+
+        foreach (var id in itemIds)
+        {
+            if (!indexedCounts.TryGetValue(id, out var count) || count == 0)
+                empty.Add(id);
+            else if (count < poolSize)
+                incomplete.Add(id);
+            else
+                complete.Add(id);
+        }
+
+        ShuffleList(empty);
+        ShuffleList(incomplete);
+        ShuffleList(complete);
+
+        var result = new Guid[itemIds.Length];
+        var offset = 0;
+        empty.CopyTo(result, offset); offset += empty.Count;
+        incomplete.CopyTo(result, offset); offset += incomplete.Count;
+        complete.CopyTo(result, offset);
+        return result;
+    }
+
+    private static void ShuffleList<T>(List<T> list)
+    {
+        for (var i = list.Count - 1; i > 0; i--)
+        {
+            var j = Random.Shared.Next(i + 1);
+            (list[i], list[j]) = (list[j], list[i]);
         }
     }
 
@@ -966,7 +1015,7 @@ public class PosterRotatorService : IPosterRotatorService
             var query = new RemoteImageQuery(string.Empty)
             {
                 IncludeAllLanguages = true,
-                IncludeDisabledProviders = false
+                IncludeDisabledProviders = true
             };
 
             var images = await PluginHelpers.RetryAsync(

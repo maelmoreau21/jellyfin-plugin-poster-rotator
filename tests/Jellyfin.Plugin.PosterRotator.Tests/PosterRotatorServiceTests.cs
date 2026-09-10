@@ -81,6 +81,61 @@ public class PosterRotatorServiceTests
     }
 
     [Fact]
+    public void RotationRunBudget_WhenDownloadsUnlimited_LookupsAreAlsoUnlimitedEvenIfConfigured()
+    {
+        // When MaxDownloadsPerRun is 0 (unlimited), lookups must be unlimited (int.MaxValue)
+        // even if MaxProviderLookupsPerRun was left at the default 250.
+        var budget = new PosterRotatorService.RotationRunBudget(new Configuration
+        {
+            MaxRotationsPerRun = 500,
+            MaxDownloadsPerRun = 0,
+            MaxProviderLookupsPerRun = 250
+        });
+
+        for (var i = 0; i < 300; i++)
+        {
+            Assert.True(budget.TryUseProviderLookupSlot());
+        }
+
+        Assert.True(budget.HasProviderLookupSlots);
+        Assert.True(budget.HasDownloadSlots);
+    }
+
+    [Fact]
+    public void PrioritizeItemIdsForDownload_PutsEmptyFirstThenIncompleteThenComplete()
+    {
+        var emptyId1 = Guid.NewGuid();
+        var emptyId2 = Guid.NewGuid();
+        var incompleteId = Guid.NewGuid();
+        var completeId = Guid.NewGuid();
+
+        var itemIds = new[] { completeId, incompleteId, emptyId1, emptyId2 };
+        var indexedCounts = new Dictionary<Guid, int>
+        {
+            [completeId] = 4,
+            [incompleteId] = 2,
+            [emptyId1] = 0
+            // emptyId2 is absent from dictionary (also treated as empty)
+        };
+
+        var prioritized = PosterRotatorService.PrioritizeItemIdsForDownload(itemIds, indexedCounts, poolSize: 4);
+
+        Assert.Equal(4, prioritized.Length);
+        Assert.Equal(itemIds.ToHashSet(), prioritized.ToHashSet());
+
+        // First 2 should be empty pools
+        var firstTwo = prioritized.Take(2).ToHashSet();
+        Assert.Contains(emptyId1, firstTwo);
+        Assert.Contains(emptyId2, firstTwo);
+
+        // 3rd should be incomplete pool
+        Assert.Equal(incompleteId, prioritized[2]);
+
+        // Last should be complete pool
+        Assert.Equal(completeId, prioritized[3]);
+    }
+
+    [Fact]
     public void RotationRunBudget_StopsDownloadWorkWhenEitherBudgetIsExhausted()
     {
         var budget = new PosterRotatorService.RotationRunBudget(new Configuration

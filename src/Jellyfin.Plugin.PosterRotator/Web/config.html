@@ -208,14 +208,67 @@
       white-space: nowrap;
     }
 
-    .posterRotatorDetail {
-      border: 1px solid rgba(255, 255, 255, .12);
-      border-radius: 6px;
-      padding: 10px;
+    .posterRotatorDrawerOverlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 9998;
+      background: rgba(0, 0, 0, .55);
     }
 
-    .posterRotatorDetail h3 {
-      margin-top: 0;
+    .posterRotatorDrawerOverlay.is-open {
+      display: block;
+    }
+
+    .posterRotatorDrawer {
+      display: none;
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: min(520px, 90vw);
+      z-index: 9999;
+      background: #1c1c1e;
+      border-left: 1px solid rgba(255, 255, 255, .18);
+      box-shadow: -4px 0 24px rgba(0, 0, 0, .5);
+      overflow-y: auto;
+      padding: 18px;
+      transform: translateX(100%);
+      transition: transform .25s ease;
+    }
+
+    .posterRotatorDrawer.is-open {
+      display: block;
+      transform: translateX(0);
+    }
+
+    .posterRotatorDrawerHeader {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .posterRotatorDrawerHeader h3 {
+      margin: 0;
+      flex: 1;
+    }
+
+    .posterRotatorDrawerClose {
+      background: rgba(255, 255, 255, .1);
+      border: 1px solid rgba(255, 255, 255, .2);
+      border-radius: 6px;
+      color: #fff;
+      cursor: pointer;
+      font-size: 1.1em;
+      line-height: 1;
+      padding: 6px 10px;
+      flex-shrink: 0;
+    }
+
+    .posterRotatorDrawerClose:hover {
+      background: rgba(255, 255, 255, .18);
     }
 
     .posterRotatorThumbs {
@@ -621,8 +674,12 @@
               <div id="PoolsStatus" class="posterRotatorStatus"></div>
             </div>
 
-            <div id="PoolDetail" class="posterRotatorDetail" style="display:none;">
-              <h3 id="PoolDetailTitle">Pool</h3>
+            <div id="PoolDrawerOverlay" class="posterRotatorDrawerOverlay"></div>
+            <div id="PoolDetail" class="posterRotatorDrawer">
+              <div class="posterRotatorDrawerHeader">
+                <h3 id="PoolDetailTitle">Pool</h3>
+                <button id="PoolDrawerCloseBtn" type="button" class="posterRotatorDrawerClose" title="Close" data-i18n-title="Button.Close">✕</button>
+              </div>
               <div id="PoolDetailMeta" class="posterRotatorDescription"></div>
               <div class="posterRotatorActions">
                 <button id="RotatePoolBtn" type="button" class="raised emby-button" data-i18n="Button.RotateNow">Rotate now</button>
@@ -1222,13 +1279,30 @@
             });
         }
 
+        function openPoolDrawer() {
+          var overlay = byId('PoolDrawerOverlay');
+          var drawer = byId('PoolDetail');
+          if (overlay) overlay.classList.add('is-open');
+          if (drawer) {
+            drawer.classList.add('is-open');
+            // Force reflow so the CSS transition plays
+            void drawer.offsetWidth;
+          }
+        }
+
+        function closePoolDrawer() {
+          var overlay = byId('PoolDrawerOverlay');
+          var drawer = byId('PoolDetail');
+          if (overlay) overlay.classList.remove('is-open');
+          if (drawer) drawer.classList.remove('is-open');
+        }
+
         function openPool(itemId) {
           if (!itemId) return;
           poolsState.selectedItemId = itemId;
           return apiGet('PosterRotator/Pools/' + encodeURIComponent(itemId))
             .then(function (pool) {
-              var detail = byId('PoolDetail');
-              if (detail) detail.style.display = 'block';
+              openPoolDrawer();
               setText('PoolDetailTitle', prop(pool, 'ItemName', 'itemName', t('Message.Pool')));
               var current = prop(pool, 'CurrentPoster', 'currentPoster', {});
               var currentFile = prop(current, 'FileName', 'fileName', '');
@@ -1330,8 +1404,7 @@
           postJson('PosterRotator/Purge', { Scope: 'item', ItemId: poolsState.selectedItemId })
             .then(function (result) {
               alert(tf('Message.PurgeResult', prop(result, 'DeletedCount', 'deletedCount', 0)));
-              var detail = byId('PoolDetail');
-              if (detail) detail.style.display = 'none';
+              closePoolDrawer();
               poolsState.selectedItemId = null;
               return refreshAll(true);
             })
@@ -1352,8 +1425,7 @@
           postJson('PosterRotator/Purge', payload)
             .then(function (result) {
               alert(tf('Message.PurgeResult', prop(result, 'DeletedCount', 'deletedCount', 0)));
-              var detail = byId('PoolDetail');
-              if (detail) detail.style.display = 'none';
+              closePoolDrawer();
               poolsState.selectedItemId = null;
               return refreshAll(true);
             })
@@ -1499,8 +1571,7 @@
           postJson('PosterRotator/PurgeAllPools', {})
             .then(function (result) {
               setGlobalStatus(tf('Message.PurgeResult', prop(result, 'DeletedCount', 'deletedCount', 0)));
-              var detail = byId('PoolDetail');
-              if (detail) detail.style.display = 'none';
+              closePoolDrawer();
               poolsState.selectedItemId = null;
               return refreshAll(true);
             })
@@ -1710,6 +1781,18 @@
           if (purgeItemBtn) purgeItemBtn.addEventListener('click', function () { purge('item'); });
           var deleteCurrentPoolBtn = byId('DeleteCurrentPoolBtn');
           if (deleteCurrentPoolBtn) deleteCurrentPoolBtn.addEventListener('click', deleteCurrentPool);
+          var poolDrawerCloseBtn = byId('PoolDrawerCloseBtn');
+          if (poolDrawerCloseBtn) poolDrawerCloseBtn.addEventListener('click', closePoolDrawer);
+          var poolDrawerOverlay = byId('PoolDrawerOverlay');
+          if (poolDrawerOverlay) poolDrawerOverlay.addEventListener('click', closePoolDrawer);
+          document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') {
+              var drawer = byId('PoolDetail');
+              if (drawer && drawer.classList.contains('is-open')) {
+                closePoolDrawer();
+              }
+            }
+          });
           var enableLanguageFilter = byId('EnableLanguageFilter');
           if (enableLanguageFilter) enableLanguageFilter.addEventListener('change', updateLanguageFilterVisibility);
         }

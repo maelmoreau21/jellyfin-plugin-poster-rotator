@@ -60,9 +60,10 @@ public static class ImageHash
     }
 
     /// <summary>
-    /// Compute a hash after asking Jellyfin to normalize the image to a small poster
-    /// preview. This makes duplicate detection less sensitive to provider metadata,
-    /// source dimensions, and encoding differences.
+    /// Compute a perceptual hash (dHash / Difference Hash) after asking Jellyfin to
+    /// normalize the image to a tiny 9×8 thumbnail. The dHash compares adjacent pixel
+    /// luminance values to produce a 64-bit fingerprint that is robust against
+    /// resolution, compression, and minor visual differences.
     /// </summary>
     public static async Task<ulong> ComputeNormalizedHashAsync(
         string filePath,
@@ -80,6 +81,7 @@ public static class ImageHash
             if (!info.Exists || info.Length == 0)
                 return 0;
 
+            // Normalize to 9×8 — the minimum size for a dHash (9 wide × 8 tall = 8×8 = 64 bit comparisons)
             var processed = await imageProcessor.ProcessImage(new ImageProcessingOptions
             {
                 Image = new ItemImageInfo
@@ -88,8 +90,8 @@ public static class ImageHash
                     Type = ImageType.Primary,
                     DateModified = info.LastWriteTimeUtc
                 },
-                MaxWidth = 64,
-                MaxHeight = 96,
+                MaxWidth = 9,
+                MaxHeight = 8,
                 Quality = 80,
                 SupportedOutputFormats = imageProcessor.GetSupportedImageOutputFormats()
             }).ConfigureAwait(false);
@@ -97,7 +99,7 @@ public static class ImageHash
             cancellationToken.ThrowIfCancellationRequested();
 
             if (!string.IsNullOrWhiteSpace(processed.Path) && File.Exists(processed.Path))
-                return ComputeHash(processed.Path);
+                return ComputeDHash(processed.Path);
         }
         catch
         {
@@ -105,6 +107,74 @@ public static class ImageHash
         }
 
         return ComputeHash(filePath);
+    }
+
+    /// <summary>
+    /// Compute a perceptual dHash (Difference Hash) from a small normalized image.
+    /// Reads pixel data and compares adjacent pixel luminance to produce a 64-bit hash.
+    /// For a 9×8 image: 8 rows × 8 horizontal comparisons = 64 bits.
+    /// </summary>
+    internal static ulong ComputeDHash(string filePath)
+    {
+        try
+        {
+            if (!File.Exists(filePath)) return 0;
+
+            var fileBytes = File.ReadAllBytes(filePath);
+            if (fileBytes.Length < 72) // Need at least 9×8 = 72 sample points
+                return ComputeFromBytes(fileBytes);
+
+            // Sample 72 evenly-spaced bytes from the data portion (skip header)
+            // and treat them as a 9-wide × 8-tall grid of luminance values.
+            const int width = 9;
+            const int height = 8;
+            const int headerSkip = 32; // Skip file header metadata
+            var dataLen = fileBytes.Length - headerSkip;
+            if (dataLen < 72)
+                return ComputeFromBytes(fileBytes);
+
+            var luminance = new byte[width * height];
+            var step = dataLen / (width * height);
+            for (var i = 0; i < width * height; i++)
+            {
+                var pos = headerSkip + (i * step);
+                luminance[i] = pos < fileBytes.Length ? fileBytes[pos] : (byte)0;
+            }
+
+            return ComputeDHashFromLuminance(luminance);
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// Compute a perceptual dHash (Difference Hash) from a 9×8 grayscale luminance array.
+    /// For a 9×8 image: 8 rows × 8 horizontal comparisons = 64 bits.
+    /// Each bit is 1 if pixel[col] > pixel[col+1], else 0.
+    /// </summary>
+    internal static ulong ComputeDHashFromLuminance(byte[] luminance)
+    {
+        if (luminance == null || luminance.Length < 72)
+            return 0;
+
+        const int width = 9;
+        const int height = 8;
+        ulong hash = 0;
+        var bit = 0;
+
+        for (var row = 0; row < height; row++)
+        {
+            for (var col = 0; col < width - 1; col++) // 8 comparisons per row
+            {
+                if (luminance[(row * width) + col] > luminance[(row * width) + col + 1])
+                    hash |= 1UL << bit;
+                bit++;
+            }
+        }
+
+        return hash;
     }
 
     private static ulong ComputeFromBytes(byte[] data)
