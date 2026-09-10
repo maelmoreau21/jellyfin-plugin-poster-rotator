@@ -12,8 +12,8 @@
         "version": "1.8.5.0",
         "targetAbi": "12.0.0.0",
         "sourceUrl": "https://github.com/maelmoreau21/jellyfin-plugin-poster-rotator/releases/download/v1.8.5.0/Jellyfin.Plugin.PosterRotator-1.8.5.0.zip",
-        "checksum": "ab068c8e6991916e5a978e0384c26a8e",
-        "timestamp": "2026-09-10T13:15:00Z",
+        "checksum": "73d9c51d75631e8ba83e8b0fcf765e96",
+        "timestamp": "2026-09-10T13:16:58Z",
         "changelog": "Release 1.8.5.0: Configurable DuplicateThreshold for perceptual hashing and deduplication tool to clean duplicates from existing pools (per-pool and library-wide)."
       }
     ]
