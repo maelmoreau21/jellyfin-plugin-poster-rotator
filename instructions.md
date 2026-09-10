@@ -161,18 +161,19 @@ dotnet build .\jellyfin-plugin-poster-rotator.sln -c Release --no-restore -p:Jel
 dotnet test .\jellyfin-plugin-poster-rotator.sln -c Release --no-restore -p:JellyfinPackageVersion=12.0.0-20260523021143 -warnaserror:CS0618
 ```
 
-Public fallback to verify the code without GitHub Packages access:
+Standard build and test commands for Jellyfin 12:
 
 ```powershell
-dotnet build .\jellyfin-plugin-poster-rotator.sln -c Release -p:JellyfinPackageVersion=10.11.11 -warnaserror:CS0618
-dotnet test .\jellyfin-plugin-poster-rotator.sln -c Release -p:JellyfinPackageVersion=10.11.11 -warnaserror:CS0618
+dotnet restore .\jellyfin-plugin-poster-rotator.sln
+dotnet build .\jellyfin-plugin-poster-rotator.sln -c Release --no-restore -warnaserror:CS0618
+dotnet test .\jellyfin-plugin-poster-rotator.sln -c Release --no-restore -warnaserror:CS0618
 ```
 
 ## Release and Main Branch Protocol
 
 Whenever instructed to push or send changes to the `main` branch (e.g. "envoie dans la branche main", "push sur main", "fais la release") or when preparing a release:
 
-1. **Version consistency**: Ensure the version number (e.g., `1.8.4.0`) is updated consistently across:
+1. **Version consistency**: Ensure the version number (e.g., `1.8.5.1`) is updated consistently across:
    - `src/Jellyfin.Plugin.PosterRotator/Jellyfin.Plugin.PosterRotator.csproj` (`Version`, `AssemblyVersion`, `FileVersion`)
    - `meta.json` (`version`)
    - Documentation (`instructions.md`, `README.md`)
