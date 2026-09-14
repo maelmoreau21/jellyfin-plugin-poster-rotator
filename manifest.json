@@ -12,8 +12,8 @@
         "version": "1.8.5.3",
         "targetAbi": "12.0.0.0",
         "sourceUrl": "https://github.com/maelmoreau21/jellyfin-plugin-poster-rotator/releases/download/v1.8.5.3/Jellyfin.Plugin.PosterRotator-1.8.5.3.zip",
-        "checksum": "b38593e94c77e940be77d5b08a537aa7",
-        "timestamp": "2026-09-14T07:52:00Z",
+        "checksum": "5ffda7024f4562be693837fda6c3df1f",
+        "timestamp": "2026-09-14T07:55:03Z",
         "changelog": "Release 1.8.5.3: Modernize configuration UI inspired by intro-skipper (persistent active tab styling, top action buttons, 3 stats cards, search and pagination, selected pool management with remote poster search and PC import, danger zone in Settings)."
       },
       {
