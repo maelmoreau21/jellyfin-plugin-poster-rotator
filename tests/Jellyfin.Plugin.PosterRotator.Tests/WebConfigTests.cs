@@ -224,6 +224,49 @@ public sealed class WebConfigTests
         Assert.Contains("setDisabled('DeleteCurrentPoolBtn', !hasSelectedPool);", html);
     }
 
+    [Fact]
+    public void ConfigPage_ExposesRedesignedLayoutAndActions()
+    {
+        var html = LoadConfigHtml();
+
+        // Permanent active tab styling
+        Assert.Contains(".posterRotatorTab.is-active", html);
+        Assert.Contains("background: #00a4dc", html);
+
+        // Top action buttons
+        Assert.Contains("id=\"DownloadMissingPoolsBtn\"", html);
+        Assert.Contains("id=\"DeduplicateAllPoolsBtn\"", html);
+        Assert.Contains("id=\"ForceFillPoolsBtn\"", html);
+        Assert.Contains("forceFillPools", html);
+        Assert.Contains("id=\"RefreshAllBtn\"", html);
+
+        // 3 stats cards
+        Assert.Contains("id=\"DiagPoolCount\"", html);
+        Assert.Contains("id=\"DiagDiskSize\"", html);
+        Assert.Contains("id=\"DiagOrphanCount\"", html);
+
+        // Search and navigation
+        Assert.Contains("id=\"PoolsSearch\"", html);
+        Assert.Contains("id=\"PrevPoolsBtn\"", html);
+        Assert.Contains("id=\"PoolsPageStat\"", html);
+        Assert.Contains("id=\"NextPoolsBtn\"", html);
+
+        // Selected pool actions and remote search modal
+        Assert.Contains("id=\"RotatePoolBtn\"", html);
+        Assert.Contains("id=\"SearchPostersBtn\"", html);
+        Assert.Contains("id=\"UploadPoolImageBtn\"", html);
+        Assert.Contains("id=\"DeduplicatePoolBtn\"", html);
+        Assert.Contains("id=\"RemotePostersModalOverlay\"", html);
+
+        // Purge all pools placed in SettingsPanel under Danger Zone
+        var settingsPanelIndex = html.IndexOf("id=\"SettingsPanel\"", StringComparison.Ordinal);
+        var purgeAllIndex = html.IndexOf("id=\"PurgeAllPoolsBtn\"", StringComparison.Ordinal);
+        Assert.True(settingsPanelIndex >= 0);
+        Assert.True(purgeAllIndex > settingsPanelIndex);
+        Assert.Contains("posterRotatorDangerCard", html);
+    }
+
+
     private static string LoadConfigHtml()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

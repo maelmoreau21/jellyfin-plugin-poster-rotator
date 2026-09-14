@@ -208,7 +208,27 @@ public sealed class PosterRotatorLocalization : IPosterRotatorLocalization
             ["Message.ConfirmDeduplicateAll"] = "Scan all pools and remove visual duplicates based on the configured threshold?",
             ["Message.DeduplicateItemResult"] = "Removed {0} duplicate image(s) from this pool.",
             ["Message.DeduplicateAllResult"] = "Removed {0} duplicate image(s) across {1} pool(s).",
-            ["Message.NoDuplicatesFound"] = "No duplicate images found."
+            ["Message.NoDuplicatesFound"] = "No duplicate images found.",
+            ["Button.ForceFillPools"] = "Force fill pools",
+            ["Help.ForceFillPools"] = "Rebuilds the index from existing files then downloads missing posters to reach target pool size.",
+            ["Message.ConfirmForceFill"] = "Rebuild index and force fill all missing or incomplete pools?",
+            ["Message.ForceFillStarting"] = "Analyzing and filling pools...",
+            ["Message.ForceFillRebuilt"] = "Index rebuilt ({0} pools). Downloading missing posters...",
+            ["Button.SearchRemotePosters"] = "Search posters",
+            ["Button.UploadFromPc"] = "Import from PC",
+            ["Heading.DangerZone"] = "Danger Zone",
+            ["Help.DangerZone"] = "Irreversible operations affecting all your pools and cached artwork.",
+            ["Heading.RemotePostersModal"] = "Search Posters from Providers",
+            ["Button.AddToPool"] = "Add to pool",
+            ["Message.NoRemotePosters"] = "No posters found for this item.",
+            ["Message.SearchingRemotePosters"] = "Searching available posters...",
+            ["Message.AddingRemotePoster"] = "Downloading and adding poster to pool...",
+            ["Message.RemotePosterAdded"] = "Poster added to pool successfully!",
+            ["Message.RemotePosterError"] = "Unable to add remote poster.",
+            ["Button.OpenJellyfinEditor"] = "Open Jellyfin image editor",
+            ["Label.SelectedPool"] = "Selected Pool",
+            ["Label.PoolActions"] = "Actions",
+            ["Label.NoPoolSelected"] = "Select a pool from the table above to view and manage its posters."
         },
         ["fr"] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -398,7 +418,27 @@ public sealed class PosterRotatorLocalization : IPosterRotatorLocalization
             ["Message.ConfirmDeduplicateAll"] = "Rechercher et supprimer les doublons visuels dans tous les pools selon le seuil configuré ?",
             ["Message.DeduplicateItemResult"] = "{0} image(s) en double supprimée(s) de ce pool.",
             ["Message.DeduplicateAllResult"] = "{0} image(s) en double supprimée(s) sur {1} pool(s).",
-            ["Message.NoDuplicatesFound"] = "Aucun doublon trouvé."
+            ["Message.NoDuplicatesFound"] = "Aucun doublon trouvé.",
+            ["Button.ForceFillPools"] = "Forcer le remplissage des pools",
+            ["Help.ForceFillPools"] = "Reconstruit l'index à partir des fichiers existants puis télécharge les affiches manquantes.",
+            ["Message.ConfirmForceFill"] = "Reconstruire l'index et forcer le remplissage de tous les pools incomplets ?",
+            ["Message.ForceFillStarting"] = "Analyse et remplissage des pools en cours...",
+            ["Message.ForceFillRebuilt"] = "Index reconstruit ({0} pools). Téléchargement des affiches manquantes...",
+            ["Button.SearchRemotePosters"] = "Rechercher des affiches",
+            ["Button.UploadFromPc"] = "Importer depuis mon PC",
+            ["Heading.DangerZone"] = "Zone sensible",
+            ["Help.DangerZone"] = "Opérations irréversibles affectant l'ensemble de vos pools et affiches.",
+            ["Heading.RemotePostersModal"] = "Recherche d'affiches en ligne",
+            ["Button.AddToPool"] = "Ajouter au pool",
+            ["Message.NoRemotePosters"] = "Aucune affiche trouvée pour ce média.",
+            ["Message.SearchingRemotePosters"] = "Recherche des affiches disponibles...",
+            ["Message.AddingRemotePoster"] = "Téléchargement et ajout de l'affiche au pool...",
+            ["Message.RemotePosterAdded"] = "Affiche ajoutée au pool avec succès !",
+            ["Message.RemotePosterError"] = "Impossible d'ajouter l'affiche distante.",
+            ["Button.OpenJellyfinEditor"] = "Ouvrir l'éditeur d'images Jellyfin",
+            ["Label.SelectedPool"] = "Pool sélectionné",
+            ["Label.PoolActions"] = "Actions",
+            ["Label.NoPoolSelected"] = "Sélectionnez un pool dans le tableau ci-dessus pour afficher et gérer ses affiches."
         }
     };
 
