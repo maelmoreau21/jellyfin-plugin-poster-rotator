@@ -1,6 +1,6 @@
 {
   "category": "Metadata",
-  "changelog": "Release 1.8.5.3: Modernize configuration UI inspired by intro-skipper (persistent active tab styling, top action buttons, 3 stats cards, search and pagination, selected pool management with remote poster search and PC import, danger zone in Settings).",
+  "changelog": "Release 1.8.5.4: Update dependencies (test SDK, xunit runner), Jellyfin 12 compatibility.",
   "description": "Fill a local poster pool per movie from providers, then periodically rotate the Primary Poster image from the pool. This keeps Jellyfin looking fresh with rotating poster images on an interval of your choosing.",
   "guid": "7f6eea8b-0e9c-4cbd-9d2a-31f9a37ce2b7",
   "name": "Poster Rotator",
@@ -8,7 +8,7 @@
   "owner": "Mael",
   "targetAbi": "12.0.0.0",
   "timestamp": "2026-09-14T07:50:00Z",
-  "version": "1.8.5.3",
+  "version": "1.8.5.4",
   "imagePath": "jellyfin-plugin-posterrotator.png",
   "assemblies": [
     "Jellyfin.Plugin.PosterRotator.dll"
